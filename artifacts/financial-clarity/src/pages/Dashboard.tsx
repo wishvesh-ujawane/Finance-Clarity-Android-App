@@ -10,42 +10,7 @@ import {
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
-
-function formatINR(amount: number) {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
-}
-
-// Compact formatter for large amounts — keeps cards from overflowing
-function formatINRCompact(amount: number) {
-  const abs = Math.abs(amount);
-  const sign = amount < 0 ? '-' : '';
-  if (abs >= 10000000) return `${sign}₹${(abs / 10000000).toFixed(2)} Cr`;
-  if (abs >= 100000) return `${sign}₹${(abs / 100000).toFixed(2)} L`;
-  return formatINR(amount);
-}
-
-function formatMonthLabel(month: string) {
-  const [year, m] = month.split('-');
-  return new Date(parseInt(year), parseInt(m) - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-}
-
-function formatDateLabel(dateStr: string) {
-  const d = new Date(dateStr + 'T00:00:00');
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const yestISO = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
-  if (dateStr === todayISO) return 'Today';
-  if (dateStr === yestISO) return 'Yesterday';
-  return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
-}
-
-function addMonths(month: string, delta: number): string {
-  const [year, m] = month.split('-').map(Number);
-  const d = new Date(year, m - 1 + delta);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
+import { addMonths, formatDateLabel, formatINR, formatINRCompact, formatMonthLabel } from '@/lib/finance-utils';
 
 function prevMonth(month: string): string {
   return addMonths(month, -1);
@@ -276,8 +241,9 @@ export default function Dashboard() {
                             </span>
                             <button
                               data-testid={`edit-${t.id}`}
+                              aria-label="Edit transaction"
                               onClick={() => openEditSheet(t)}
-                              className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-accent/10 text-accent transition-all"
+                              className="p-1 rounded-lg hover:bg-accent/10 text-accent transition-all"
                             >
                               <Pencil size={12} />
                             </button>
@@ -285,7 +251,8 @@ export default function Dashboard() {
                               <AlertDialogTrigger asChild>
                                 <button
                                   data-testid={`delete-${t.id}`}
-                                  className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-destructive/10 text-destructive transition-all"
+                                  aria-label="Delete transaction"
+                                  className="p-1 rounded-lg hover:bg-destructive/10 text-destructive transition-all"
                                 >
                                   <Trash2 size={12} />
                                 </button>

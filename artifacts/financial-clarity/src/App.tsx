@@ -14,6 +14,12 @@ import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
 
+function normalizeRouterBase(baseUrl: string) {
+  const normalized = baseUrl.replace(/\/$/, '');
+  if (!normalized || normalized === '.' || normalized === './') return undefined;
+  return normalized;
+}
+
 function AppLayout() {
   return (
     <div className="flex min-h-screen bg-background">
@@ -34,11 +40,13 @@ function AppLayout() {
 }
 
 function App() {
+  const routerBase = normalizeRouterBase(import.meta.env.BASE_URL);
+
   return (
     <QueryClientProvider client={queryClient}>
       <FinanceProvider>
         <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          <WouterRouter base={routerBase}>
             <AppLayout />
           </WouterRouter>
           <Toaster />

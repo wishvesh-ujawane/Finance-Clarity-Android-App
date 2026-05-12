@@ -9,21 +9,13 @@ import {
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
+import { formatINR, formatMonthLabel } from '@/lib/finance-utils';
 
 const COLOR_SWATCHES = [
   '#10B981', '#6366F1', '#F59E0B', '#3B82F6', '#EF4444',
   '#F97316', '#8B5CF6', '#EC4899', '#14B8A6', '#06B6D4',
   '#84CC16', '#D946EF', '#0EA5E9', '#F43F5E',
 ];
-
-function formatINR(amount: number) {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
-}
-
-function formatMonthLabel(month: string) {
-  const [year, m] = month.split('-');
-  return new Date(parseInt(year), parseInt(m) - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-}
 
 export default function Budgets() {
   const { budgets, categories, addBudget, updateBudget, deleteBudget, getSpentForCategory, selectedMonth, addCategory, updateCategory, deleteCategory } = useFinance();
@@ -222,10 +214,10 @@ export default function Budgets() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button data-testid={`edit-budget-${b.id}`} onClick={() => { setEditingBudgetId(b.id); setEditLimit(String(b.limit)); }} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"><Pencil size={13} /></button>
+                  <button data-testid={`edit-budget-${b.id}`} aria-label={`Edit ${b.cat?.name || 'Unknown'} budget`} onClick={() => { setEditingBudgetId(b.id); setEditLimit(String(b.limit)); }} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"><Pencil size={13} /></button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <button data-testid={`delete-budget-${b.id}`} className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"><Trash2 size={13} /></button>
+                      <button data-testid={`delete-budget-${b.id}`} aria-label={`Delete ${b.cat?.name || 'Unknown'} budget`} className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"><Trash2 size={13} /></button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
@@ -329,11 +321,11 @@ export default function Budgets() {
                           <p className="text-sm font-medium text-foreground">{cat.name}</p>
                           <p className="text-[10px] text-muted-foreground capitalize">{cat.type}</p>
                         </div>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button data-testid={`edit-cat-${cat.id}`} onClick={() => startEditCat(cat.id)} className="p-1.5 rounded-lg hover:bg-accent/10 text-accent transition-colors"><Pencil size={12} /></button>
+                        <div className="flex gap-1 transition-opacity">
+                          <button data-testid={`edit-cat-${cat.id}`} aria-label={`Edit ${cat.name}`} onClick={() => startEditCat(cat.id)} className="p-1.5 rounded-lg hover:bg-accent/10 text-accent transition-colors"><Pencil size={12} /></button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <button data-testid={`delete-cat-${cat.id}`} className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"><Trash2 size={12} /></button>
+                              <button data-testid={`delete-cat-${cat.id}`} aria-label={`Delete ${cat.name}`} className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"><Trash2 size={12} /></button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>

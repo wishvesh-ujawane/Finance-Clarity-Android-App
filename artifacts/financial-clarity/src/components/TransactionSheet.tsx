@@ -4,16 +4,13 @@ import { X, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
+import { localDateStr } from '@/lib/finance-utils';
 
 const COLOR_SWATCHES = [
   '#10B981', '#6366F1', '#F59E0B', '#3B82F6', '#EF4444',
   '#F97316', '#8B5CF6', '#EC4899', '#14B8A6', '#06B6D4',
   '#84CC16', '#D946EF', '#0EA5E9', '#F43F5E', '#A3E635',
 ];
-
-function formatDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 export function TransactionSheet() {
   const {
@@ -28,7 +25,7 @@ export function TransactionSheet() {
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [note, setNote] = useState('');
-  const [date, setDate] = useState(formatDate(new Date()));
+  const [date, setDate] = useState(localDateStr(new Date()));
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('DollarSign');
@@ -49,7 +46,7 @@ export function TransactionSheet() {
         setAmount('');
         setCategoryId('');
         setNote('');
-        setDate(formatDate(new Date()));
+        setDate(localDateStr(new Date()));
       }
       setShowNewCat(false);
     }

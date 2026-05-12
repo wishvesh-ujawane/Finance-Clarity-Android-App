@@ -9,26 +9,9 @@ import {
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
+import { formatDateLabel, formatINR, localDateStr } from '@/lib/finance-utils';
 
 type RangePreset = 'last1' | 'last3' | 'custom';
-
-function formatINR(amount: number) {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
-}
-
-function formatDateLabel(dateStr: string) {
-  const d = new Date(dateStr + 'T00:00:00');
-  const todayISO = localDateStr(new Date());
-  const yest = new Date();
-  yest.setDate(yest.getDate() - 1);
-  if (dateStr === todayISO) return 'Today';
-  if (dateStr === localDateStr(yest)) return 'Yesterday';
-  return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-}
-
-function localDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 function getPresetRange(preset: RangePreset, customFrom: string, customTo: string): { from: string; to: string } {
   const now = new Date();
@@ -272,7 +255,9 @@ export default function Transactions() {
               >
                 {/* Date header */}
                 <div className="flex items-center justify-between mb-2 px-1">
-                  <p className="text-xs font-bold text-foreground">{formatDateLabel(date)}</p>
+                  <p className="text-xs font-bold text-foreground">
+                    {formatDateLabel(date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
                   <div className="flex items-center gap-3 text-[10px] font-semibold">
                     {dayIncome > 0 && <span className="text-emerald-600 dark:text-emerald-400">+{formatINR(dayIncome)}</span>}
                     {dayExpense > 0 && <span className="text-red-500">-{formatINR(dayExpense)}</span>}
@@ -304,8 +289,9 @@ export default function Transactions() {
                           </span>
                           <button
                             data-testid={`edit-txn-${t.id}`}
+                            aria-label="Edit transaction"
                             onClick={() => openEditSheet(t)}
-                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-accent/10 text-accent transition-all"
+                            className="p-1.5 rounded-lg hover:bg-accent/10 text-accent transition-all"
                           >
                             <Pencil size={12} />
                           </button>
@@ -313,7 +299,8 @@ export default function Transactions() {
                             <AlertDialogTrigger asChild>
                               <button
                                 data-testid={`delete-txn-${t.id}`}
-                                className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-all"
+                                aria-label="Delete transaction"
+                                className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-all"
                               >
                                 <Trash2 size={12} />
                               </button>

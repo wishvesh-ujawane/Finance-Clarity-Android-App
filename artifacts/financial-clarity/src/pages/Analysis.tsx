@@ -4,16 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
-
-function formatINR(amount: number) {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
-}
-
-function formatShortINR(amount: number) {
-  if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
-  if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}k`;
-  return `₹${Math.round(amount)}`;
-}
+import { formatINR, formatShortINR } from '@/lib/finance-utils';
 
 function getLast6Months(): string[] {
   const months: string[] = [];
