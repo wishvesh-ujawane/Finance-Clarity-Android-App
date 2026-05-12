@@ -1,0 +1,351 @@
+import { useState, useMemo, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { Trash2, Pencil, Calendar, Download, FileText } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { useFinance } from '@/context/FinanceContext';
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { cn } from '@/lib/utils';
+
+type RangePreset = 'last1' | 'last3' | 'custom';
+
+function formatINR(amount: number) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
+}
+
+function formatDateLabel(dateStr: string) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const todayISO = localDateStr(new Date());
+  const yest = new Date();
+  yest.setDate(yest.getDate() - 1);
+  if (dateStr === todayISO) return 'Today';
+  if (dateStr === localDateStr(yest)) return 'Yesterday';
+  return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function getPresetRange(preset: RangePreset, customFrom: string, customTo: string): { from: string; to: string } {
+  const now = new Date();
+  if (preset === 'last1') {
+    // Previous full calendar month only (e.g. May → April 1–30)
+    const firstOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDayOfPrevMonth = new Date(firstOfCurrentMonth.getTime() - 1);
+    const firstDayOfPrevMonth = new Date(lastDayOfPrevMonth.getFullYear(), lastDayOfPrevMonth.getMonth(), 1);
+    return {
+      from: localDateStr(firstDayOfPrevMonth),
+      to: localDateStr(lastDayOfPrevMonth),
+    };
+  }
+  if (preset === 'last3') {
+    // From 1st of 3 calendar months ago to today
+    const d = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+    return { from: localDateStr(d), to: localDateStr(now) };
+  }
+  return { from: customFrom, to: customTo };
+}
+
+function formatPeriodLabel(preset: RangePreset, from: string, to: string): string {
+  if (preset === 'last1') {
+    const d = new Date(from + 'T00:00:00');
+    return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  }
+  if (preset === 'last3') return 'Last 3 Months';
+  return `${from} to ${to}`;
+}
+
+export default function Transactions() {
+  const { transactions, categories, deleteTransaction, openEditSheet } = useFinance();
+
+  const [preset, setPreset] = useState<RangePreset>('last3');
+  const [customFrom, setCustomFrom] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 3);
+    d.setDate(1);
+    return localDateStr(d);
+  });
+  const [customTo, setCustomTo] = useState(() => localDateStr(new Date()));
+  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
+
+  const { from: effectiveFrom, to: effectiveTo } = useMemo(
+    () => getPresetRange(preset, customFrom, customTo),
+    [preset, customFrom, customTo]
+  );
+
+  const filtered = useMemo(() => {
+    return transactions
+      .filter(t => {
+        if (t.date < effectiveFrom || t.date > effectiveTo) return false;
+        if (filterType !== 'all' && t.type !== filterType) return false;
+        return true;
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [transactions, effectiveFrom, effectiveTo, filterType]);
+
+  const grouped = useMemo(() => {
+    const map: Record<string, typeof filtered> = {};
+    filtered.forEach(t => {
+      if (!map[t.date]) map[t.date] = [];
+      map[t.date].push(t);
+    });
+    return Object.keys(map).sort((a, b) => b.localeCompare(a)).map(date => ({ date, txns: map[date] }));
+  }, [filtered]);
+
+  const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const totalExpenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+
+  const getCategoryById = (id: string) => categories.find(c => c.id === id);
+
+  const downloadCSV = useCallback(() => {
+    const allForExport = transactions
+      .filter(t => t.date >= effectiveFrom && t.date <= effectiveTo)
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    const headers = ['Date', 'Category', 'Amount', 'Note', 'Type'];
+    const rows = allForExport.map(t => {
+      const cat = categories.find(c => c.id === t.categoryId);
+      return [
+        t.date,
+        cat?.name || 'Unknown',
+        t.amount.toString(),
+        t.note || '',
+        t.type,
+      ].map(cell => `"${String(cell).replace(/"/g, '""')}"`);
+    });
+
+    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const period = formatPeriodLabel(preset, effectiveFrom, effectiveTo).replace(/\s+/g, '-').toLowerCase();
+    a.download = `financial-clarity-${period}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [transactions, categories, effectiveFrom, effectiveTo, preset]);
+
+  return (
+    <div className="p-4 md:p-6 pb-24 md:pb-8">
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">History</p>
+          <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Transactions</h1>
+        </div>
+        <button
+          data-testid="download-csv"
+          onClick={downloadCSV}
+          disabled={transactions.length === 0}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[hsl(222,65%,13%)] text-white text-sm font-semibold hover:bg-[hsl(222,65%,18%)] transition-colors disabled:opacity-40"
+        >
+          <Download size={14} />
+          Export CSV
+        </button>
+      </div>
+
+      {/* Range Filters */}
+      <div className="bg-card border border-border rounded-2xl p-4 mb-4 space-y-3">
+        <div className="flex gap-2">
+          {([
+            { key: 'last1', label: 'Last Month' },
+            { key: 'last3', label: 'Last 3 Months' },
+            { key: 'custom', label: 'Custom' },
+          ] as { key: RangePreset; label: string }[]).map(({ key, label }) => (
+            <button
+              key={key}
+              data-testid={`range-${key}`}
+              onClick={() => setPreset(key)}
+              className={cn(
+                'flex-1 py-2 rounded-xl text-xs font-semibold transition-all',
+                preset === key ? 'bg-accent text-white shadow' : 'bg-muted text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {preset === 'custom' && (
+          <div className="flex gap-2 items-center">
+            <div className="flex-1">
+              <label className="text-[10px] text-muted-foreground font-medium block mb-1">From</label>
+              <input
+                data-testid="from-date"
+                type="date"
+                value={customFrom}
+                onChange={e => setCustomFrom(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-muted rounded-lg border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
+              />
+            </div>
+            <Calendar size={14} className="text-muted-foreground mt-4 flex-shrink-0" />
+            <div className="flex-1">
+              <label className="text-[10px] text-muted-foreground font-medium block mb-1">To</label>
+              <input
+                data-testid="to-date"
+                type="date"
+                value={customTo}
+                onChange={e => setCustomTo(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-muted rounded-lg border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Active range label */}
+        <p className="text-[10px] text-muted-foreground">
+          Showing: <span className="font-semibold text-foreground">{formatPeriodLabel(preset, effectiveFrom, effectiveTo)}</span>
+          {preset !== 'custom' && (
+            <span className="ml-1">({effectiveFrom} — {effectiveTo})</span>
+          )}
+        </p>
+
+        {/* Type filter */}
+        <div className="flex gap-2">
+          {(['all', 'income', 'expense'] as const).map(t => (
+            <button
+              key={t}
+              data-testid={`filter-${t}`}
+              onClick={() => setFilterType(t)}
+              className={cn(
+                'flex-1 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all',
+                filterType === t
+                  ? t === 'all' ? 'bg-[hsl(222,65%,13%)] text-white' : t === 'income' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+                  : 'bg-muted text-muted-foreground'
+              )}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Summary Bar */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="bg-card border border-border rounded-xl p-3 text-center">
+          <p className="text-[10px] text-muted-foreground">Transactions</p>
+          <p className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{filtered.length}</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-3 text-center">
+          <p className="text-[10px] text-muted-foreground">Income</p>
+          <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 truncate">{formatINR(totalIncome)}</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-3 text-center">
+          <p className="text-[10px] text-muted-foreground">Expenses</p>
+          <p className="text-xs font-bold text-red-500 truncate">{formatINR(totalExpenses)}</p>
+        </div>
+      </div>
+
+      {/* Transaction List grouped by date */}
+      {grouped.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+            <FileText size={24} />
+          </div>
+          <p className="text-sm font-semibold mb-1">No transactions found</p>
+          <p className="text-xs text-center max-w-xs">
+            {preset === 'last1'
+              ? `No transactions recorded for ${formatPeriodLabel(preset, effectiveFrom, effectiveTo)}`
+              : preset === 'last3'
+                ? 'No transactions in the last 3 months'
+                : `No transactions between ${effectiveFrom} and ${effectiveTo}`}
+          </p>
+          <p className="text-xs mt-1 text-muted-foreground/60">Try a different date range or add some transactions</p>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {grouped.map(({ date, txns }, gi) => {
+            const dayIncome = txns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+            const dayExpense = txns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+
+            return (
+              <motion.div
+                key={date}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: gi * 0.04 }}
+              >
+                {/* Date header */}
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <p className="text-xs font-bold text-foreground">{formatDateLabel(date)}</p>
+                  <div className="flex items-center gap-3 text-[10px] font-semibold">
+                    {dayIncome > 0 && <span className="text-emerald-600 dark:text-emerald-400">+{formatINR(dayIncome)}</span>}
+                    {dayExpense > 0 && <span className="text-red-500">-{formatINR(dayExpense)}</span>}
+                  </div>
+                </div>
+
+                <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
+                  {txns.map(t => {
+                    const cat = getCategoryById(t.categoryId);
+                    return (
+                      <div
+                        key={t.id}
+                        className="group flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors"
+                        data-testid={`txn-${t.id}`}
+                      >
+                        <div
+                          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: (cat?.color || '#6366F1') + '22' }}
+                        >
+                          <CategoryIcon icon={cat?.icon || 'DollarSign'} color={cat?.color || '#6366F1'} size={16} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground">{cat?.name || 'Unknown'}</p>
+                          {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <span className={cn('text-sm font-bold', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+                            {t.type === 'income' ? '+' : '-'}{formatINR(t.amount)}
+                          </span>
+                          <button
+                            data-testid={`edit-txn-${t.id}`}
+                            onClick={() => openEditSheet(t)}
+                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-accent/10 text-accent transition-all"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button
+                                data-testid={`delete-txn-${t.id}`}
+                                className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-all"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Transaction?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you really want to delete this transaction? This action cannot be undone and will update your balances and budget data.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteTransaction(t.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Yes, Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
