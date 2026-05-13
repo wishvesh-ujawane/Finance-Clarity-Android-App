@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Pencil, Trash2, Check, X, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Check, X, AlertTriangle, ChevronDown } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -195,6 +195,22 @@ export default function Budgets() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
+              role={editingBudgetId === b.id ? undefined : 'button'}
+              tabIndex={editingBudgetId === b.id ? undefined : 0}
+              onClick={() => {
+                if (editingBudgetId !== b.id) {
+                  setEditingBudgetId(b.id);
+                  setEditLimit(String(b.limit));
+                }
+              }}
+              onKeyDown={e => {
+                if (editingBudgetId === b.id) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setEditingBudgetId(b.id);
+                  setEditLimit(String(b.limit));
+                }
+              }}
               className={cn('bg-card border rounded-2xl p-5 transition-colors', isOver ? 'border-red-200 dark:border-red-900' : isWarning ? 'border-amber-200 dark:border-amber-900' : 'border-border')}
               data-testid={`budget-${b.id}`}
             >
@@ -213,24 +229,6 @@ export default function Budgets() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button data-testid={`edit-budget-${b.id}`} aria-label={`Edit ${b.cat?.name || 'Unknown'} budget`} onClick={() => { setEditingBudgetId(b.id); setEditLimit(String(b.limit)); }} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"><Pencil size={13} /></button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <button data-testid={`delete-budget-${b.id}`} aria-label={`Delete ${b.cat?.name || 'Unknown'} budget`} className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"><Trash2 size={13} /></button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Budget?</AlertDialogTitle>
-                        <AlertDialogDescription>Are you sure you really want to delete this budget? Your transactions will not be affected.</AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => deleteBudget(b.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
               </div>
 
               <div className="relative h-2 bg-muted rounded-full overflow-hidden mb-2">
@@ -246,6 +244,21 @@ export default function Budgets() {
                     </div>
                     <button onClick={() => handleEditBudgetSave(b.id)} className="p-1.5 rounded-lg bg-emerald-500 text-white"><Check size={13} /></button>
                     <button onClick={() => setEditingBudgetId(null)} className="p-1.5 rounded-lg bg-muted text-muted-foreground"><X size={13} /></button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <button data-testid={`delete-budget-${b.id}`} aria-label={`Delete ${b.cat?.name || 'Unknown'} budget`} className="p-1.5 rounded-lg bg-destructive/10 text-destructive"><Trash2 size={13} /></button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Budget?</AlertDialogTitle>
+                          <AlertDialogDescription>Are you sure you really want to delete this budget? Your transactions will not be affected.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => { deleteBudget(b.id); setEditingBudgetId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 ) : (
                   <>
@@ -311,9 +324,30 @@ export default function Budgets() {
                           <button onClick={saveEditCat} className="flex-1 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-semibold"><Check size={12} className="inline mr-1" />Save</button>
                           <button onClick={() => setEditingCatId(null)} className="flex-1 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-semibold"><X size={12} className="inline mr-1" />Cancel</button>
                         </div>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <button className="w-full py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-semibold">
+                              <Trash2 size={12} className="inline mr-1" />Delete Category
+                            </button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Category?</AlertDialogTitle>
+                              <AlertDialogDescription>Are you sure you really want to delete "{cat.name}"? Its associated budget will also be removed. Existing transactions will show as Unknown.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => { deleteCategory(cat.id); setEditingCatId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     ) : (
-                      <div className="group flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/40 transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => startEditCat(cat.id)}
+                        className="w-full group flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/40 transition-colors text-left"
+                      >
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: cat.color + '22' }}>
                           <CategoryIcon icon={cat.icon} color={cat.color} size={14} />
                         </div>
@@ -321,25 +355,7 @@ export default function Budgets() {
                           <p className="text-sm font-medium text-foreground">{cat.name}</p>
                           <p className="text-[10px] text-muted-foreground capitalize">{cat.type}</p>
                         </div>
-                        <div className="flex gap-1 transition-opacity">
-                          <button data-testid={`edit-cat-${cat.id}`} aria-label={`Edit ${cat.name}`} onClick={() => startEditCat(cat.id)} className="p-1.5 rounded-lg hover:bg-accent/10 text-accent transition-colors"><Pencil size={12} /></button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <button data-testid={`delete-cat-${cat.id}`} aria-label={`Delete ${cat.name}`} className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"><Trash2 size={12} /></button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Category?</AlertDialogTitle>
-                                <AlertDialogDescription>Are you sure you really want to delete "{cat.name}"? Its associated budget will also be removed. Existing transactions will show as Unknown.</AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => deleteCategory(cat.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </div>
+                      </button>
                     )}
                   </div>
                 ))}

@@ -19,6 +19,7 @@ interface FinanceContextType {
   categories: Category[];
   budgets: Budget[];
   addTransaction: (t: Omit<Transaction, 'id'>) => void;
+  importTransactions: (items: Omit<Transaction, 'id'>[]) => number;
   updateTransaction: (id: string, updates: Omit<Transaction, 'id'>) => void;
   deleteTransaction: (id: string) => void;
   addCategory: (c: Omit<Category, 'id'>) => Category;
@@ -152,7 +153,7 @@ function createId(): string {
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>(() =>
-    loadArrayFromStorage('transactions', [], isValidTransaction)
+    loadArrayFromStorage('transactions', [], isValidTransaction).map(t => ({ ...t, note: t.note || '' }))
   );
   const [categories, setCategories] = useState<Category[]>(() => {
     const stored = loadArrayFromStorage('categories', [], isValidCategory);
@@ -172,6 +173,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const addTransaction = useCallback((t: Omit<Transaction, 'id'>) => {
     setTransactions(prev => [{ ...t, id: createId() }, ...prev]);
+  }, []);
+
+  const importTransactions = useCallback((items: Omit<Transaction, 'id'>[]) => {
+    if (items.length === 0) return 0;
+    setTransactions(prev => [
+      ...items.map(t => ({ ...t, id: createId() })),
+      ...prev,
+    ]);
+    return items.length;
   }, []);
 
   const updateTransaction = useCallback((id: string, updates: Omit<Transaction, 'id'>) => {
@@ -268,7 +278,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   return (
     <FinanceContext.Provider value={{
       transactions, categories, budgets,
-      addTransaction, updateTransaction, deleteTransaction,
+      addTransaction, importTransactions, updateTransaction, deleteTransaction,
       addCategory, updateCategory, deleteCategory,
       addBudget, updateBudget, deleteBudget,
       selectedMonth, setSelectedMonth,

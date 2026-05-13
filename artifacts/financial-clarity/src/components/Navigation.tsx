@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'wouter';
-import { LayoutDashboard, PieChart, BarChart3, TrendingUp, Receipt } from 'lucide-react';
+import { LayoutDashboard, PieChart, BarChart3, TrendingUp, Receipt, Settings } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { cn } from '@/lib/utils';
 import { formatINR } from '@/lib/finance-utils';
@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { path: '/transactions', label: 'Transactions', icon: Receipt },
   { path: '/budgets', label: 'Budgets', icon: PieChart },
   { path: '/analysis', label: 'Analysis', icon: BarChart3 },
+  { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export function Navigation() {

@@ -1,15 +1,11 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Trash2, Pencil, Calendar, Download, FileText } from 'lucide-react';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
+import { Calendar, Download, FileText } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { formatDateLabel, formatINR, localDateStr } from '@/lib/finance-utils';
+import { buildTransactionsCsv, exportCsvFile } from '@/lib/csv';
 
 type RangePreset = 'last1' | 'last3' | 'custom';
 
@@ -43,7 +39,7 @@ function formatPeriodLabel(preset: RangePreset, from: string, to: string): strin
 }
 
 export default function Transactions() {
-  const { transactions, categories, deleteTransaction, openEditSheet } = useFinance();
+  const { transactions, categories, openEditSheet } = useFinance();
 
   const [preset, setPreset] = useState<RangePreset>('last3');
   const [customFrom, setCustomFrom] = useState(() => {
@@ -54,6 +50,7 @@ export default function Transactions() {
   });
   const [customTo, setCustomTo] = useState(() => localDateStr(new Date()));
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
+  const [exportError, setExportError] = useState('');
 
   const { from: effectiveFrom, to: effectiveTo } = useMemo(
     () => getPresetRange(preset, customFrom, customTo),
@@ -84,34 +81,18 @@ export default function Transactions() {
 
   const getCategoryById = (id: string) => categories.find(c => c.id === id);
 
-  const downloadCSV = useCallback(() => {
+  const downloadCSV = useCallback(async () => {
+    setExportError('');
     const allForExport = transactions
       .filter(t => t.date >= effectiveFrom && t.date <= effectiveTo)
       .sort((a, b) => b.date.localeCompare(a.date));
 
-    const headers = ['Date', 'Category', 'Amount', 'Note', 'Type'];
-    const rows = allForExport.map(t => {
-      const cat = categories.find(c => c.id === t.categoryId);
-      return [
-        t.date,
-        cat?.name || 'Unknown',
-        t.amount.toString(),
-        t.note || '',
-        t.type,
-      ].map(cell => `"${String(cell).replace(/"/g, '""')}"`);
-    });
-
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
     const period = formatPeriodLabel(preset, effectiveFrom, effectiveTo).replace(/\s+/g, '-').toLowerCase();
-    a.download = `financial-clarity-${period}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      await exportCsvFile(`financial-clarity-${period}.csv`, buildTransactionsCsv(allForExport, categories));
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Export failed.');
+    }
   }, [transactions, categories, effectiveFrom, effectiveTo, preset]);
 
   return (
@@ -131,6 +112,7 @@ export default function Transactions() {
           Export CSV
         </button>
       </div>
+      {exportError && <p className="text-xs font-medium text-red-500 mb-3">{exportError}</p>}
 
       {/* Range Filters */}
       <div className="bg-card border border-border rounded-2xl p-4 mb-4 space-y-3">
@@ -270,7 +252,16 @@ export default function Transactions() {
                     return (
                       <div
                         key={t.id}
-                        className="group flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openEditSheet(t)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            openEditSheet(t);
+                          }
+                        }}
+                        className="group flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer"
                         data-testid={`txn-${t.id}`}
                       >
                         <div
@@ -287,42 +278,6 @@ export default function Transactions() {
                           <span className={cn('text-sm font-bold', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
                             {t.type === 'income' ? '+' : '-'}{formatINR(t.amount)}
                           </span>
-                          <button
-                            data-testid={`edit-txn-${t.id}`}
-                            aria-label="Edit transaction"
-                            onClick={() => openEditSheet(t)}
-                            className="p-1.5 rounded-lg hover:bg-accent/10 text-accent transition-all"
-                          >
-                            <Pencil size={12} />
-                          </button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <button
-                                data-testid={`delete-txn-${t.id}`}
-                                aria-label="Delete transaction"
-                                className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-all"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Transaction?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you really want to delete this transaction? This action cannot be undone and will update your balances and budget data.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => deleteTransaction(t.id)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                  Yes, Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
                         </div>
                       </div>
                     );

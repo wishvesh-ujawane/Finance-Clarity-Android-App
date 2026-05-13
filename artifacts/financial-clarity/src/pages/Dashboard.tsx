@@ -1,12 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Trash2, Pencil, ArrowUpRight, ArrowDownLeft, ArrowRightLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownLeft, ArrowRightLeft } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
@@ -23,7 +18,7 @@ export default function Dashboard() {
   const {
     transactions, categories, selectedMonth, setSelectedMonth,
     getTotalIncome, getTotalExpenses, getBalance, getCarryForward,
-    deleteTransaction, openEditSheet,
+    openEditSheet,
   } = useFinance();
 
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
@@ -222,7 +217,16 @@ export default function Dashboard() {
                       return (
                         <div
                           key={t.id}
-                          className="group flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-muted/60 transition-colors"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => openEditSheet(t)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              openEditSheet(t);
+                            }
+                          }}
+                          className="group flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-muted/60 transition-colors cursor-pointer"
                           data-testid={`transaction-${t.id}`}
                         >
                           <div
@@ -239,42 +243,6 @@ export default function Dashboard() {
                             <span className={cn('text-sm font-bold', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
                               {t.type === 'income' ? '+' : '-'}{formatINRCompact(t.amount)}
                             </span>
-                            <button
-                              data-testid={`edit-${t.id}`}
-                              aria-label="Edit transaction"
-                              onClick={() => openEditSheet(t)}
-                              className="p-1 rounded-lg hover:bg-accent/10 text-accent transition-all"
-                            >
-                              <Pencil size={12} />
-                            </button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <button
-                                  data-testid={`delete-${t.id}`}
-                                  aria-label="Delete transaction"
-                                  className="p-1 rounded-lg hover:bg-destructive/10 text-destructive transition-all"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Transaction?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you really want to delete this transaction? This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => deleteTransaction(t.id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
                           </div>
                         </div>
                       );

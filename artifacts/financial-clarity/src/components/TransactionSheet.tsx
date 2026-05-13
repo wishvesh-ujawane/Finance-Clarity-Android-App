@@ -1,6 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Check, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
@@ -15,7 +20,7 @@ const COLOR_SWATCHES = [
 export function TransactionSheet() {
   const {
     isSheetOpen, closeSheet, categories,
-    addTransaction, updateTransaction, addCategory,
+    addTransaction, updateTransaction, deleteTransaction, addCategory,
     editingTransaction,
   } = useFinance();
 
@@ -92,6 +97,12 @@ export function TransactionSheet() {
     setShowNewCat(false);
   };
 
+  const handleDelete = () => {
+    if (!editingTransaction) return;
+    deleteTransaction(editingTransaction.id);
+    handleClose();
+  };
+
   return (
     <AnimatePresence>
       {isSheetOpen && (
@@ -119,13 +130,46 @@ export function TransactionSheet() {
                 <h2 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
                   {isEditing ? 'Edit Transaction' : 'Add Transaction'}
                 </h2>
-                <button
-                  data-testid="sheet-close"
-                  onClick={handleClose}
-                  className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
-                >
-                  <X size={16} />
-                </button>
+                <div className="flex items-center gap-2">
+                  {isEditing && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <button
+                          data-testid="delete-transaction-in-sheet"
+                          aria-label="Delete transaction"
+                          className="w-8 h-8 rounded-full bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive/15 transition-colors"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Transaction?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you really want to delete this transaction? This action cannot be undone and will update your balances and budget data.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={handleDelete}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                  <button
+                    data-testid="sheet-close"
+                    aria-label="Close transaction sheet"
+                    onClick={handleClose}
+                    className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
 
               {/* Type Toggle */}

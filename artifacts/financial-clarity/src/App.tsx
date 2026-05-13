@@ -10,6 +10,7 @@ import Dashboard from '@/pages/Dashboard';
 import Budgets from '@/pages/Budgets';
 import Analysis from '@/pages/Analysis';
 import Transactions from '@/pages/Transactions';
+import Settings from '@/pages/Settings';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ function AppLayout() {
           <Route path="/transactions" component={Transactions} />
           <Route path="/budgets" component={Budgets} />
           <Route path="/analysis" component={Analysis} />
+          <Route path="/settings" component={Settings} />
           <Route component={NotFound} />
         </Switch>
       </main>
