@@ -10,9 +10,16 @@ import Dashboard from '@/pages/Dashboard';
 import Budgets from '@/pages/Budgets';
 import Analysis from '@/pages/Analysis';
 import Transactions from '@/pages/Transactions';
+import Settings from '@/pages/Settings';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
+
+function normalizeRouterBase(baseUrl: string) {
+  const normalized = baseUrl.replace(/\/$/, '');
+  if (!normalized || normalized === '.' || normalized === './') return undefined;
+  return normalized;
+}
 
 function AppLayout() {
   return (
@@ -24,6 +31,7 @@ function AppLayout() {
           <Route path="/transactions" component={Transactions} />
           <Route path="/budgets" component={Budgets} />
           <Route path="/analysis" component={Analysis} />
+          <Route path="/settings" component={Settings} />
           <Route component={NotFound} />
         </Switch>
       </main>
@@ -34,11 +42,13 @@ function AppLayout() {
 }
 
 function App() {
+  const routerBase = normalizeRouterBase(import.meta.env.BASE_URL);
+
   return (
     <QueryClientProvider client={queryClient}>
       <FinanceProvider>
         <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          <WouterRouter base={routerBase}>
             <AppLayout />
           </WouterRouter>
           <Toaster />

@@ -1,18 +1,16 @@
 import { Link, useLocation } from 'wouter';
-import { LayoutDashboard, PieChart, BarChart3, TrendingUp, Receipt } from 'lucide-react';
+import { LayoutDashboard, PieChart, BarChart3, TrendingUp, Receipt, Settings } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { cn } from '@/lib/utils';
+import { formatINR } from '@/lib/finance-utils';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/transactions', label: 'Transactions', icon: Receipt },
   { path: '/budgets', label: 'Budgets', icon: PieChart },
   { path: '/analysis', label: 'Analysis', icon: BarChart3 },
+  { path: '/settings', label: 'Settings', icon: Settings },
 ];
-
-function formatINR(amount: number) {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
-}
 
 export function Navigation() {
   const [location] = useLocation();

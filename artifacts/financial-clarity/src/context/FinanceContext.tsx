@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Transaction, Category, Budget } from '@/lib/types';
+import { currentMonth } from '@/lib/finance-utils';
 
 const DEFAULT_CATEGORIES: Category[] = [
   { id: 'groceries', name: 'Groceries', icon: 'ShoppingCart', color: '#10B981', type: 'expense' },
@@ -18,6 +19,7 @@ interface FinanceContextType {
   categories: Category[];
   budgets: Budget[];
   addTransaction: (t: Omit<Transaction, 'id'>) => void;
+  importTransactions: (items: Omit<Transaction, 'id'>[]) => number;
   updateTransaction: (id: string, updates: Omit<Transaction, 'id'>) => void;
   deleteTransaction: (id: string) => void;
   addCategory: (c: Omit<Category, 'id'>) => Category;
@@ -41,45 +43,125 @@ interface FinanceContextType {
 }
 
 const FinanceContext = createContext<FinanceContextType | null>(null);
+const skippedInitialStorageWrites = new Set<string>();
 
 function getStorageKey(key: string) {
   return `financial-clarity:${key}`;
 }
 
-function loadFromStorage<T>(key: string, fallback: T): T {
+function getBackupStorageKey(key: string) {
+  return `financial-clarity:backup:${key}:${Date.now()}`;
+}
+
+function preserveRawStorage(key: string, raw: string): void {
+  try {
+    localStorage.setItem(getBackupStorageKey(key), raw);
+  } catch {
+    // ignore
+  }
+  skippedInitialStorageWrites.add(key);
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isValidTransaction(value: unknown): value is Transaction {
+  return (
+    isObject(value) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    (value.type === 'income' || value.type === 'expense') &&
+    typeof value.amount === 'number' &&
+    Number.isFinite(value.amount) &&
+    typeof value.categoryId === 'string' &&
+    value.categoryId.length > 0 &&
+    (value.note === undefined || typeof value.note === 'string') &&
+    typeof value.date === 'string' &&
+    value.date.length > 0
+  );
+}
+
+function isValidCategory(value: unknown): value is Category {
+  return (
+    isObject(value) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    typeof value.name === 'string' &&
+    value.name.length > 0 &&
+    typeof value.icon === 'string' &&
+    typeof value.color === 'string' &&
+    (value.type === 'income' || value.type === 'expense' || value.type === 'both')
+  );
+}
+
+function isValidBudget(value: unknown): value is Budget {
+  return (
+    isObject(value) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    typeof value.categoryId === 'string' &&
+    value.categoryId.length > 0 &&
+    typeof value.limit === 'number' &&
+    Number.isFinite(value.limit)
+  );
+}
+
+function loadArrayFromStorage<T>(key: string, fallback: T[], isValid: (value: unknown) => value is T): T[] {
   try {
     const raw = localStorage.getItem(getStorageKey(key));
     if (!raw) return fallback;
-    return JSON.parse(raw) as T;
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      preserveRawStorage(key, raw);
+      return fallback;
+    }
+    const filtered = parsed.filter(isValid);
+    if (filtered.length !== parsed.length) {
+      preserveRawStorage(key, raw);
+    }
+    return filtered;
   } catch {
+    try {
+      const raw = localStorage.getItem(getStorageKey(key));
+      if (raw) preserveRawStorage(key, raw);
+    } catch {
+      // ignore
+    }
     return fallback;
   }
 }
 
 function saveToStorage<T>(key: string, value: T): void {
   try {
+    if (skippedInitialStorageWrites.has(key)) {
+      skippedInitialStorageWrites.delete(key);
+      return;
+    }
     localStorage.setItem(getStorageKey(key), JSON.stringify(value));
   } catch {
     // ignore
   }
 }
 
-function currentMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+function createId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>(() =>
-    loadFromStorage('transactions', [])
+    loadArrayFromStorage('transactions', [], isValidTransaction).map(t => ({ ...t, note: t.note || '' }))
   );
   const [categories, setCategories] = useState<Category[]>(() => {
-    const stored = loadFromStorage<Category[]>('categories', []);
+    const stored = loadArrayFromStorage('categories', [], isValidCategory);
     if (stored.length === 0) return DEFAULT_CATEGORIES;
     return stored;
   });
   const [budgets, setBudgets] = useState<Budget[]>(() =>
-    loadFromStorage('budgets', [])
+    loadArrayFromStorage('budgets', [], isValidBudget)
   );
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -90,7 +172,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage('budgets', budgets); }, [budgets]);
 
   const addTransaction = useCallback((t: Omit<Transaction, 'id'>) => {
-    setTransactions(prev => [{ ...t, id: crypto.randomUUID() }, ...prev]);
+    setTransactions(prev => [{ ...t, id: createId() }, ...prev]);
+  }, []);
+
+  const importTransactions = useCallback((items: Omit<Transaction, 'id'>[]) => {
+    if (items.length === 0) return 0;
+    setTransactions(prev => [
+      ...items.map(t => ({ ...t, id: createId() })),
+      ...prev,
+    ]);
+    return items.length;
   }, []);
 
   const updateTransaction = useCallback((id: string, updates: Omit<Transaction, 'id'>) => {
@@ -102,7 +193,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addCategory = useCallback((c: Omit<Category, 'id'>): Category => {
-    const newCat: Category = { ...c, id: crypto.randomUUID() };
+    const newCat: Category = { ...c, id: createId() };
     setCategories(prev => [...prev, newCat]);
     return newCat;
   }, []);
@@ -122,7 +213,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       if (existing) {
         return prev.map(x => x.categoryId === b.categoryId ? { ...x, limit: b.limit } : x);
       }
-      return [...prev, { ...b, id: crypto.randomUUID() }];
+      return [...prev, { ...b, id: createId() }];
     });
   }, []);
 
@@ -187,7 +278,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   return (
     <FinanceContext.Provider value={{
       transactions, categories, budgets,
-      addTransaction, updateTransaction, deleteTransaction,
+      addTransaction, importTransactions, updateTransaction, deleteTransaction,
       addCategory, updateCategory, deleteCategory,
       addBudget, updateBudget, deleteBudget,
       selectedMonth, setSelectedMonth,

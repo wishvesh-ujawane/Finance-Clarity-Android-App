@@ -1,9 +1,15 @@
 import { useState, useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Check, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
+import { localDateStr } from '@/lib/finance-utils';
 
 const COLOR_SWATCHES = [
   '#10B981', '#6366F1', '#F59E0B', '#3B82F6', '#EF4444',
@@ -11,14 +17,87 @@ const COLOR_SWATCHES = [
   '#84CC16', '#D946EF', '#0EA5E9', '#F43F5E', '#A3E635',
 ];
 
-function formatDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const CALCULATOR_KEYS = ['+', '-', 'x', '/', '='] as const;
+const OPERATORS = ['+', '-', 'x', '/'];
+
+function isOperator(value: string) {
+  return OPERATORS.includes(value);
+}
+
+function formatAmountResult(value: number) {
+  const rounded = Math.round(value * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+}
+
+function evaluateAmountExpression(expression: string): number | null {
+  const source = expression.replace(/\s/g, '').replace(/×/g, 'x').replace(/\*/g, 'x');
+  if (!source) return null;
+
+  const tokens: Array<number | string> = [];
+  let index = 0;
+
+  while (index < source.length) {
+    const char = source[index];
+    const prev = tokens[tokens.length - 1];
+    const isSignedNumber = (char === '+' || char === '-') && (tokens.length === 0 || typeof prev === 'string');
+
+    if (/\d|\./.test(char) || isSignedNumber) {
+      let numberText = char;
+      index += 1;
+      while (index < source.length && /[\d.]/.test(source[index])) {
+        numberText += source[index];
+        index += 1;
+      }
+      const value = Number.parseFloat(numberText);
+      if (!Number.isFinite(value)) return null;
+      tokens.push(value);
+      continue;
+    }
+
+    if (isOperator(char)) {
+      if (tokens.length === 0 || typeof prev === 'string') return null;
+      tokens.push(char);
+      index += 1;
+      continue;
+    }
+
+    return null;
+  }
+
+  if (tokens.length === 0 || typeof tokens[tokens.length - 1] === 'string') return null;
+
+  const collapsed: Array<number | string> = [];
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    if (token !== 'x' && token !== '/') {
+      collapsed.push(token);
+      continue;
+    }
+
+    const left = collapsed.pop();
+    const right = tokens[i + 1];
+    if (typeof left !== 'number' || typeof right !== 'number') return null;
+    if (token === '/' && right === 0) return null;
+    collapsed.push(token === 'x' ? left * right : left / right);
+    i += 1;
+  }
+
+  let total = collapsed[0];
+  if (typeof total !== 'number') return null;
+  for (let i = 1; i < collapsed.length; i += 2) {
+    const operator = collapsed[i];
+    const right = collapsed[i + 1];
+    if (typeof operator !== 'string' || typeof right !== 'number') return null;
+    total = operator === '+' ? total + right : total - right;
+  }
+
+  return Number.isFinite(total) ? total : null;
 }
 
 export function TransactionSheet() {
   const {
     isSheetOpen, closeSheet, categories,
-    addTransaction, updateTransaction, addCategory,
+    addTransaction, updateTransaction, deleteTransaction, addCategory,
     editingTransaction,
   } = useFinance();
 
@@ -28,7 +107,7 @@ export function TransactionSheet() {
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [note, setNote] = useState('');
-  const [date, setDate] = useState(formatDate(new Date()));
+  const [date, setDate] = useState(localDateStr(new Date()));
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('DollarSign');
@@ -49,7 +128,7 @@ export function TransactionSheet() {
         setAmount('');
         setCategoryId('');
         setNote('');
-        setDate(formatDate(new Date()));
+        setDate(localDateStr(new Date()));
       }
       setShowNewCat(false);
     }
@@ -59,8 +138,10 @@ export function TransactionSheet() {
     c => c.type === type || c.type === 'both'
   );
 
+  const calculatedAmount = evaluateAmountExpression(amount);
+
   const handleSubmit = useCallback(() => {
-    const parsed = parseFloat(amount);
+    const parsed = evaluateAmountExpression(amount);
     if (!parsed || parsed <= 0 || !categoryId) return;
 
     const payload = { type, amount: parsed, categoryId, note, date };
@@ -73,6 +154,25 @@ export function TransactionSheet() {
 
     closeSheet();
   }, [amount, categoryId, type, note, date, isEditing, editingTransaction, addTransaction, updateTransaction, closeSheet]);
+
+  const handleCalculatorKey = useCallback((key: typeof CALCULATOR_KEYS[number]) => {
+    if (key === '=') {
+      const result = evaluateAmountExpression(amount);
+      if (result !== null && result > 0) {
+        setAmount(formatAmountResult(result));
+      }
+      return;
+    }
+
+    setAmount(prev => {
+      const trimmed = prev.trim();
+      if (!trimmed && key !== '-') return prev;
+      if (trimmed && isOperator(trimmed.slice(-1))) {
+        return `${trimmed.slice(0, -1)}${key}`;
+      }
+      return `${trimmed}${key}`;
+    });
+  }, [amount]);
 
   const handleCreateCategory = useCallback(() => {
     if (!newCatName.trim()) return;
@@ -93,6 +193,12 @@ export function TransactionSheet() {
   const handleClose = () => {
     closeSheet();
     setShowNewCat(false);
+  };
+
+  const handleDelete = () => {
+    if (!editingTransaction) return;
+    deleteTransaction(editingTransaction.id);
+    handleClose();
   };
 
   return (
@@ -122,13 +228,46 @@ export function TransactionSheet() {
                 <h2 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
                   {isEditing ? 'Edit Transaction' : 'Add Transaction'}
                 </h2>
-                <button
-                  data-testid="sheet-close"
-                  onClick={handleClose}
-                  className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
-                >
-                  <X size={16} />
-                </button>
+                <div className="flex items-center gap-2">
+                  {isEditing && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <button
+                          data-testid="delete-transaction-in-sheet"
+                          aria-label="Delete transaction"
+                          className="w-8 h-8 rounded-full bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive/15 transition-colors"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Transaction?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you really want to delete this transaction? This action cannot be undone and will update your balances and budget data.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={handleDelete}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                  <button
+                    data-testid="sheet-close"
+                    aria-label="Close transaction sheet"
+                    onClick={handleClose}
+                    className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
 
               {/* Type Toggle */}
@@ -163,13 +302,31 @@ export function TransactionSheet() {
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-muted-foreground">₹</span>
                   <input
                     data-testid="amount-input"
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    placeholder="0"
+                    placeholder="0 or 250+75"
                     value={amount}
                     onChange={e => setAmount(e.target.value)}
                     className="w-full pl-10 pr-4 py-4 text-3xl font-bold bg-muted rounded-2xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground placeholder:text-muted-foreground/40"
                   />
+                </div>
+                <div className="grid grid-cols-5 gap-1.5 mt-2" data-testid="amount-calculator">
+                  {CALCULATOR_KEYS.map(key => (
+                    <button
+                      key={key}
+                      type="button"
+                      data-testid={`calculator-${key === '=' ? 'equals' : key}`}
+                      onClick={() => handleCalculatorKey(key)}
+                      className={cn(
+                        'h-10 rounded-xl text-sm font-bold transition-colors',
+                        key === '='
+                          ? 'bg-accent text-white hover:bg-accent/90'
+                          : 'bg-muted text-foreground hover:bg-muted/80'
+                      )}
+                    >
+                      {key}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -342,10 +499,10 @@ export function TransactionSheet() {
               <motion.button
                 data-testid="submit-transaction"
                 onClick={handleSubmit}
-                disabled={!amount || parseFloat(amount) <= 0 || !categoryId}
+                disabled={!calculatedAmount || calculatedAmount <= 0 || !categoryId}
                 className={cn(
                   'w-full py-4 rounded-2xl text-base font-bold transition-all',
-                  !amount || parseFloat(amount) <= 0 || !categoryId
+                  !calculatedAmount || calculatedAmount <= 0 || !categoryId
                     ? 'bg-muted text-muted-foreground cursor-not-allowed'
                     : type === 'expense'
                       ? 'bg-red-500 text-white shadow-lg hover:bg-red-600'
