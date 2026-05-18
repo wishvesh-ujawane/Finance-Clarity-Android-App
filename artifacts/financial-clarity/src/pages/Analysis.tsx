@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
-import { formatINR, formatShortINR } from '@/lib/finance-utils';
+import { formatDateLabel, formatINR, formatShortINR } from '@/lib/finance-utils';
 
 function getLast6Months(): string[] {
   const months: string[] = [];
@@ -22,8 +22,9 @@ function monthLabel(m: string) {
 }
 
 export default function Analysis() {
-  const { transactions, categories } = useFinance();
+  const { transactions, categories, openEditSheet } = useFinance();
   const [viewType, setViewType] = useState<'expense' | 'income'>('expense');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
   const last6Months = useMemo(() => getLast6Months(), []);
   const currentMonth = last6Months[last6Months.length - 1];
@@ -45,10 +46,24 @@ export default function Analysis() {
     return Object.entries(map)
       .map(([catId, amount]) => {
         const cat = categories.find(c => c.id === catId);
-        return { cat, amount, pct: total > 0 ? (amount / total) * 100 : 0 };
+        return { catId, cat, amount, pct: total > 0 ? (amount / total) * 100 : 0 };
       })
       .sort((a, b) => b.amount - a.amount);
   }, [transactions, categories, viewType]);
+
+  const selectedCategory = useMemo(
+    () => categories.find(c => c.id === selectedCategoryId),
+    [categories, selectedCategoryId]
+  );
+
+  const selectedTransactions = useMemo(
+    () => selectedCategoryId
+      ? transactions
+          .filter(t => t.type === viewType && t.categoryId === selectedCategoryId)
+          .sort((a, b) => b.date.localeCompare(a.date))
+      : [],
+    [transactions, selectedCategoryId, viewType]
+  );
 
   const totalThisMonth = useMemo(() =>
     transactions.filter(t => t.type === viewType && t.date.startsWith(currentMonth)).reduce((s, t) => s + t.amount, 0),
@@ -72,7 +87,10 @@ export default function Analysis() {
             <button
               key={t}
               data-testid={`toggle-${t}`}
-              onClick={() => setViewType(t)}
+              onClick={() => {
+                setViewType(t);
+                setSelectedCategoryId(null);
+              }}
               className={cn(
                 'px-4 py-1.5 rounded-lg text-sm font-semibold transition-all capitalize',
                 viewType === t
@@ -136,8 +154,20 @@ export default function Analysis() {
           <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">No {viewType} transactions recorded</div>
         ) : (
           <div className="space-y-3">
-            {categoryBreakdown.map(({ cat, amount, pct }, i) => (
-              <motion.div key={cat?.id || i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.04 }} className="space-y-1.5" data-testid={`breakdown-${cat?.id}`}>
+            {categoryBreakdown.map(({ catId, cat, amount, pct }, i) => (
+              <motion.button
+                key={catId}
+                type="button"
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 + i * 0.04 }}
+                onClick={() => setSelectedCategoryId(catId)}
+                className={cn(
+                  'w-full space-y-1.5 text-left rounded-xl p-2 -m-2 transition-colors',
+                  selectedCategoryId === catId ? 'bg-accent/10' : 'hover:bg-muted/40'
+                )}
+                data-testid={`breakdown-${catId}`}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: (cat?.color || '#6366F1') + '22' }}>
@@ -153,11 +183,52 @@ export default function Analysis() {
                 <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                   <motion.div className="h-full rounded-full" style={{ backgroundColor: cat?.color || accentColor }} initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6, ease: 'easeOut', delay: 0.3 + i * 0.04 }} />
                 </div>
-              </motion.div>
+              </motion.button>
             ))}
           </div>
         )}
       </motion.div>
+
+      {selectedCategoryId && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="bg-card border border-border rounded-2xl p-5 mt-4">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: (selectedCategory?.color || accentColor) + '22' }}>
+                <CategoryIcon icon={selectedCategory?.icon || 'DollarSign'} color={selectedCategory?.color || accentColor} size={16} />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm font-bold text-foreground truncate" style={{ fontFamily: 'var(--font-display)' }}>
+                  {selectedCategory?.name || 'Unknown'} Transactions
+                </h2>
+                <p className="text-xs text-muted-foreground capitalize">{viewType} - {selectedTransactions.length} record{selectedTransactions.length === 1 ? '' : 's'}</p>
+              </div>
+            </div>
+            <button onClick={() => setSelectedCategoryId(null)} className="text-xs font-semibold text-muted-foreground hover:text-foreground">
+              Close
+            </button>
+          </div>
+
+          <div className="divide-y divide-border rounded-xl border border-border overflow-hidden">
+            {selectedTransactions.map(transaction => (
+              <button
+                key={transaction.id}
+                type="button"
+                onClick={() => openEditSheet(transaction)}
+                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                data-testid={`analysis-transaction-${transaction.id}`}
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">{formatDateLabel(transaction.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                  {transaction.note && <p className="text-xs text-muted-foreground truncate">{transaction.note}</p>}
+                </div>
+                <span className={cn('text-sm font-bold flex-shrink-0', transaction.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+                  {transaction.type === 'income' ? '+' : '-'}{formatINR(transaction.amount)}
+                </span>
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }
