@@ -28,6 +28,7 @@ interface FinanceContextType {
   addBudget: (b: Omit<Budget, 'id'>) => void;
   updateBudget: (id: string, limit: number) => void;
   deleteBudget: (id: string) => void;
+  transferBudgetsToMonth: (fromMonth: string, toMonth: string) => number;
   selectedMonth: string;
   setSelectedMonth: (m: string) => void;
   isSheetOpen: boolean;
@@ -103,7 +104,8 @@ function isValidBudget(value: unknown): value is Budget {
     typeof value.categoryId === 'string' &&
     value.categoryId.length > 0 &&
     typeof value.limit === 'number' &&
-    Number.isFinite(value.limit)
+    Number.isFinite(value.limit) &&
+    (value.month === undefined || typeof value.month === 'string')
   );
 }
 
@@ -161,7 +163,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return stored;
   });
   const [budgets, setBudgets] = useState<Budget[]>(() =>
-    loadArrayFromStorage('budgets', [], isValidBudget)
+    loadArrayFromStorage('budgets', [], isValidBudget).map(b => ({ ...b, month: b.month || currentMonth() }))
   );
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -209,13 +211,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const addBudget = useCallback((b: Omit<Budget, 'id'>) => {
     setBudgets(prev => {
-      const existing = prev.find(x => x.categoryId === b.categoryId);
+      const month = b.month || selectedMonth;
+      const existing = prev.find(x => x.categoryId === b.categoryId && x.month === month);
       if (existing) {
-        return prev.map(x => x.categoryId === b.categoryId ? { ...x, limit: b.limit } : x);
+        return prev.map(x => x.id === existing.id ? { ...x, limit: b.limit, month } : x);
       }
-      return [...prev, { ...b, id: createId() }];
+      return [...prev, { ...b, month, id: createId() }];
     });
-  }, []);
+  }, [selectedMonth]);
 
   const updateBudget = useCallback((id: string, limit: number) => {
     setBudgets(prev => prev.map(b => b.id === id ? { ...b, limit } : b));
@@ -224,6 +227,34 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const deleteBudget = useCallback((id: string) => {
     setBudgets(prev => prev.filter(b => b.id !== id));
   }, []);
+
+  const transferBudgetsToMonth = useCallback((fromMonth: string, toMonth: string) => {
+    if (fromMonth === toMonth) return 0;
+
+    const sourceBudgets = budgets.filter(b => b.month === fromMonth);
+    if (sourceBudgets.length === 0) return 0;
+
+    setBudgets(prev => {
+      const next = [...prev];
+      sourceBudgets.forEach(source => {
+        const existingIndex = next.findIndex(b => b.month === toMonth && b.categoryId === source.categoryId);
+        if (existingIndex >= 0) {
+          next[existingIndex] = { ...next[existingIndex], limit: source.limit, month: toMonth };
+        } else {
+          next.push({
+            id: createId(),
+            categoryId: source.categoryId,
+            limit: source.limit,
+            month: toMonth,
+          });
+        }
+      });
+
+      return next;
+    });
+
+    return sourceBudgets.length;
+  }, [budgets]);
 
   const openSheet = useCallback(() => {
     setEditingTransaction(null);
@@ -280,7 +311,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       transactions, categories, budgets,
       addTransaction, importTransactions, updateTransaction, deleteTransaction,
       addCategory, updateCategory, deleteCategory,
-      addBudget, updateBudget, deleteBudget,
+      addBudget, updateBudget, deleteBudget, transferBudgetsToMonth,
       selectedMonth, setSelectedMonth,
       isSheetOpen, editingTransaction,
       openSheet, openEditSheet, closeSheet,

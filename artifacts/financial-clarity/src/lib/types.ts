@@ -19,4 +19,5 @@ export interface Budget {
   id: string;
   categoryId: string;
   limit: number;
+  month?: string;
 }
