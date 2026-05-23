@@ -156,17 +156,21 @@ export default function Analysis() {
     };
   }, [transactions, categories, currentMonth, last6Months]);
 
-  // Safe-to-spend uses remaining monthly balance divided by remaining days in the month.
+  // Safe-to-spend is based on money in hand from all recorded history up to today.
   const today = useMemo(() => new Date(), []);
-  const thisMonthIncome = monthlyInsight.currentExpenses >= 0 ? getMonthTotal(transactions, currentMonth, 'income') : 0;
-  const remainingBalance = thisMonthIncome - monthlyInsight.currentExpenses;
+  const todayStr = useMemo(() => localDateStr(today), [today]);
+  const inHandBalance = useMemo(() => {
+    return transactions
+      .filter(t => t.date <= todayStr)
+      .reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
+  }, [transactions, todayStr]);
+  const remainingBalance = inHandBalance;
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
   const daysLeftInMonth = Math.max(1, daysInMonth - today.getDate() + 1);
   const safeToSpendPerDay = Math.max(0, remainingBalance / daysLeftInMonth);
 
   // Future obligations are inferred from future-dated expense transactions and note/category keywords.
   const upcomingObligations = useMemo(() => {
-    const todayStr = localDateStr(today);
     return transactions
       .filter(t => t.type === 'expense' && t.date >= todayStr)
       .map(t => {
@@ -184,7 +188,7 @@ export default function Analysis() {
       .filter(item => item.dueIn >= 0 && item.dueIn <= 45)
       .sort((a, b) => a.dueIn - b.dueIn || b.amount - a.amount)
       .slice(0, 5);
-  }, [transactions, categories, today]);
+  }, [transactions, categories, today, todayStr]);
 
   const accentColor = viewType === 'expense' ? '#EF4444' : '#10B981';
 
@@ -265,7 +269,7 @@ export default function Analysis() {
             {formatINR(safeToSpendPerDay)}<span className="text-sm text-muted-foreground font-semibold">/day</span>
           </p>
           <p className="text-xs text-muted-foreground mt-2">
-            Based on {formatINR(remainingBalance)} remaining across {daysLeftInMonth} day{daysLeftInMonth === 1 ? '' : 's'}.
+            Based on {formatINR(remainingBalance)} in hand across {daysLeftInMonth} day{daysLeftInMonth === 1 ? '' : 's'} left this month.
           </p>
         </motion.div>
 
@@ -347,7 +351,7 @@ export default function Analysis() {
         {categoryBreakdown.length === 0 ? (
           <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">No {viewType} transactions recorded</div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2 -mx-2">
             {categoryBreakdown.map(({ catId, cat, amount, pct }, i) => (
               <motion.button
                 key={catId}
@@ -356,18 +360,18 @@ export default function Analysis() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.3 + i * 0.04 }}
                 onClick={() => setSelectedCategoryId(catId)}
-                className="w-full space-y-1.5 text-left rounded-xl p-2 -m-2 transition-colors hover:bg-muted/40"
+                className="w-full space-y-2 text-left rounded-xl px-4 py-3 transition-colors hover:bg-muted/40"
                 data-testid={`breakdown-${catId}`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: (cat?.color || '#6366F1') + '22' }}>
-                      <CategoryIcon icon={cat?.icon || 'DollarSign'} color={cat?.color || '#6366F1'} size={13} />
+                      <CategoryIcon icon={cat?.icon || 'DollarSign'} color={cat?.color || '#6366F1'} size={14} />
                     </div>
-                    <span className="text-sm text-foreground font-medium">{cat?.name || 'Unknown'}</span>
+                    <span className="text-[15px] text-foreground font-medium">{cat?.name || 'Unknown'}</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-sm font-bold text-foreground">{formatINR(amount)}</span>
+                    <span className="text-base font-bold text-foreground">{formatINR(amount)}</span>
                     <span className="text-xs text-muted-foreground ml-2">{pct.toFixed(1)}%</span>
                   </div>
                 </div>
