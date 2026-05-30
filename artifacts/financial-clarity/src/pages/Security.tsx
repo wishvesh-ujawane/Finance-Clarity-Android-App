@@ -11,6 +11,7 @@ export default function Security() {
     settings,
     isAppLockEnabled,
     biometricAvailable,
+    biometricReason,
     setupPin,
     changePin,
     enableBiometric,
@@ -165,7 +166,7 @@ export default function Security() {
                     <p className="text-xs text-muted-foreground">
                       {biometricAvailable
                         ? 'Use fingerprint or face to unlock.'
-                        : 'Not available on this device.'}
+                        : biometricReason}
                     </p>
                   </div>
                 </div>

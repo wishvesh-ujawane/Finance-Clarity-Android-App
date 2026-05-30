@@ -11,13 +11,14 @@ import {
   wipeAllAppData,
   type SecuritySettings,
 } from '@/lib/security';
-import { isBiometricAvailable, verifyBiometric } from '@/lib/biometric';
+import { addBiometryChangeListener, getBiometricAvailability, verifyBiometric } from '@/lib/biometric';
 
 interface SecurityContextType {
   settings: SecuritySettings | null;
   isReady: boolean;
   isLocked: boolean;
   biometricAvailable: boolean;
+  biometricReason: string;
   isAppLockEnabled: boolean;
   setupPin: (pin: string) => Promise<void>;
   changePin: (currentPin: string, newPin: string) => Promise<boolean>;
@@ -37,6 +38,7 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricReason, setBiometricReason] = useState('Checking biometric support...');
   const lastBackgroundedAt = useRef<number | null>(null);
 
   // Initial load
@@ -47,14 +49,51 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     setIsReady(true);
   }, []);
 
-  // Detect biometric hardware availability
-  useEffect(() => {
-    let cancelled = false;
-    isBiometricAvailable().then(available => {
-      if (!cancelled) setBiometricAvailable(available);
-    });
-    return () => { cancelled = true; };
+  const refreshBiometricState = useCallback(async () => {
+    const status = await getBiometricAvailability();
+    setBiometricAvailable(status.isAvailable);
+    setBiometricReason(status.reason);
   }, []);
+
+  useEffect(() => {
+    void refreshBiometricState();
+  }, [refreshBiometricState]);
+
+  // Keep status fresh when app resumes or when native biometry state changes.
+  useEffect(() => {
+    let removeListener: (() => Promise<void>) | null = null;
+
+    addBiometryChangeListener((result) => {
+      setBiometricAvailable(Boolean(result.isAvailable));
+      if (result.isAvailable) {
+        setBiometricReason('Biometric authentication is available.');
+      } else if (result.deviceIsSecure === false) {
+        setBiometricReason('Device lock screen is not configured. Set PIN/Pattern/Password in Android settings first.');
+      } else if (result.errorCode === 3) {
+        setBiometricReason('No biometrics enrolled. Add fingerprint or face in Android settings.');
+      } else {
+        setBiometricReason('Biometric authentication is not available right now.');
+      }
+    }).then((cleanup) => {
+      removeListener = cleanup;
+    }).catch(() => {
+      // ignore
+    });
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshBiometricState();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (removeListener) {
+        void removeListener();
+      }
+    };
+  }, [refreshBiometricState]);
 
   // Lock on resume after configurable timeout
   useEffect(() => {
@@ -176,6 +215,7 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     isReady,
     isLocked,
     biometricAvailable,
+    biometricReason,
     isAppLockEnabled: Boolean(settings),
     setupPin,
     changePin,
@@ -186,7 +226,7 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     unlockWithBiometric,
     lockNow,
     resetAllData,
-  }), [settings, isReady, isLocked, biometricAvailable, setupPin, changePin, enableBiometric, disableBiometric, disableAppLock, unlockWithPin, unlockWithBiometric, lockNow, resetAllData]);
+  }), [settings, isReady, isLocked, biometricAvailable, biometricReason, setupPin, changePin, enableBiometric, disableBiometric, disableAppLock, unlockWithPin, unlockWithBiometric, lockNow, resetAllData]);
 
   return <SecurityContext.Provider value={value}>{children}</SecurityContext.Provider>;
 }
