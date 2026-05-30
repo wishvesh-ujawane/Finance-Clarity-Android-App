@@ -1,6 +1,8 @@
 import { useRef, useState, type ChangeEvent } from 'react';
-import { Download, FileUp, Settings as SettingsIcon } from 'lucide-react';
+import { Link } from 'wouter';
+import { ChevronRight, Download, FileUp, ShieldCheck, Settings as SettingsIcon } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
+import { useSecurity } from '@/context/SecurityContext';
 import { buildTransactionsCsv, exportCsvFile, parseTransactionsCsv } from '@/lib/csv';
 import { cn } from '@/lib/utils';
 
@@ -25,6 +27,7 @@ function countByKey(keys: string[]) {
 
 export default function Settings() {
   const { transactions, categories, addCategory, importTransactions } = useFinance();
+  const { isAppLockEnabled, settings: securitySettings } = useSecurity();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -115,6 +118,29 @@ export default function Settings() {
       <div className="mb-6">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Data</p>
         <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Settings</h1>
+      </div>
+
+      <div className="bg-card border border-border rounded-2xl overflow-hidden mb-4">
+        <Link href="/settings/security">
+          <button
+            type="button"
+            data-testid="settings-security-link"
+            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/5 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+              <ShieldCheck size={18} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-foreground">Security</p>
+              <p className="text-xs text-muted-foreground">
+                {isAppLockEnabled
+                  ? `App lock is on${securitySettings?.biometricEnabled ? ' \u2022 biometrics enabled' : ''}`
+                  : 'Set a PIN and biometrics to lock the app.'}
+              </p>
+            </div>
+            <ChevronRight size={16} className="text-muted-foreground" />
+          </button>
+        </Link>
       </div>
 
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
