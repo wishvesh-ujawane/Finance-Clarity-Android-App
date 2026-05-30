@@ -38,7 +38,9 @@ export function Navigation() {
 
         <nav className="flex-1 p-4 space-y-1" data-testid="sidebar-nav">
           {NAV_ITEMS.map(({ path, label, icon: Icon }) => {
-            const isActive = location === path;
+            const isActive = path === '/settings'
+              ? location === '/settings' || location === '/recurring'
+              : location === path;
             return (
               <Link key={path} href={path}>
                 <div
@@ -88,7 +90,9 @@ export function Navigation() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[hsl(222,65%,12%)] border-t border-border z-40" data-testid="bottom-nav">
         <div className="flex">
           {NAV_ITEMS.map(({ path, label, icon: Icon }) => {
-            const isActive = location === path;
+            const isActive = path === '/settings'
+              ? location === '/settings' || location === '/recurring'
+              : location === path;
             return (
               <Link key={path} href={path} className="flex-1">
                 <div

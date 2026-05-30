@@ -6,11 +6,16 @@ import { FinanceProvider } from '@/context/FinanceContext';
 import { Navigation } from '@/components/Navigation';
 import { FAB } from '@/components/FAB';
 import { TransactionSheet } from '@/components/TransactionSheet';
+import { AppErrorBoundary } from '@/components/AppErrorBoundary';
+import { AppLockGate } from '@/components/AppLockGate';
 import Dashboard from '@/pages/Dashboard';
 import Budgets from '@/pages/Budgets';
 import Analysis from '@/pages/Analysis';
 import Transactions from '@/pages/Transactions';
 import Settings from '@/pages/Settings';
+import Security from '@/pages/Security';
+import BackupRestore from '@/pages/BackupRestore';
+import Recurring from '@/pages/Recurring';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -32,6 +37,9 @@ function AppLayout() {
           <Route path="/budgets" component={Budgets} />
           <Route path="/analysis" component={Analysis} />
           <Route path="/settings" component={Settings} />
+          <Route path="/security" component={Security} />
+          <Route path="/backup" component={BackupRestore} />
+          <Route path="/recurring" component={Recurring} />
           <Route component={NotFound} />
         </Switch>
       </main>
@@ -46,14 +54,18 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <FinanceProvider>
-        <TooltipProvider>
-          <WouterRouter base={routerBase}>
-            <AppLayout />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
-      </FinanceProvider>
+      <AppErrorBoundary>
+        <FinanceProvider>
+          <TooltipProvider>
+            <WouterRouter base={routerBase}>
+              <AppLockGate>
+                <AppLayout />
+              </AppLockGate>
+            </WouterRouter>
+            <Toaster />
+          </TooltipProvider>
+        </FinanceProvider>
+      </AppErrorBoundary>
     </QueryClientProvider>
   );
 }

@@ -2,8 +2,14 @@
 include ':capacitor-android'
 project(':capacitor-android').projectDir = new File('../../../node_modules/.pnpm/@capacitor+android@8.3.1_@capacitor+core@8.3.1/node_modules/@capacitor/android/capacitor')
 
+include ':aparajita-capacitor-biometric-auth'
+project(':aparajita-capacitor-biometric-auth').projectDir = new File('../../../node_modules/.pnpm/@aparajita+capacitor-biometric-auth@10.0.0/node_modules/@aparajita/capacitor-biometric-auth/android')
+
 include ':capacitor-filesystem'
 project(':capacitor-filesystem').projectDir = new File('../../../node_modules/.pnpm/@capacitor+filesystem@8.1.2_@capacitor+core@8.3.1/node_modules/@capacitor/filesystem/android')
 
 include ':capacitor-share'
 project(':capacitor-share').projectDir = new File('../../../node_modules/.pnpm/@capacitor+share@8.0.1_@capacitor+core@8.3.1/node_modules/@capacitor/share/android')
+
+include ':codetrix-studio-capacitor-google-auth'
+project(':codetrix-studio-capacitor-google-auth').projectDir = new File('../../../node_modules/.pnpm/@codetrix-studio+capacitor-_c606f4e720b1d44054ada29ab6b25242/node_modules/@codetrix-studio/capacitor-google-auth/android')

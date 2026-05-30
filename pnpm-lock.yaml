@@ -214,6 +214,9 @@ importers:
 
   artifacts/financial-clarity:
     dependencies:
+      '@aparajita/capacitor-biometric-auth':
+        specifier: ^10.0.0
+        version: 10.0.0
       '@capacitor/android':
         specifier: ^8.3.1
         version: 8.3.1(@capacitor/core@8.3.1)
@@ -226,6 +229,9 @@ importers:
       '@capacitor/share':
         specifier: ^8.0.1
         version: 8.0.1(@capacitor/core@8.3.1)
+      '@codetrix-studio/capacitor-google-auth':
+        specifier: 3.4.0-rc.4
+        version: 3.4.0-rc.4(@capacitor/core@8.3.1)
     devDependencies:
       '@capacitor/cli':
         specifier: ^8.3.1
@@ -657,6 +663,10 @@ importers:
 
 packages:
 
+  '@aparajita/capacitor-biometric-auth@10.0.0':
+    resolution: {integrity: sha512-azjWaRucB8x1/gSzSTp/NxelaOZyg+m765gSzjwUkSQgg30RrZPmPq6pyLeeXVSZNDY3Rxf5Hj8obgZaXirCFQ==}
+    engines: {node: '>=20.0.0'}
+
   '@babel/code-frame@7.29.0':
     resolution: {integrity: sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw==}
     engines: {node: '>=6.9.0'}
@@ -749,6 +759,11 @@ packages:
     peerDependencies:
       '@capacitor/core': ^8.3.0
 
+  '@capacitor/app@8.1.0':
+    resolution: {integrity: sha512-MlmttTOWHDedr/G4SrhNRxsXMqY+R75S4MM4eIgzsgCzOYhb/MpCkA5Q3nuOCfL1oHm26xjUzqZ5aupbOwdfYg==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
   '@capacitor/cli@8.3.1':
     resolution: {integrity: sha512-1sPGW4THTDfR6YjXwZ0jM7oAfAtciPOHN00qs/3sNAQx1kKrrEYSfDPwCm1/xlAgi0OeL69SiRfw314Ans+1sw==}
     engines: {node: '>=22.0.0'}
@@ -762,6 +777,11 @@ packages:
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
+  '@capacitor/ios@8.3.4':
+    resolution: {integrity: sha512-XvvnPFWWP/gwwO811ue7nEBKSZqDCIB8hxGgWV6iXA7DSVLqMOEmQdfHj94kkVxof2wL9XWHypu3ayDULo7U5w==}
+    peerDependencies:
+      '@capacitor/core': ^8.3.0
+
   '@capacitor/share@8.0.1':
     resolution: {integrity: sha512-3cSBKBCJVon54rKDROP2rqGyeGks4pBh9TbaEk9S375Kbek/ZHe72N50zIa0Vn9Eac/SuhwgehO/mmA4CsUOiw==}
     peerDependencies:
@@ -769,6 +789,11 @@ packages:
 
   '@capacitor/synapse@1.0.4':
     resolution: {integrity: sha512-/C1FUo8/OkKuAT4nCIu/34ny9siNHr9qtFezu4kxm6GY1wNFxrCFWjfYx5C1tUhVGz3fxBABegupkpjXvjCHrw==}
+
+  '@codetrix-studio/capacitor-google-auth@3.4.0-rc.4':
+    resolution: {integrity: sha512-d548/xKrbMHHbzMYSWnlgZCLZYo2zzY7Onrh3x8ujojrb7atkNK68I6su5WgmaBt4E+R4gxBsWams4554aOFjA==}
+    peerDependencies:
+      '@capacitor/core': ^6.0.0
 
   '@commander-js/extra-typings@14.0.0':
     resolution: {integrity: sha512-hIn0ncNaJRLkZrxBIp5AsW/eXEHNKYQBh0aPdoUqNgD+Io3NIykQqpKFyKcuasZhicGaEZJX/JBSIkZ4e5x8Dg==}
@@ -3498,6 +3523,13 @@ packages:
 
 snapshots:
 
+  '@aparajita/capacitor-biometric-auth@10.0.0':
+    dependencies:
+      '@capacitor/android': 8.3.1(@capacitor/core@8.3.1)
+      '@capacitor/app': 8.1.0(@capacitor/core@8.3.1)
+      '@capacitor/core': 8.3.1
+      '@capacitor/ios': 8.3.4(@capacitor/core@8.3.1)
+
   '@babel/code-frame@7.29.0':
     dependencies:
       '@babel/helper-validator-identifier': 7.28.5
@@ -3616,6 +3648,10 @@ snapshots:
     dependencies:
       '@capacitor/core': 8.3.1
 
+  '@capacitor/app@8.1.0(@capacitor/core@8.3.1)':
+    dependencies:
+      '@capacitor/core': 8.3.1
+
   '@capacitor/cli@8.3.1':
     dependencies:
       '@ionic/cli-framework-output': 2.2.8
@@ -3647,11 +3683,19 @@ snapshots:
       '@capacitor/core': 8.3.1
       '@capacitor/synapse': 1.0.4
 
+  '@capacitor/ios@8.3.4(@capacitor/core@8.3.1)':
+    dependencies:
+      '@capacitor/core': 8.3.1
+
   '@capacitor/share@8.0.1(@capacitor/core@8.3.1)':
     dependencies:
       '@capacitor/core': 8.3.1
 
   '@capacitor/synapse@1.0.4': {}
+
+  '@codetrix-studio/capacitor-google-auth@3.4.0-rc.4(@capacitor/core@8.3.1)':
+    dependencies:
+      '@capacitor/core': 8.3.1
 
   '@commander-js/extra-typings@14.0.0(commander@14.0.3)':
     dependencies:

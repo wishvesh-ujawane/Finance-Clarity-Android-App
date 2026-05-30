@@ -2,6 +2,8 @@
 <resources>
     <string name="app_name">Fiscal Focus</string>
     <string name="title_activity_main">Fiscal Focus</string>
-    <string name="package_name">com.yourname.fiscalfocus</string>
-    <string name="custom_url_scheme">com.yourname.fiscalfocus</string>
+    <string name="package_name">com.bytetobrain.fiscalfocus</string>
+    <string name="custom_url_scheme">com.bytetobrain.fiscalfocus</string>
+    <string name="server_client_id">263589833123-90dnia4dgb2plcgkj12d8k8u9k6drgef.apps.googleusercontent.com</string>
+    <string name="android_client_id">263589833123-i54ot12cb62b0eihpriium5km8gu4s96.apps.googleusercontent.com</string>
 </resources>
