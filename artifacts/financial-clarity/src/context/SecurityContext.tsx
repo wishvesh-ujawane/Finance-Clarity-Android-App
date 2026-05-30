@@ -157,14 +157,18 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
 
   const enableBiometric = useCallback(async () => {
     if (!settings) return false;
-    if (!biometricAvailable) return false;
     const ok = await verifyBiometric('Confirm biometrics to enable unlock');
-    if (!ok) return false;
+    if (!ok) {
+      void refreshBiometricState();
+      return false;
+    }
     const next: SecuritySettings = { ...settings, biometricEnabled: true, updatedAt: Date.now() };
     saveSecuritySettings(next);
     setSettings(next);
+    setBiometricAvailable(true);
+    setBiometricReason('Biometric authentication is available.');
     return true;
-  }, [settings, biometricAvailable]);
+  }, [settings, refreshBiometricState]);
 
   const disableBiometric = useCallback(() => {
     if (!settings) return;

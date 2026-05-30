@@ -168,13 +168,18 @@ export default function Security() {
                         ? 'Use fingerprint or face to unlock.'
                         : biometricReason}
                     </p>
+                    {!biometricAvailable && (
+                      <p className="text-[11px] text-muted-foreground/80 mt-0.5">
+                        You can still toggle on to test biometric prompt.
+                      </p>
+                    )}
                   </div>
                 </div>
                 <Switch
                   data-testid="security-biometric-toggle"
                   checked={Boolean(settings?.biometricEnabled)}
                   onCheckedChange={handleBiometricToggle}
-                  disabled={!biometricAvailable || biometricBusy}
+                  disabled={biometricBusy}
                 />
               </div>
 
