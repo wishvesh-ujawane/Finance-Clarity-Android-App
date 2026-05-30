@@ -83,7 +83,11 @@ export default function Security() {
   };
 
   const handleBiometricToggle = async (next: boolean) => {
+    if (biometricBusy) return;
     setBiometricBusy(true);
+    const busyTimeout = window.setTimeout(() => {
+      setBiometricBusy(false);
+    }, 12000);
     try {
       if (next) {
         const ok = await enableBiometric();
@@ -94,6 +98,7 @@ export default function Security() {
         showMessage('Biometric unlock disabled.');
       }
     } finally {
+      window.clearTimeout(busyTimeout);
       setBiometricBusy(false);
     }
   };
@@ -179,7 +184,6 @@ export default function Security() {
                   data-testid="security-biometric-toggle"
                   checked={Boolean(settings?.biometricEnabled)}
                   onCheckedChange={handleBiometricToggle}
-                  disabled={biometricBusy}
                 />
               </div>
 

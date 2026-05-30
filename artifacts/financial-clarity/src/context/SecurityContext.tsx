@@ -195,11 +195,12 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
   }, [settings]);
 
   const unlockWithBiometric = useCallback(async () => {
-    if (!settings || !settings.biometricEnabled || !biometricAvailable) return false;
+    if (!settings || !settings.biometricEnabled) return false;
     const ok = await verifyBiometric();
     if (ok) setIsLocked(false);
+    else void refreshBiometricState();
     return ok;
-  }, [settings, biometricAvailable]);
+  }, [settings, refreshBiometricState]);
 
   const lockNow = useCallback(() => {
     if (settings) setIsLocked(true);

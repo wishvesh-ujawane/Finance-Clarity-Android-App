@@ -23,7 +23,6 @@ export function LockScreen() {
     isLocked,
     isReady,
     settings,
-    biometricAvailable,
     unlockWithPin,
     unlockWithBiometric,
     resetAllData,
@@ -38,7 +37,7 @@ export function LockScreen() {
   const biometricTriedRef = useRef(false);
   const submittingRef = useRef(false);
 
-  const biometricEnabled = Boolean(settings?.biometricEnabled && biometricAvailable);
+  const biometricEnabled = Boolean(settings?.biometricEnabled);
 
   // Reset state whenever the screen becomes locked again
   useEffect(() => {
