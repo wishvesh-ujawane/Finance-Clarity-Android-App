@@ -11,7 +11,12 @@ import {
   wipeAllAppData,
   type SecuritySettings,
 } from '@/lib/security';
-import { addBiometryChangeListener, getBiometricAvailability, verifyBiometric } from '@/lib/biometric';
+import {
+  addBiometryChangeListener,
+  describeBiometricAvailability,
+  getBiometricAvailability,
+  verifyBiometric,
+} from '@/lib/biometric';
 
 interface SecurityContextType {
   settings: SecuritySettings | null;
@@ -69,15 +74,7 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
         const cleanup = await addBiometryChangeListener((result) => {
           if (!mounted) return;
           setBiometricAvailable(Boolean(result.isAvailable));
-          if (result.isAvailable) {
-            setBiometricReason('Biometric authentication is available.');
-          } else if (result.deviceIsSecure === false) {
-            setBiometricReason('Device lock screen is not configured. Set PIN/Pattern/Password in Android settings first.');
-          } else if (result.errorCode === 3) {
-            setBiometricReason('No biometrics enrolled. Add fingerprint or face in Android settings.');
-          } else {
-            setBiometricReason('Biometric authentication is not available right now.');
-          }
+          setBiometricReason(describeBiometricAvailability(result));
         });
         if (mounted) {
           removeListener = cleanup;
@@ -130,18 +127,25 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     let removeNativeListener: (() => void) | undefined;
+    let lifecycleMounted = true;
     if (Capacitor.isNativePlatform()) {
       import('@capacitor/app').then(({ App }) => {
+        if (!lifecycleMounted) return;
         App.addListener('appStateChange', ({ isActive }) => {
           if (isActive) handleVisible();
           else handleHidden();
         }).then(handle => {
-          removeNativeListener = () => { handle.remove(); };
+          if (lifecycleMounted) {
+            removeNativeListener = () => { void handle.remove(); };
+          } else {
+            void handle.remove();
+          }
         }).catch(() => { /* plugin not installed; visibilitychange suffices */ });
       }).catch(() => { /* ignore */ });
     }
 
     return () => {
+      lifecycleMounted = false;
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       removeNativeListener?.();
     };
@@ -175,6 +179,11 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
 
   const enableBiometric = useCallback(async () => {
     if (!settings) return false;
+    const availability = await getBiometricAvailability();
+    setBiometricAvailable(availability.isAvailable);
+    setBiometricReason(availability.reason);
+    if (!availability.isAvailable) return false;
+
     const ok = await verifyBiometric('Confirm biometrics to enable unlock');
     if (!ok) {
       void refreshBiometricState();
@@ -213,12 +222,12 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
   }, [settings]);
 
   const unlockWithBiometric = useCallback(async () => {
-    if (!settings || !settings.biometricEnabled) return false;
+    if (!settings || !settings.biometricEnabled || !biometricAvailable) return false;
     const ok = await verifyBiometric();
     if (ok) setIsLocked(false);
     else void refreshBiometricState();
     return ok;
-  }, [settings, refreshBiometricState]);
+  }, [settings, biometricAvailable, refreshBiometricState]);
 
   const lockNow = useCallback(() => {
     if (settings) setIsLocked(true);

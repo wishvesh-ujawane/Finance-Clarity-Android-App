@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'wouter';
-import { ArrowLeft, KeyRound, ShieldCheck, ShieldOff } from 'lucide-react';
+import { ArrowLeft, Fingerprint, KeyRound, ShieldCheck, ShieldOff } from 'lucide-react';
 import { useSecurity } from '@/context/SecurityContext';
 import { PinSetupDialog, type PinDialogMode } from '@/components/PinSetupDialog';
+import { Switch } from '@/components/ui/switch';
 import { verifyPin } from '@/lib/security';
 
 export default function Security() {
@@ -14,11 +15,13 @@ export default function Security() {
     setupPin,
     changePin,
     enableBiometric,
+    disableBiometric,
     disableAppLock,
   } = useSecurity();
 
   const [dialogMode, setDialogMode] = useState<PinDialogMode | null>(null);
   const [pendingCurrentPin, setPendingCurrentPin] = useState<string | null>(null);
+  const [isBiometricBusy, setIsBiometricBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -83,13 +86,26 @@ export default function Security() {
     return ok;
   };
 
-  const handleEnableBiometric = async () => {
-    const ok = await enableBiometric();
-    if (ok) {
-      showMessage('Biometrics enabled.');
+  const handleBiometricToggle = async (checked: boolean) => {
+    if (!settings || isBiometricBusy) return;
+
+    if (!checked) {
+      disableBiometric();
+      showMessage('Biometric unlock disabled.');
       return;
     }
-    showError(biometricAvailable ? 'Biometric confirmation was cancelled.' : biometricReason);
+
+    setIsBiometricBusy(true);
+    try {
+      const ok = await enableBiometric();
+      if (ok) {
+        showMessage('Biometric unlock enabled.');
+        return;
+      }
+      showError(biometricAvailable ? 'Biometric confirmation was cancelled.' : biometricReason);
+    } finally {
+      setIsBiometricBusy(false);
+    }
   };
 
   return (
@@ -154,25 +170,33 @@ export default function Security() {
                 <span className="text-xs font-medium text-white/60">4 digits</span>
               </button>
 
-              {!settings?.biometricEnabled && (
-                <div className="rounded-xl border border-border bg-accent/5 px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
+              <div className="rounded-xl border border-border bg-accent/5 px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 text-accent">
+                      <Fingerprint size={17} />
+                    </div>
                     <div>
                       <p className="text-sm font-semibold text-foreground">Biometric unlock</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{biometricReason}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {settings?.biometricEnabled
+                          ? biometricAvailable
+                            ? 'Enabled. You can unlock Fiscal Focus with enrolled device biometrics.'
+                            : `Enabled, but unavailable right now. ${biometricReason}`
+                          : biometricReason}
+                      </p>
                     </div>
-                    <button
-                      type="button"
-                      data-testid="security-enable-biometric"
-                      onClick={handleEnableBiometric}
-                      disabled={!biometricAvailable}
-                      className="shrink-0 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Enable
-                    </button>
                   </div>
+                  <Switch
+                    checked={Boolean(settings?.biometricEnabled)}
+                    onCheckedChange={handleBiometricToggle}
+                    disabled={isBiometricBusy || (!biometricAvailable && !settings?.biometricEnabled)}
+                    data-testid="security-biometric-toggle"
+                    aria-label="Toggle biometric unlock"
+                    className="mt-0.5"
+                  />
                 </div>
-              )}
+              </div>
 
               <button
                 type="button"

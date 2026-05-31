@@ -1,11 +1,19 @@
 import { Capacitor } from '@capacitor/core';
-import type { AvailableResult, BiometricAuthError } from '@capgo/capacitor-native-biometric';
+import type { AvailableResult, NativeBiometricPlugin } from '@capgo/capacitor-native-biometric';
 
 export interface BiometricAvailability {
   isAvailable: boolean;
   reason: string;
   details?: AvailableResult;
 }
+
+const BIOMETRIC_ERROR = {
+  BIOMETRICS_UNAVAILABLE: 1,
+  USER_LOCKOUT: 2,
+  BIOMETRICS_NOT_ENROLLED: 3,
+  USER_TEMPORARY_LOCKOUT: 4,
+  PASSCODE_NOT_SET: 14,
+} as const;
 
 let pluginInitialized = false;
 let pluginAvailable = false;
@@ -32,7 +40,7 @@ async function ensurePluginLoaded(): Promise<void> {
   }
 }
 
-async function getPlugin() {
+async function getPlugin(): Promise<NativeBiometricPlugin | null> {
   await ensurePluginLoaded();
   if (!pluginAvailable) return null;
   try {
@@ -43,19 +51,25 @@ async function getPlugin() {
   }
 }
 
-function messageFromAvailability(result: AvailableResult): string {
+export function describeBiometricAvailability(result: AvailableResult): string {
   if (result.isAvailable) return 'Biometric authentication is available.';
   if (result.deviceIsSecure === false) {
-    return 'Device lock screen is not configured. Set PIN/Pattern/Password in Android settings first.';
+    return 'Device lock screen is not configured. Set a PIN, pattern, or password in Android settings first.';
   }
-  if (result.errorCode === 3 as BiometricAuthError) {
+  if (result.errorCode === BIOMETRIC_ERROR.BIOMETRICS_NOT_ENROLLED) {
     return 'No biometrics enrolled. Add fingerprint or face in Android settings.';
   }
-  if (result.errorCode === 1 as BiometricAuthError) {
+  if (result.errorCode === BIOMETRIC_ERROR.BIOMETRICS_UNAVAILABLE) {
     return 'Biometric hardware is unavailable on this device.';
   }
-  if (result.errorCode === 2 as BiometricAuthError || result.errorCode === 4 as BiometricAuthError) {
-    return 'Biometric is temporarily locked. Wait and try again.';
+  if (
+    result.errorCode === BIOMETRIC_ERROR.USER_LOCKOUT ||
+    result.errorCode === BIOMETRIC_ERROR.USER_TEMPORARY_LOCKOUT
+  ) {
+    return 'Biometric unlock is temporarily locked. Wait and try again.';
+  }
+  if (result.errorCode === BIOMETRIC_ERROR.PASSCODE_NOT_SET) {
+    return 'Device credential fallback is not configured.';
   }
   return 'Biometric authentication is not available right now.';
 }
@@ -70,10 +84,10 @@ export async function getBiometricAvailability(): Promise<BiometricAvailability>
       };
     }
     
-    const result = await plugin.isAvailable({ useFallback: true });
+    const result = await plugin.isAvailable({ useFallback: false });
     return {
       isAvailable: Boolean(result?.isAvailable),
-      reason: messageFromAvailability(result),
+      reason: describeBiometricAvailability(result),
       details: result,
     };
   } catch (error) {

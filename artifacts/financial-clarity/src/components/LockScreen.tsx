@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Fingerprint, Lock, ShieldAlert } from 'lucide-react';
 import { useSecurity } from '@/context/SecurityContext';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
@@ -24,6 +24,7 @@ export function LockScreen() {
     isReady,
     settings,
     biometricAvailable,
+    biometricReason,
     unlockWithPin,
     unlockWithBiometric,
     resetAllData,
@@ -35,6 +36,7 @@ export function LockScreen() {
   const [attempts, setAttempts] = useState(0);
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [isBiometricBusy, setIsBiometricBusy] = useState(false);
   const biometricTriedRef = useRef(false);
   const submittingRef = useRef(false);
 
@@ -46,16 +48,10 @@ export function LockScreen() {
       setPin('');
       setError('');
       setShake(false);
+      setIsBiometricBusy(false);
       biometricTriedRef.current = false;
     }
   }, [isLocked]);
-
-  // Auto-prompt biometric once when shown
-  useEffect(() => {
-    if (!isLocked || !biometricEnabled || biometricTriedRef.current) return;
-    biometricTriedRef.current = true;
-    void unlockWithBiometric();
-  }, [isLocked, biometricEnabled, unlockWithBiometric]);
 
   // Cooldown ticker
   useEffect(() => {
@@ -109,9 +105,29 @@ export function LockScreen() {
     }
   };
 
+  const submitBiometric = useCallback(async ({ showError }: { showError: boolean }) => {
+    if (cooldownRemaining > 0 || isBiometricBusy) return;
+    setIsBiometricBusy(true);
+    setError('');
+    try {
+      const ok = await unlockWithBiometric();
+      if (!ok && showError) {
+        setError('Biometric unlock was cancelled. Enter your PIN or try again.');
+      }
+    } finally {
+      setIsBiometricBusy(false);
+    }
+  }, [cooldownRemaining, isBiometricBusy, unlockWithBiometric]);
+
+  // Auto-prompt biometric once when shown
+  useEffect(() => {
+    if (!isLocked || !biometricEnabled || biometricTriedRef.current) return;
+    biometricTriedRef.current = true;
+    void submitBiometric({ showError: false });
+  }, [isLocked, biometricEnabled, submitBiometric]);
+
   const handleBiometric = () => {
-    if (cooldownRemaining > 0) return;
-    void unlockWithBiometric();
+    void submitBiometric({ showError: true });
   };
 
   if (!isReady || !isLocked || !settings) return null;
@@ -178,13 +194,19 @@ export function LockScreen() {
           <button
             type="button"
             onClick={handleBiometric}
-            disabled={cooldownRemaining > 0}
+            disabled={cooldownRemaining > 0 || isBiometricBusy}
             data-testid="lock-screen-biometric"
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card border border-border text-sm font-semibold text-foreground hover:bg-accent/5 transition-colors disabled:opacity-40"
           >
             <Fingerprint size={16} />
-            Use biometrics
+            {isBiometricBusy ? 'Checking...' : 'Use biometrics'}
           </button>
+        )}
+
+        {settings.biometricEnabled && !biometricAvailable && (
+          <p className="max-w-xs text-xs text-muted-foreground">
+            {biometricReason}
+          </p>
         )}
 
         <AlertDialog>
