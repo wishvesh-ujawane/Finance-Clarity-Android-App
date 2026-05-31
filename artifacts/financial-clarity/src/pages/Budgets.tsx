@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearch } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Check, X, AlertTriangle, ChevronDown, PiggyBank, Pencil } from 'lucide-react';
 import {
@@ -32,6 +33,9 @@ export default function Budgets() {
   const [showAddBudget, setShowAddBudget] = useState(false);
   const [transferMessage, setTransferMessage] = useState('');
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
+  const [highlightedCatId, setHighlightedCatId] = useState<string | null>(null);
+  const budgetRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const search = useSearch();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [isTxnSheetOpen, setIsTxnSheetOpen] = useState(false);
   const [newCatId, setNewCatId] = useState('');
@@ -151,6 +155,23 @@ export default function Budgets() {
 
   const totalBudget = budgetsWithData.reduce((s, b) => s + b.limit, 0);
   const totalSpent = budgetsWithData.reduce((s, b) => s + b.spent, 0);
+
+  // Handle ?highlight=<categoryId> deep-link from Dashboard alert chips
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const target = params.get('highlight');
+    if (!target) return;
+    // Wait for budget cards to mount/animate in
+    const timer = window.setTimeout(() => {
+      const el = budgetRefs.current[target];
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightedCatId(target);
+        window.setTimeout(() => setHighlightedCatId(null), 2200);
+      }
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [search, budgetsWithData.length]);
 
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-8">
@@ -280,9 +301,11 @@ export default function Budgets() {
           const isWarning = b.pct >= 75 && b.pct < 100;
           const barColor = isOver ? '#EF4444' : isWarning ? '#F59E0B' : b.cat?.color || '#2563EB';
 
+          const isHighlighted = highlightedCatId === b.categoryId;
           return (
             <motion.div
               key={b.id}
+              ref={el => { budgetRefs.current[b.categoryId] = el; }}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
@@ -300,7 +323,12 @@ export default function Budgets() {
                   openCategoryTransactions(b.categoryId);
                 }
               }}
-              className={cn('bg-card border rounded-2xl p-5 transition-colors', isOver ? 'border-red-200 dark:border-red-900' : isWarning ? 'border-amber-200 dark:border-amber-900' : 'border-border')}
+              className={cn(
+                'bg-card border rounded-2xl p-5 transition-all',
+                isOver ? 'border-red-200 dark:border-red-900' : isWarning ? 'border-amber-200 dark:border-amber-900' : 'border-border',
+                isHighlighted && 'ring-2 ring-amber-400 ring-offset-2 ring-offset-background',
+              )}
+              data-budget-id={b.categoryId}
               data-testid={`budget-${b.id}`}
             >
               <div className="flex items-start justify-between mb-3">
