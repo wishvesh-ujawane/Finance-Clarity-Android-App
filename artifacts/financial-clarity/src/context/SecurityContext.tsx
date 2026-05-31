@@ -15,6 +15,7 @@ import {
   addBiometryChangeListener,
   describeBiometricAvailability,
   getBiometricAvailability,
+  openBiometricEnrollmentSettings,
   verifyBiometric,
 } from '@/lib/biometric';
 
@@ -29,6 +30,7 @@ interface SecurityContextType {
   changePin: (currentPin: string, newPin: string) => Promise<boolean>;
   enableBiometric: () => Promise<boolean>;
   disableBiometric: () => void;
+  openBiometricEnrollment: () => Promise<boolean>;
   disableAppLock: (currentPin: string) => Promise<boolean>;
   unlockWithPin: (pin: string) => Promise<boolean>;
   unlockWithBiometric: () => Promise<boolean>;
@@ -204,6 +206,16 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     setSettings(next);
   }, [settings]);
 
+  const openBiometricEnrollment = useCallback(async () => {
+    const opened = await openBiometricEnrollmentSettings();
+    if (opened) {
+      window.setTimeout(() => {
+        void refreshBiometricState();
+      }, 500);
+    }
+    return opened;
+  }, [refreshBiometricState]);
+
   const disableAppLock = useCallback(async (currentPin: string) => {
     if (!settings) return false;
     const ok = await verifyPin(currentPin, settings);
@@ -253,12 +265,13 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     changePin,
     enableBiometric,
     disableBiometric,
+    openBiometricEnrollment,
     disableAppLock,
     unlockWithPin,
     unlockWithBiometric,
     lockNow,
     resetAllData,
-  }), [settings, isReady, isLocked, biometricAvailable, biometricReason, setupPin, changePin, enableBiometric, disableBiometric, disableAppLock, unlockWithPin, unlockWithBiometric, lockNow, resetAllData]);
+  }), [settings, isReady, isLocked, biometricAvailable, biometricReason, setupPin, changePin, enableBiometric, disableBiometric, openBiometricEnrollment, disableAppLock, unlockWithPin, unlockWithBiometric, lockNow, resetAllData]);
 
   return <SecurityContext.Provider value={value}>{children}</SecurityContext.Provider>;
 }

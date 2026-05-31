@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'wouter';
-import { ArrowLeft, Fingerprint, KeyRound, ShieldCheck, ShieldOff } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Fingerprint, KeyRound, ShieldCheck, ShieldOff } from 'lucide-react';
 import { useSecurity } from '@/context/SecurityContext';
 import { PinSetupDialog, type PinDialogMode } from '@/components/PinSetupDialog';
 import { Switch } from '@/components/ui/switch';
@@ -16,12 +16,14 @@ export default function Security() {
     changePin,
     enableBiometric,
     disableBiometric,
+    openBiometricEnrollment,
     disableAppLock,
   } = useSecurity();
 
   const [dialogMode, setDialogMode] = useState<PinDialogMode | null>(null);
   const [pendingCurrentPin, setPendingCurrentPin] = useState<string | null>(null);
   const [isBiometricBusy, setIsBiometricBusy] = useState(false);
+  const [isEnrollmentOpening, setIsEnrollmentOpening] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -105,6 +107,20 @@ export default function Security() {
       showError(biometricAvailable ? 'Biometric confirmation was cancelled.' : biometricReason);
     } finally {
       setIsBiometricBusy(false);
+    }
+  };
+
+  const handleOpenEnrollment = async () => {
+    setIsEnrollmentOpening(true);
+    try {
+      const opened = await openBiometricEnrollment();
+      if (opened) {
+        showMessage('Android settings opened. Enroll your fingerprint or face, then return here to enable biometric unlock.');
+        return;
+      }
+      showError('Biometric enrollment must be set up in the Android app on a supported device.');
+    } finally {
+      setIsEnrollmentOpening(false);
     }
   };
 
@@ -196,6 +212,19 @@ export default function Security() {
                     className="mt-0.5"
                   />
                 </div>
+
+                {!biometricAvailable && !settings?.biometricEnabled && (
+                  <button
+                    type="button"
+                    data-testid="security-open-biometric-enrollment"
+                    onClick={handleOpenEnrollment}
+                    disabled={isEnrollmentOpening}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-accent/5 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ExternalLink size={14} />
+                    {isEnrollmentOpening ? 'Opening settings' : 'Set up biometrics'}
+                  </button>
+                )}
               </div>
 
               <button
