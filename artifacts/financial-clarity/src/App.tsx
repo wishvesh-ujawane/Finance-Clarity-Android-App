@@ -14,6 +14,7 @@ import Analysis from '@/pages/Analysis';
 import Transactions from '@/pages/Transactions';
 import Settings from '@/pages/Settings';
 import Security from '@/pages/Security';
+import RecurringExpenses from '@/pages/RecurringExpenses';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ function AppLayout() {
           <Route path="/budgets" component={Budgets} />
           <Route path="/analysis" component={Analysis} />
           <Route path="/settings/security" component={Security} />
+          <Route path="/settings/recurring" component={RecurringExpenses} />
           <Route path="/settings" component={Settings} />
           <Route component={NotFound} />
         </Switch>

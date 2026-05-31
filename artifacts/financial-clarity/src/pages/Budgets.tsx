@@ -38,12 +38,12 @@ export default function Budgets() {
   const [editCatName, setEditCatName] = useState('');
   const [editCatIcon, setEditCatIcon] = useState('DollarSign');
   const [editCatColor, setEditCatColor] = useState('#10B981');
-  const [editCatType, setEditCatType] = useState<'income' | 'expense'>('expense');
+  const [editCatType, setEditCatType] = useState<'income' | 'expense' | 'commitment'>('expense');
   const [showAddCat, setShowAddCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('DollarSign');
   const [newCatColor, setNewCatColor] = useState('#10B981');
-  const [newCatType, setNewCatType] = useState<'income' | 'expense'>('expense');
+  const [newCatType, setNewCatType] = useState<'income' | 'expense' | 'commitment'>('expense');
 
   const targetMonth = addMonths(selectedMonth, 1);
   const currentMonthBudgets = useMemo(
@@ -51,7 +51,7 @@ export default function Budgets() {
     [budgets, selectedMonth]
   );
 
-  const expenseCategories = useMemo(() => categories.filter(c => c.type === 'expense' || c.type === 'both'), [categories]);
+  const expenseCategories = useMemo(() => categories.filter(c => c.type === 'expense' || c.type === 'commitment' || c.type === 'both'), [categories]);
   const unbudgetedCategories = useMemo(() => expenseCategories.filter(c => !currentMonthBudgets.find(b => b.categoryId === c.id)), [expenseCategories, currentMonthBudgets]);
 
   const budgetsWithData = useMemo(() =>
@@ -95,7 +95,7 @@ export default function Budgets() {
     setEditCatName(cat.name);
     setEditCatIcon(cat.icon);
     setEditCatColor(cat.color);
-    setEditCatType(cat.type === 'both' ? 'expense' : cat.type);
+    setEditCatType(cat.type === 'both' ? 'expense' : (cat.type as 'income' | 'expense' | 'commitment'));
   };
 
   const saveEditCat = () => {
@@ -352,7 +352,7 @@ export default function Budgets() {
                           placeholder="Name"
                         />
                         <div className="flex gap-1.5">
-                          {(['expense', 'income'] as const).map(t => (
+                          {(['expense', 'income', 'commitment'] as const).map(t => (
                             <button key={t} onClick={() => setEditCatType(t)} className={cn('flex-1 py-1.5 rounded-lg text-xs font-medium capitalize', editCatType === t ? 'bg-accent text-white' : 'bg-white dark:bg-card text-muted-foreground border border-border')}>
                               {t}
                             </button>
@@ -420,7 +420,7 @@ export default function Budgets() {
                         <p className="text-xs font-bold text-foreground">New Category</p>
                         <input value={newCatName} onChange={e => setNewCatName(e.target.value)} className="w-full px-3 py-2 text-sm bg-white dark:bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-accent" placeholder="Category name" />
                         <div className="flex gap-1.5">
-                          {(['expense', 'income'] as const).map(t => (
+                          {(['expense', 'income', 'commitment'] as const).map(t => (
                             <button key={t} onClick={() => setNewCatType(t)} className={cn('flex-1 py-1.5 rounded-lg text-xs font-medium capitalize', newCatType === t ? 'bg-accent text-white' : 'bg-white dark:bg-card text-muted-foreground border border-border')}>
                               {t}
                             </button>
