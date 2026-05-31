@@ -20,7 +20,7 @@ interface SecurityContextType {
   biometricAvailable: boolean;
   biometricReason: string;
   isAppLockEnabled: boolean;
-  setupPin: (pin: string) => Promise<void>;
+  setupPin: (pin: string) => Promise<boolean>;
   changePin: (currentPin: string, newPin: string) => Promise<boolean>;
   enableBiometric: () => Promise<boolean>;
   disableBiometric: () => void;
@@ -149,11 +149,17 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
 
   const setupPin = useCallback(async (pin: string) => {
     if (!isValidPinFormat(pin)) throw new Error('PIN must be 4 digits.');
-    const next = await createSecuritySettings(pin);
+    const availability = await getBiometricAvailability();
+    const biometricEnabled = availability.isAvailable
+      ? await verifyBiometric('Confirm biometrics to enable unlock')
+      : false;
+    const next = await createSecuritySettings(pin, { biometricEnabled });
     saveSecuritySettings(next);
     setSettings(next);
     setIsLocked(false);
-  }, []);
+    void refreshBiometricState();
+    return biometricEnabled;
+  }, [refreshBiometricState]);
 
   const changePin = useCallback(async (currentPin: string, newPin: string) => {
     if (!settings) return false;

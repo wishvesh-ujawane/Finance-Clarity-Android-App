@@ -9,8 +9,11 @@ export default function Security() {
   const {
     settings,
     isAppLockEnabled,
+    biometricAvailable,
+    biometricReason,
     setupPin,
     changePin,
+    enableBiometric,
     disableAppLock,
   } = useSecurity();
 
@@ -44,8 +47,12 @@ export default function Security() {
 
   const handleDialogComplete = async (pin: string) => {
     if (dialogMode === 'setup') {
-      await setupPin(pin);
-      showMessage('App lock enabled.');
+      const biometricEnabled = await setupPin(pin);
+      showMessage(
+        biometricEnabled
+          ? 'App lock enabled with biometrics.'
+          : 'App lock enabled with PIN only.'
+      );
       return;
     }
     if (dialogMode === 'change') {
@@ -76,6 +83,15 @@ export default function Security() {
     return ok;
   };
 
+  const handleEnableBiometric = async () => {
+    const ok = await enableBiometric();
+    if (ok) {
+      showMessage('Biometrics enabled.');
+      return;
+    }
+    showError(biometricAvailable ? 'Biometric confirmation was cancelled.' : biometricReason);
+  };
+
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-8">
       <div className="mb-6 flex items-center gap-3">
@@ -104,8 +120,10 @@ export default function Security() {
             <p className="text-sm font-bold text-foreground">App Lock</p>
             <p className="text-xs text-muted-foreground">
               {isAppLockEnabled
-                ? 'A 4-digit PIN unlocks the app. Biometrics are enabled for secure unlock.'
-                : 'Require a 4-digit PIN (with biometrics) to open the app.'}
+                ? settings?.biometricEnabled
+                  ? 'A 4-digit PIN unlocks the app. Biometrics are enabled for secure unlock.'
+                  : 'A 4-digit PIN unlocks the app. Biometrics can be enabled on supported devices.'
+                : 'Require a 4-digit PIN to open the app. Biometrics will be offered on supported devices.'}
             </p>
           </div>
         </div>
@@ -135,6 +153,26 @@ export default function Security() {
                 </span>
                 <span className="text-xs font-medium text-white/60">4 digits</span>
               </button>
+
+              {!settings?.biometricEnabled && (
+                <div className="rounded-xl border border-border bg-accent/5 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Biometric unlock</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{biometricReason}</p>
+                    </div>
+                    <button
+                      type="button"
+                      data-testid="security-enable-biometric"
+                      onClick={handleEnableBiometric}
+                      disabled={!biometricAvailable}
+                      className="shrink-0 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Enable
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <button
                 type="button"

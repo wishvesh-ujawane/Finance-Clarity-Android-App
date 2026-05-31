@@ -135,7 +135,7 @@ export default function Settings() {
               <p className="text-xs text-muted-foreground">
                 {isAppLockEnabled
                   ? `App lock is on${securitySettings?.biometricEnabled ? ' \u2022 biometrics enabled' : ''}`
-                  : 'Set a PIN and biometrics to lock the app.'}
+                  : 'Set a PIN to lock the app. Biometrics are offered on supported devices.'}
               </p>
             </div>
             <ChevronRight size={16} className="text-muted-foreground" />
