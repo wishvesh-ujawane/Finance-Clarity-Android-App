@@ -1,6 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { Transaction, Category, Budget, RecurringExpense, SavingsGoal } from '@/lib/types';
+import { Transaction, Category, Budget, RecurringExpense, SavingsGoal, SAVINGS_CATEGORY_IDS } from '@/lib/types';
 import { currentMonth } from '@/lib/finance-utils';
+
+const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
+
+const SAVINGS_DEFAULTS: Category[] = [
+  { id: 'savings-goal', name: 'Goal Savings', icon: 'PiggyBank', color: '#0EA5E9', type: 'savings' },
+  { id: 'savings-emergency', name: 'Emergency Fund', icon: 'ShieldCheck', color: '#14B8A6', type: 'savings' },
+];
 
 const DEFAULT_CATEGORIES: Category[] = [
   { id: 'groceries', name: 'Groceries', icon: 'ShoppingCart', color: '#10B981', type: 'expense' },
@@ -12,7 +19,36 @@ const DEFAULT_CATEGORIES: Category[] = [
   { id: 'salary', name: 'Salary', icon: 'Briefcase', color: '#10B981', type: 'income' },
   { id: 'freelance', name: 'Freelance', icon: 'Laptop', color: '#8B5CF6', type: 'income' },
   { id: 'investment', name: 'Investment', icon: 'TrendingUp', color: '#2563EB', type: 'income' },
+  ...SAVINGS_DEFAULTS,
 ];
+
+/** Ensure both hardcoded savings categories exist in the array and have type='savings'. */
+function ensureSavingsCategories(list: Category[]): Category[] {
+  const byId = new Map(list.map(c => [c.id, c] as const));
+  let mutated = false;
+  for (const seed of SAVINGS_DEFAULTS) {
+    const existing = byId.get(seed.id);
+    if (!existing) {
+      byId.set(seed.id, { ...seed });
+      mutated = true;
+    } else if (existing.type !== 'savings') {
+      byId.set(seed.id, { ...existing, type: 'savings' });
+      mutated = true;
+    }
+  }
+  if (!mutated) return list;
+  // Preserve original ordering then append any newly added.
+  const seen = new Set<string>();
+  const ordered: Category[] = [];
+  for (const c of list) {
+    seen.add(c.id);
+    ordered.push(byId.get(c.id) ?? c);
+  }
+  for (const seed of SAVINGS_DEFAULTS) {
+    if (!seen.has(seed.id)) ordered.push(byId.get(seed.id)!);
+  }
+  return ordered;
+}
 
 interface FinanceContextType {
   transactions: Transaction[];
@@ -45,6 +81,7 @@ interface FinanceContextType {
   closeSheet: () => void;
   getTotalIncome: (month?: string) => number;
   getTotalExpenses: (month?: string) => number;
+  getTotalSavings: (month?: string) => number;
   getBalance: (month?: string) => number;
   getCarryForward: (month: string) => number;
   getSpentForCategory: (categoryId: string, month: string) => number;
@@ -99,7 +136,7 @@ function isValidCategory(value: unknown): value is Category {
     value.name.length > 0 &&
     typeof value.icon === 'string' &&
     typeof value.color === 'string' &&
-    (value.type === 'income' || value.type === 'expense' || value.type === 'commitment' || value.type === 'both')
+    (value.type === 'income' || value.type === 'expense' || value.type === 'commitment' || value.type === 'savings' || value.type === 'both')
   );
 }
 
@@ -192,7 +229,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [categories, setCategories] = useState<Category[]>(() => {
     const stored = loadArrayFromStorage('categories', [], isValidCategory);
     if (stored.length === 0) return DEFAULT_CATEGORIES;
-    return stored;
+    return ensureSavingsCategories(stored);
   });
   const [budgets, setBudgets] = useState<Budget[]>(() =>
     loadArrayFromStorage('budgets', [], isValidBudget).map(b => ({ ...b, month: b.month || currentMonth() }))
@@ -201,22 +238,29 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     loadArrayFromStorage('recurring', [], isValidRecurring)
   );
   const [savingsGoal, setSavingsGoalState] = useState<SavingsGoal>(() => {
+    const empty: SavingsGoal = { goal: { monthly: 0, annual: 0 }, emergency: { monthly: 0, annual: 0 } };
+    const validEntry = (v: unknown): v is { monthly: number; annual: number } =>
+      isObject(v) && typeof v.monthly === 'number' && Number.isFinite(v.monthly)
+      && typeof v.annual === 'number' && Number.isFinite(v.annual);
     try {
       const raw = localStorage.getItem(getStorageKey('savings-goal'));
-      if (!raw) return { monthly: 0, annual: 0 };
+      if (!raw) return empty;
       const parsed = JSON.parse(raw) as unknown;
-      if (
-        isObject(parsed) &&
-        typeof parsed.monthly === 'number' &&
-        typeof parsed.annual === 'number' &&
-        Number.isFinite(parsed.monthly) &&
-        Number.isFinite(parsed.annual)
-      ) {
-        return { monthly: parsed.monthly, annual: parsed.annual };
+      if (!isObject(parsed)) return empty;
+      // New shape
+      if (validEntry(parsed.goal) || validEntry(parsed.emergency)) {
+        return {
+          goal: validEntry(parsed.goal) ? { monthly: parsed.goal.monthly, annual: parsed.goal.annual } : { monthly: 0, annual: 0 },
+          emergency: validEntry(parsed.emergency) ? { monthly: parsed.emergency.monthly, annual: parsed.emergency.annual } : { monthly: 0, annual: 0 },
+        };
       }
-      return { monthly: 0, annual: 0 };
+      // Legacy shape { monthly, annual } -> migrate into `goal`.
+      if (validEntry(parsed)) {
+        return { goal: { monthly: parsed.monthly, annual: parsed.annual }, emergency: { monthly: 0, annual: 0 } };
+      }
+      return empty;
     } catch {
-      return { monthly: 0, annual: 0 };
+      return empty;
     }
   });
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth);
@@ -253,16 +297,28 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addCategory = useCallback((c: Omit<Category, 'id'>): Category => {
-    const newCat: Category = { ...c, id: createId() };
+    // Savings type is reserved for the two hardcoded categories.
+    const safeType: Category['type'] = c.type === 'savings' ? 'expense' : c.type;
+    const newCat: Category = { ...c, type: safeType, id: createId() };
     setCategories(prev => [...prev, newCat]);
     return newCat;
   }, []);
 
   const updateCategory = useCallback((id: string, updates: Omit<Category, 'id'>) => {
-    setCategories(prev => prev.map(c => c.id === id ? { ...updates, id } : c));
+    setCategories(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      // For hardcoded savings categories, force type='savings' to preserve invariant.
+      if (SAVINGS_CATEGORY_ID_SET.has(id)) {
+        return { ...updates, type: 'savings', id };
+      }
+      // Disallow promoting a non-savings category to 'savings' via update.
+      const safeType: Category['type'] = updates.type === 'savings' ? c.type : updates.type;
+      return { ...updates, type: safeType, id };
+    }));
   }, []);
 
   const deleteCategory = useCallback((id: string) => {
+    if (SAVINGS_CATEGORY_ID_SET.has(id)) return; // hardcoded; cannot delete
     setCategories(prev => prev.filter(c => c.id !== id));
     setBudgets(prev => prev.filter(b => b.categoryId !== id));
   }, []);
@@ -422,13 +478,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const getTotalExpenses = useCallback((month?: string) => {
     return getTransactionsForMonth(month)
-      .filter(t => t.type === 'expense')
+      .filter(t => t.type === 'expense' && !SAVINGS_CATEGORY_ID_SET.has(t.categoryId))
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [getTransactionsForMonth]);
+
+  const getTotalSavings = useCallback((month?: string) => {
+    return getTransactionsForMonth(month)
+      .filter(t => t.type === 'expense' && SAVINGS_CATEGORY_ID_SET.has(t.categoryId))
       .reduce((sum, t) => sum + t.amount, 0);
   }, [getTransactionsForMonth]);
 
   const getBalance = useCallback((month?: string) => {
-    return getTotalIncome(month) - getTotalExpenses(month);
-  }, [getTotalIncome, getTotalExpenses]);
+    return getTotalIncome(month) - getTotalExpenses(month) - getTotalSavings(month);
+  }, [getTotalIncome, getTotalExpenses, getTotalSavings]);
 
   // Carry forward = cumulative balance of all months BEFORE the given month
   const getCarryForward = useCallback((month: string) => {
@@ -456,7 +518,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       selectedMonth, setSelectedMonth,
       isSheetOpen, editingTransaction,
       openSheet, openEditSheet, closeSheet,
-      getTotalIncome, getTotalExpenses, getBalance, getCarryForward, getSpentForCategory,
+      getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getSpentForCategory,
     }}>
       {children}
     </FinanceContext.Provider>

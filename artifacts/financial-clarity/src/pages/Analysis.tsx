@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { addMonths, formatINR, formatShortINR, formatMonthYear, localDateStr } from '@/lib/finance-utils';
+import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
 
 function shiftMonth(month: string, offset: number) {
   const [year, monthNum] = month.split('-').map(Number);
@@ -443,23 +444,35 @@ export default function Analysis() {
   };
 
   // ─── Planning Card C: Savings goal progress ────────────────────────────
-  const savingsGoalProgress = useMemo(() => {
-    if (!savingsGoal || (savingsGoal.annual <= 0 && savingsGoal.monthly <= 0)) return null;
+  const savingsGoalsProgress = useMemo(() => {
+    if (!savingsGoal) return [];
     const year = today.getFullYear();
-    const ytdMonths: string[] = [];
-    for (let m = 0; m <= today.getMonth(); m++) {
-      ytdMonths.push(`${year}-${String(m + 1).padStart(2, '0')}`);
-    }
-    const ytdIncome = ytdMonths.reduce((s, m) => s + getMonthTotal(transactions, m, 'income'), 0);
-    const ytdExpenses = ytdMonths.reduce((s, m) => s + getMonthTotal(transactions, m, 'expense'), 0);
-    const ytdSavings = ytdIncome - ytdExpenses;
-    const annualGoal = savingsGoal.annual > 0 ? savingsGoal.annual : savingsGoal.monthly * 12;
     const monthIndex = today.getMonth() + 1;
-    const expectedToDate = annualGoal * (monthIndex / 12);
-    const pct = annualGoal > 0 ? Math.max(0, Math.min(100, (ytdSavings / annualGoal) * 100)) : 0;
-    const onTrack = ytdSavings >= expectedToDate;
-    return { ytdSavings, annualGoal, pct, onTrack, monthIndex };
+    const ytdMonthPrefixes: string[] = [];
+    for (let m = 0; m <= today.getMonth(); m++) {
+      ytdMonthPrefixes.push(`${year}-${String(m + 1).padStart(2, '0')}`);
+    }
+    const ytdSavingsByCat: Record<string, number> = {};
+    for (const t of transactions) {
+      if (t.type !== 'expense') continue;
+      if (!SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number])) continue;
+      if (!ytdMonthPrefixes.some(p => t.date.startsWith(p))) continue;
+      ytdSavingsByCat[t.categoryId] = (ytdSavingsByCat[t.categoryId] ?? 0) + t.amount;
+    }
+    const entries = [
+      { key: 'goal' as const, id: 'savings-goal', name: 'Goal Savings', color: '#0EA5E9', goal: savingsGoal.goal },
+      { key: 'emergency' as const, id: 'savings-emergency', name: 'Emergency Fund', color: '#14B8A6', goal: savingsGoal.emergency },
+    ];
+    return entries.map(e => {
+      const annualGoal = e.goal.annual > 0 ? e.goal.annual : e.goal.monthly * 12;
+      const ytdContrib = ytdSavingsByCat[e.id] ?? 0;
+      const expectedToDate = annualGoal * (monthIndex / 12);
+      const pct = annualGoal > 0 ? Math.max(0, Math.min(100, (ytdContrib / annualGoal) * 100)) : 0;
+      const onTrack = annualGoal > 0 && ytdContrib >= expectedToDate;
+      return { ...e, annualGoal, ytdContrib, pct, onTrack, monthIndex };
+    });
   }, [savingsGoal, transactions, today]);
+  const visibleSavingsGoals = useMemo(() => savingsGoalsProgress.filter(g => g.annualGoal > 0), [savingsGoalsProgress]);
 
   // ─── Trends Chart B: Savings rate trend ────────────────────────────────
   const savingsRateSeries = useMemo(() => {
@@ -1167,7 +1180,7 @@ export default function Analysis() {
             )}
           </div>
 
-          {savingsGoalProgress && (
+          {visibleSavingsGoals.length > 0 && (
             <div className="bg-card border border-border rounded-2xl p-5" data-testid="savings-goal-card">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
@@ -1175,42 +1188,41 @@ export default function Analysis() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Goal Progress</p>
-                  <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Savings goal</h2>
+                  <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Savings goals</h2>
                 </div>
               </div>
-              <div className="flex items-center gap-5">
-                <div className="relative w-28 h-28 flex-shrink-0">
-                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                    <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="10" className="text-muted" />
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="10"
-                      strokeLinecap="round"
-                      className={savingsGoalProgress.onTrack ? 'text-emerald-500' : 'text-amber-500'}
-                      strokeDasharray={`${(savingsGoalProgress.pct / 100) * 2 * Math.PI * 42} ${2 * Math.PI * 42}`}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <p className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{savingsGoalProgress.pct.toFixed(0)}%</p>
+              <div className={cn('grid gap-4', visibleSavingsGoals.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
+                {visibleSavingsGoals.map(g => (
+                  <div key={g.key} className="flex flex-col items-center text-center" data-testid={`savings-goal-${g.key}`}>
+                    <div className="relative w-24 h-24 flex-shrink-0">
+                      <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="10" className="text-muted" />
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="42"
+                          fill="none"
+                          stroke={g.onTrack ? '#10B981' : g.color}
+                          strokeWidth="10"
+                          strokeLinecap="round"
+                          strokeDasharray={`${(g.pct / 100) * 2 * Math.PI * 42} ${2 * Math.PI * 42}`}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <p className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{g.pct.toFixed(0)}%</p>
+                      </div>
+                    </div>
+                    <p className="text-xs font-bold text-foreground mt-2">{g.name}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {formatINR(g.ytdContrib)} / {formatINR(g.annualGoal)}
+                    </p>
+                    <p className={cn('text-[10px] font-semibold mt-0.5', g.onTrack ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
+                      {g.onTrack ? 'On track' : 'Behind pace'}
+                    </p>
                   </div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground">
-                    {formatINR(savingsGoalProgress.ytdSavings)} saved of {formatINR(savingsGoalProgress.annualGoal)}
-                  </p>
-                  <p className={cn('text-xs font-semibold mt-1', savingsGoalProgress.onTrack ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
-                    {savingsGoalProgress.onTrack ? 'On track' : 'Behind pace'}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-1">Year-to-date through month {savingsGoalProgress.monthIndex} of 12.</p>
-                  <Link href="/settings" className="text-[11px] text-accent font-semibold hover:underline inline-flex items-center gap-0.5 mt-1">
-                    Adjust goal <ArrowRight size={10} />
-                  </Link>
-                </div>
+                ))}
               </div>
+              <p className="text-[11px] text-muted-foreground mt-3 text-center">Year-to-date through month {visibleSavingsGoals[0]?.monthIndex} of 12. <Link href="/settings" className="text-accent font-semibold hover:underline inline-flex items-center gap-0.5">Adjust goals <ArrowRight size={10} /></Link></p>
             </div>
           )}
         </TabsContent>

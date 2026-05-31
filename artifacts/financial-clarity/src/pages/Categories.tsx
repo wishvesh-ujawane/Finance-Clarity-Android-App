@@ -25,13 +25,13 @@ export default function Categories() {
   const [editCatName, setEditCatName] = useState('');
   const [editCatIcon, setEditCatIcon] = useState('DollarSign');
   const [editCatColor, setEditCatColor] = useState('#10B981');
-  const [editCatType, setEditCatType] = useState<'income' | 'expense'>('expense');
+  const [editCatType, setEditCatType] = useState<'income' | 'expense' | 'commitment'>('expense');
 
   const [showAddCat, setShowAddCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('DollarSign');
   const [newCatColor, setNewCatColor] = useState('#10B981');
-  const [newCatType, setNewCatType] = useState<'income' | 'expense'>('expense');
+  const [newCatType, setNewCatType] = useState<'income' | 'expense' | 'commitment'>('expense');
 
   const startEditCat = (catId: string) => {
     const cat = categories.find(c => c.id === catId);
@@ -40,7 +40,7 @@ export default function Categories() {
     setEditCatName(cat.name);
     setEditCatIcon(cat.icon);
     setEditCatColor(cat.color);
-    setEditCatType(cat.type === 'both' ? 'expense' : cat.type);
+    setEditCatType(cat.type === 'both' || cat.type === 'savings' ? 'expense' : cat.type);
   };
 
   const saveEditCat = () => {

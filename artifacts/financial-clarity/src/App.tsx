@@ -15,6 +15,7 @@ import Transactions from '@/pages/Transactions';
 import Settings from '@/pages/Settings';
 import Security from '@/pages/Security';
 import RecurringExpenses from '@/pages/RecurringExpenses';
+import Categories from '@/pages/Categories';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
