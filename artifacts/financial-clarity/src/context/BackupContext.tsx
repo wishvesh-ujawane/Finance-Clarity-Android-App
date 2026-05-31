@@ -115,8 +115,27 @@ function humanizeError(err: unknown): string {
   return 'Something went wrong.';
 }
 
+// Drive limits each appProperties entry (key + value) to 124 bytes UTF-8.
+// Leave a small safety margin so multi-byte chars never tip us over.
+const DRIVE_APP_PROPERTY_BUDGET = 120;
+
+function clampUtf8(value: string, maxBytes: number): string {
+  if (maxBytes <= 0) return '';
+  const encoder = new TextEncoder();
+  if (encoder.encode(value).length <= maxBytes) return value;
+  // Binary-search the longest prefix that fits, avoiding split surrogates.
+  let lo = 0;
+  let hi = value.length;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >>> 1;
+    if (encoder.encode(value.slice(0, mid)).length <= maxBytes) lo = mid;
+    else hi = mid - 1;
+  }
+  return value.slice(0, lo);
+}
+
 function appPropertiesFor(backup: BackupFile): Record<string, string> {
-  return {
+  const raw: Record<string, string> = {
     schemaVersion: String(backup.schemaVersion),
     appVersion: backup.appVersion,
     exportedAt: backup.exportedAt,
@@ -128,6 +147,14 @@ function appPropertiesFor(backup: BackupFile): Record<string, string> {
     countRecurring: String(backup.counts.recurringExpenses),
     countSavings: String(backup.counts.savingsGoal),
   };
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (!value) continue; // Skip empty values to keep the metadata tidy.
+    const keyBytes = new TextEncoder().encode(key).length;
+    const budget = DRIVE_APP_PROPERTY_BUDGET - keyBytes;
+    out[key] = clampUtf8(value, budget);
+  }
+  return out;
 }
 
 function remoteInfoFromDriveFile(file: DriveFile): RemoteBackupInfo {
