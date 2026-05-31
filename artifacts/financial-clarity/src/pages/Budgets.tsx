@@ -28,13 +28,26 @@ export default function Budgets() {
   const [newLimit, setNewLimit] = useState('');
   const [editLimit, setEditLimit] = useState('');
 
+  // Category management state
+  const [showCatSection, setShowCatSection] = useState(false);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editCatName, setEditCatName] = useState('');
+  const [editCatIcon, setEditCatIcon] = useState('DollarSign');
+  const [editCatColor, setEditCatColor] = useState('#10B981');
+  const [editCatType, setEditCatType] = useState<'income' | 'expense' | 'commitment'>('expense');
+  const [showAddCat, setShowAddCat] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatIcon, setNewCatIcon] = useState('DollarSign');
+  const [newCatColor, setNewCatColor] = useState('#10B981');
+  const [newCatType, setNewCatType] = useState<'income' | 'expense' | 'commitment'>('expense');
+
   const targetMonth = addMonths(selectedMonth, 1);
   const currentMonthBudgets = useMemo(
     () => budgets.filter(b => b.month === selectedMonth),
     [budgets, selectedMonth]
   );
 
-  const expenseCategories = useMemo(() => categories.filter(c => c.type === 'expense' || c.type === 'both'), [categories]);
+  const expenseCategories = useMemo(() => categories.filter(c => c.type === 'expense' || c.type === 'commitment' || c.type === 'both'), [categories]);
   const unbudgetedCategories = useMemo(() => expenseCategories.filter(c => !currentMonthBudgets.find(b => b.categoryId === c.id)), [expenseCategories, currentMonthBudgets]);
 
   const budgetsWithData = useMemo(() =>
@@ -83,6 +96,30 @@ export default function Budgets() {
     setEditingBudgetId(null);
   };
 
+  const startEditCat = (catId: string) => {
+    const cat = categories.find(c => c.id === catId);
+    if (!cat) return;
+    setEditingCatId(catId);
+    setEditCatName(cat.name);
+    setEditCatIcon(cat.icon);
+    setEditCatColor(cat.color);
+    setEditCatType(cat.type === 'both' ? 'expense' : (cat.type as 'income' | 'expense' | 'commitment'));
+  };
+
+  const saveEditCat = () => {
+    if (!editingCatId || !editCatName.trim()) return;
+    updateCategory(editingCatId, { name: editCatName.trim(), icon: editCatIcon, color: editCatColor, type: editCatType });
+    setEditingCatId(null);
+  };
+
+  const handleAddCategory = () => {
+    if (!newCatName.trim()) return;
+    addCategory({ name: newCatName.trim(), icon: newCatIcon, color: newCatColor, type: newCatType });
+    setNewCatName('');
+    setNewCatIcon('DollarSign');
+    setNewCatColor('#10B981');
+    setNewCatType('expense');
+    setShowAddCat(false);
   const openCategoryTransactions = (categoryId: string) => {
     setSelectedCategoryId(categoryId);
     setIsTxnSheetOpen(true);
@@ -320,6 +357,125 @@ export default function Budgets() {
             </SheetDescription>
           </SheetHeader>
 
+        <AnimatePresence>
+          {showCatSection && (
+            <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden border-t border-border">
+              <div className="p-4 space-y-2">
+                {categories.map(cat => (
+                  <div key={cat.id}>
+                    {editingCatId === cat.id ? (
+                      <div className="border border-accent/30 rounded-xl p-3 space-y-2 bg-muted/30">
+                        <input
+                          value={editCatName}
+                          onChange={e => setEditCatName(e.target.value)}
+                          className="w-full px-3 py-2 text-sm bg-white dark:bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-accent"
+                          placeholder="Name"
+                        />
+                        <div className="flex gap-1.5">
+                          {(['expense', 'income', 'commitment'] as const).map(t => (
+                            <button key={t} onClick={() => setEditCatType(t)} className={cn('flex-1 py-1.5 rounded-lg text-xs font-medium capitalize', editCatType === t ? 'bg-accent text-white' : 'bg-white dark:bg-card text-muted-foreground border border-border')}>
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {COLOR_SWATCHES.map(c => (
+                            <button key={c} onClick={() => setEditCatColor(c)} className="w-6 h-6 rounded-full relative" style={{ backgroundColor: c }}>
+                              {editCatColor === c && <Check size={11} className="absolute inset-0 m-auto text-white" strokeWidth={3} />}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-8 gap-1">
+                          {ICON_OPTIONS.slice(0, 16).map(ico => (
+                            <button key={ico} onClick={() => setEditCatIcon(ico)} className={cn('w-8 h-8 rounded-lg flex items-center justify-center', editCatIcon === ico ? 'bg-accent text-white' : 'bg-white dark:bg-card border border-border text-muted-foreground')}>
+                              <CategoryIcon icon={ico} size={13} />
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={saveEditCat} className="flex-1 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-semibold"><Check size={12} className="inline mr-1" />Save</button>
+                          <button onClick={() => setEditingCatId(null)} className="flex-1 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-semibold"><X size={12} className="inline mr-1" />Cancel</button>
+                        </div>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <button className="w-full py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-semibold">
+                              <Trash2 size={12} className="inline mr-1" />Delete Category
+                            </button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Category?</AlertDialogTitle>
+                              <AlertDialogDescription>Are you sure you really want to delete "{cat.name}"? Its associated budget will also be removed. Existing transactions will show as Unknown.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => { deleteCategory(cat.id); setEditingCatId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => startEditCat(cat.id)}
+                        className="w-full group flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/40 transition-colors text-left"
+                      >
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: cat.color + '22' }}>
+                          <CategoryIcon icon={cat.icon} color={cat.color} size={14} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground">{cat.name}</p>
+                          <p className="text-[10px] text-muted-foreground capitalize">{cat.type}</p>
+                        </div>
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                {/* Add New Category */}
+                <AnimatePresence>
+                  {showAddCat && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                      <div className="border border-border rounded-xl p-3 space-y-2 mt-2 bg-muted/20">
+                        <p className="text-xs font-bold text-foreground">New Category</p>
+                        <input value={newCatName} onChange={e => setNewCatName(e.target.value)} className="w-full px-3 py-2 text-sm bg-white dark:bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-accent" placeholder="Category name" />
+                        <div className="flex gap-1.5">
+                          {(['expense', 'income', 'commitment'] as const).map(t => (
+                            <button key={t} onClick={() => setNewCatType(t)} className={cn('flex-1 py-1.5 rounded-lg text-xs font-medium capitalize', newCatType === t ? 'bg-accent text-white' : 'bg-white dark:bg-card text-muted-foreground border border-border')}>
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {COLOR_SWATCHES.map(c => (
+                            <button key={c} onClick={() => setNewCatColor(c)} className="w-6 h-6 rounded-full relative" style={{ backgroundColor: c }}>
+                              {newCatColor === c && <Check size={11} className="absolute inset-0 m-auto text-white" strokeWidth={3} />}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-8 gap-1">
+                          {ICON_OPTIONS.slice(0, 16).map(ico => (
+                            <button key={ico} onClick={() => setNewCatIcon(ico)} className={cn('w-8 h-8 rounded-lg flex items-center justify-center', newCatIcon === ico ? 'bg-accent text-white' : 'bg-white dark:bg-card border border-border text-muted-foreground')}>
+                              <CategoryIcon icon={ico} size={13} />
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={handleAddCategory} className="flex-1 py-1.5 rounded-lg bg-accent text-white text-xs font-semibold">Create</button>
+                          <button onClick={() => setShowAddCat(false)} className="flex-1 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-semibold">Cancel</button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <button
+                  data-testid="add-category-btn"
+                  onClick={() => setShowAddCat(v => !v)}
+                  className="w-full py-2.5 rounded-xl border-2 border-dashed border-border text-sm font-medium text-muted-foreground hover:border-accent/40 hover:text-accent transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Plus size={14} /> Add Category
+                </button>
           <div className="mt-4 h-[calc(50vh-88px)] overflow-y-auto border-t border-border">
             {categoryTransactions.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center px-6 text-muted-foreground">

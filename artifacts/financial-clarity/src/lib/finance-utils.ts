@@ -38,6 +38,11 @@ export function formatMonthLabel(month: string) {
   });
 }
 
+export function formatMonthYear(month: string) {
+  const [year, m] = month.split('-').map(Number);
+  return new Date(year, m - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+}
+
 export function addMonths(month: string, delta: number): string {
   const [year, m] = month.split('-').map(Number);
   const d = new Date(year, m - 1 + delta);

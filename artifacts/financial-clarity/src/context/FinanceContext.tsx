@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { Transaction, Category, Budget } from '@/lib/types';
+import { Transaction, Category, Budget, RecurringExpense, SavingsGoal } from '@/lib/types';
 import { currentMonth } from '@/lib/finance-utils';
 
 const DEFAULT_CATEGORIES: Category[] = [
@@ -18,6 +18,8 @@ interface FinanceContextType {
   transactions: Transaction[];
   categories: Category[];
   budgets: Budget[];
+  recurringExpenses: RecurringExpense[];
+  savingsGoal: SavingsGoal;
   addTransaction: (t: Omit<Transaction, 'id'>) => void;
   importTransactions: (items: Omit<Transaction, 'id'>[]) => number;
   updateTransaction: (id: string, updates: Omit<Transaction, 'id'>) => void;
@@ -29,6 +31,11 @@ interface FinanceContextType {
   updateBudget: (id: string, limit: number) => void;
   deleteBudget: (id: string) => void;
   transferBudgetsToMonth: (fromMonth: string, toMonth: string) => number;
+  addRecurring: (r: Omit<RecurringExpense, 'id' | 'lastGeneratedMonth'>) => void;
+  updateRecurring: (id: string, updates: Omit<RecurringExpense, 'id'>) => void;
+  deleteRecurring: (id: string) => void;
+  toggleRecurringActive: (id: string) => void;
+  setSavingsGoal: (goal: SavingsGoal) => void;
   selectedMonth: string;
   setSelectedMonth: (m: string) => void;
   isSheetOpen: boolean;
@@ -92,7 +99,7 @@ function isValidCategory(value: unknown): value is Category {
     value.name.length > 0 &&
     typeof value.icon === 'string' &&
     typeof value.color === 'string' &&
-    (value.type === 'income' || value.type === 'expense' || value.type === 'both')
+    (value.type === 'income' || value.type === 'expense' || value.type === 'commitment' || value.type === 'both')
   );
 }
 
@@ -106,6 +113,25 @@ function isValidBudget(value: unknown): value is Budget {
     typeof value.limit === 'number' &&
     Number.isFinite(value.limit) &&
     (value.month === undefined || typeof value.month === 'string')
+  );
+}
+
+function isValidRecurring(value: unknown): value is RecurringExpense {
+  return (
+    isObject(value) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    typeof value.description === 'string' &&
+    typeof value.amount === 'number' &&
+    Number.isFinite(value.amount) &&
+    typeof value.categoryId === 'string' &&
+    value.categoryId.length > 0 &&
+    typeof value.dayOfMonth === 'number' &&
+    value.dayOfMonth >= 1 &&
+    value.dayOfMonth <= 31 &&
+    typeof value.active === 'boolean' &&
+    typeof value.startMonth === 'string' &&
+    (value.lastGeneratedMonth === undefined || typeof value.lastGeneratedMonth === 'string')
   );
 }
 
@@ -153,6 +179,12 @@ function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function addOneMonth(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(y, m, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export function FinanceProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>(() =>
     loadArrayFromStorage('transactions', [], isValidTransaction).map(t => ({ ...t, note: t.note || '' }))
@@ -165,6 +197,28 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [budgets, setBudgets] = useState<Budget[]>(() =>
     loadArrayFromStorage('budgets', [], isValidBudget).map(b => ({ ...b, month: b.month || currentMonth() }))
   );
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(() =>
+    loadArrayFromStorage('recurring', [], isValidRecurring)
+  );
+  const [savingsGoal, setSavingsGoalState] = useState<SavingsGoal>(() => {
+    try {
+      const raw = localStorage.getItem(getStorageKey('savings-goal'));
+      if (!raw) return { monthly: 0, annual: 0 };
+      const parsed = JSON.parse(raw) as unknown;
+      if (
+        isObject(parsed) &&
+        typeof parsed.monthly === 'number' &&
+        typeof parsed.annual === 'number' &&
+        Number.isFinite(parsed.monthly) &&
+        Number.isFinite(parsed.annual)
+      ) {
+        return { monthly: parsed.monthly, annual: parsed.annual };
+      }
+      return { monthly: 0, annual: 0 };
+    } catch {
+      return { monthly: 0, annual: 0 };
+    }
+  });
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -172,6 +226,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage('transactions', transactions); }, [transactions]);
   useEffect(() => { saveToStorage('categories', categories); }, [categories]);
   useEffect(() => { saveToStorage('budgets', budgets); }, [budgets]);
+  useEffect(() => { saveToStorage('recurring', recurringExpenses); }, [recurringExpenses]);
+  useEffect(() => {
+    try { localStorage.setItem(getStorageKey('savings-goal'), JSON.stringify(savingsGoal)); } catch { /* ignore */ }
+  }, [savingsGoal]);
 
   const addTransaction = useCallback((t: Omit<Transaction, 'id'>) => {
     setTransactions(prev => [{ ...t, id: createId() }, ...prev]);
@@ -271,6 +329,86 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setEditingTransaction(null);
   }, []);
 
+  const addRecurring = useCallback((r: Omit<RecurringExpense, 'id' | 'lastGeneratedMonth'>) => {
+    setRecurringExpenses(prev => [...prev, { ...r, id: createId() }]);
+  }, []);
+
+  const updateRecurring = useCallback((id: string, updates: Omit<RecurringExpense, 'id'>) => {
+    setRecurringExpenses(prev => prev.map(r => r.id === id ? { ...updates, id } : r));
+  }, []);
+
+  const deleteRecurring = useCallback((id: string) => {
+    setRecurringExpenses(prev => prev.filter(r => r.id !== id));
+  }, []);
+
+  const toggleRecurringActive = useCallback((id: string) => {
+    setRecurringExpenses(prev => prev.map(r => r.id === id ? { ...r, active: !r.active } : r));
+  }, []);
+
+  const setSavingsGoal = useCallback((goal: SavingsGoal) => {
+    setSavingsGoalState(goal);
+  }, []);
+
+  // Recurring materializer: for each active recurring expense, generate one
+  // transaction per month from startMonth..currentMonth that hasn't been generated yet.
+  useEffect(() => {
+    const cur = currentMonth();
+    const pending: { recurringId: string; lastMonth: string; newTx: Omit<Transaction, 'id'>[] }[] = [];
+
+    recurringExpenses.forEach(r => {
+      if (!r.active) return;
+      if (!r.startMonth || r.startMonth > cur) return;
+
+      const startFrom = r.lastGeneratedMonth && r.lastGeneratedMonth >= r.startMonth
+        ? addOneMonth(r.lastGeneratedMonth)
+        : r.startMonth;
+      if (startFrom > cur) return;
+
+      const monthsToGenerate: string[] = [];
+      let m = startFrom;
+      while (m <= cur) {
+        monthsToGenerate.push(m);
+        m = addOneMonth(m);
+      }
+      if (monthsToGenerate.length === 0) return;
+
+      const newTx: Omit<Transaction, 'id'>[] = [];
+      monthsToGenerate.forEach(monthKey => {
+        const [y, mm] = monthKey.split('-').map(Number);
+        const daysInMonth = new Date(y, mm, 0).getDate();
+        const day = Math.min(r.dayOfMonth, daysInMonth);
+        const date = `${monthKey}-${String(day).padStart(2, '0')}`;
+        const note = r.description;
+
+        // Dedupe: skip if same description+amount already exists in this month
+        const exists = transactions.some(t =>
+          t.type === 'expense' &&
+          t.date.startsWith(monthKey) &&
+          t.amount === r.amount &&
+          (t.note || '').trim().toLowerCase() === note.trim().toLowerCase() &&
+          t.categoryId === r.categoryId
+        );
+        if (exists) return;
+
+        newTx.push({ type: 'expense', amount: r.amount, categoryId: r.categoryId, note, date });
+      });
+
+      pending.push({ recurringId: r.id, lastMonth: monthsToGenerate[monthsToGenerate.length - 1], newTx });
+    });
+
+    if (pending.length === 0) return;
+
+    const allNew: Transaction[] = pending.flatMap(p => p.newTx.map(t => ({ ...t, id: createId() })));
+    if (allNew.length > 0) {
+      setTransactions(prev => [...allNew, ...prev]);
+    }
+    setRecurringExpenses(prev => prev.map(r => {
+      const match = pending.find(p => p.recurringId === r.id);
+      return match ? { ...r, lastGeneratedMonth: match.lastMonth } : r;
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recurringExpenses]);
+
   const getTransactionsForMonth = useCallback((month?: string) => {
     const m = month || selectedMonth;
     return transactions.filter(t => t.date.startsWith(m));
@@ -309,9 +447,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   return (
     <FinanceContext.Provider value={{
       transactions, categories, budgets,
+      recurringExpenses, savingsGoal,
       addTransaction, importTransactions, updateTransaction, deleteTransaction,
       addCategory, updateCategory, deleteCategory,
       addBudget, updateBudget, deleteBudget, transferBudgetsToMonth,
+      addRecurring, updateRecurring, deleteRecurring, toggleRecurringActive,
+      setSavingsGoal,
       selectedMonth, setSelectedMonth,
       isSheetOpen, editingTransaction,
       openSheet, openEditSheet, closeSheet,

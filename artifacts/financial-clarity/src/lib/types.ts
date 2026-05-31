@@ -12,7 +12,7 @@ export interface Category {
   name: string;
   icon: string;
   color: string;
-  type: 'income' | 'expense' | 'both';
+  type: 'income' | 'expense' | 'commitment' | 'both';
 }
 
 export interface Budget {
@@ -20,4 +20,20 @@ export interface Budget {
   categoryId: string;
   limit: number;
   month?: string;
+}
+
+export interface RecurringExpense {
+  id: string;
+  description: string;
+  amount: number;
+  categoryId: string;
+  dayOfMonth: number;
+  active: boolean;
+  startMonth: string;
+  lastGeneratedMonth?: string;
+}
+
+export interface SavingsGoal {
+  monthly: number;
+  annual: number;
 }
