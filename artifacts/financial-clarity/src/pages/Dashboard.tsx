@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import {
-  ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ArrowRightLeft,
+  ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ArrowRightLeft, PiggyBank,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useFinance } from '@/context/FinanceContext';
@@ -11,6 +11,9 @@ import { cn } from '@/lib/utils';
 import {
   addMonths, formatAmount, formatDateLabel, formatMonthLabel, localDateStr,
 } from '@/lib/finance-utils';
+import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
+
+const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 
 function prevMonth(month: string): string {
   return addMonths(month, -1);
@@ -25,7 +28,7 @@ const TOP_SLICE_COUNT = 6;
 export default function Dashboard() {
   const {
     transactions, categories, budgets, selectedMonth, setSelectedMonth,
-    getTotalIncome, getTotalExpenses, getBalance, getCarryForward, getSpentForCategory,
+    getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getSpentForCategory,
     openEditSheet,
   } = useFinance();
 
@@ -36,6 +39,7 @@ export default function Dashboard() {
   const balance = getBalance(selectedMonth);
   const income = getTotalIncome(selectedMonth);
   const expenses = getTotalExpenses(selectedMonth);
+  const savings = getTotalSavings(selectedMonth);
   const carryForward = getCarryForward(selectedMonth);
   const netBalance = carryForward + balance;
   const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
@@ -70,9 +74,11 @@ export default function Dashboard() {
   // Aggregate spending per category for the month (used by donut + alerts)
   const chartData = useMemo(() => {
     const expenseMap: Record<string, number> = {};
-    monthTransactions.filter(t => t.type === 'expense').forEach(t => {
-      expenseMap[t.categoryId] = (expenseMap[t.categoryId] || 0) + t.amount;
-    });
+    monthTransactions
+      .filter(t => t.type === 'expense' && !SAVINGS_CATEGORY_ID_SET.has(t.categoryId))
+      .forEach(t => {
+        expenseMap[t.categoryId] = (expenseMap[t.categoryId] || 0) + t.amount;
+      });
     return Object.entries(expenseMap)
       .map(([catId, value]) => {
         const cat = categories.find(c => c.id === catId);
@@ -194,7 +200,7 @@ export default function Dashboard() {
             <div className="mb-3" />
           )}
 
-          {/* 2×2 stats grid */}
+          {/* 2×2 stats grid: Income / Expenses / Saved / Net flow (savings rate shown under Saved) */}
           <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/10">
             <div>
               <div className="flex items-center gap-1 mb-0.5">
@@ -210,6 +216,16 @@ export default function Dashboard() {
               </div>
               <p className="text-sm font-bold text-red-400 truncate" data-testid="expenses-amount">{formatAmount(expenses)}</p>
             </div>
+            <div>
+              <div className="flex items-center gap-1 mb-0.5">
+                <PiggyBank size={10} className="text-sky-400" />
+                <p className="text-[10px] text-white/50">Saved</p>
+              </div>
+              <p className="text-sm font-bold text-sky-400 truncate" data-testid="savings-amount">{formatAmount(savings)}</p>
+              <p className={cn('text-[10px] mt-0.5 truncate', savingsRate >= 0 ? 'text-emerald-400/80' : 'text-red-400/80')}>
+                {savingsRate.toFixed(1)}% rate
+              </p>
+            </div>
             <div className={cn('transition-colors', balance < 0 && 'bg-[rgba(226,75,74,0.15)] rounded-lg px-2 py-1 -mx-2 -my-1')}>
               <div className="flex items-center gap-1 mb-0.5">
                 {balance > 0
@@ -221,12 +237,6 @@ export default function Dashboard() {
               </div>
               <p className={cn('text-sm font-bold truncate', balance > 0 ? 'text-emerald-400' : balance < 0 ? 'text-red-400' : 'text-white')}>
                 {formatAmount(balance)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-white/50 mb-0.5">Savings</p>
-              <p className={cn('text-sm font-bold truncate', savingsRate >= 0 ? 'text-emerald-400' : 'text-red-400')}>
-                {savingsRate.toFixed(1)}%
               </p>
             </div>
           </div>
@@ -404,9 +414,20 @@ export default function Dashboard() {
                               {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
-                              <span className={cn('text-sm font-bold', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
-                                {t.type === 'income' ? '+' : '-'}{formatAmount(t.amount)}
-                              </span>
+                              {(() => {
+                                const isSavings = t.type === 'expense' && SAVINGS_CATEGORY_ID_SET.has(t.categoryId);
+                                const colorClass = t.type === 'income'
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : isSavings
+                                    ? 'text-sky-600 dark:text-sky-400'
+                                    : 'text-red-500 dark:text-red-400';
+                                const prefix = t.type === 'income' ? '+' : isSavings ? '↗' : '−';
+                                return (
+                                  <span className={cn('text-sm font-bold', colorClass)}>
+                                    {prefix}{formatAmount(t.amount)}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </div>
                         );

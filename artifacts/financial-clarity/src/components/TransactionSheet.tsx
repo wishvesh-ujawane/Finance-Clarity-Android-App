@@ -10,6 +10,9 @@ import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { localDateStr } from '@/lib/finance-utils';
+import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
+
+const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 
 const COLOR_SWATCHES = [
   '#10B981', '#6366F1', '#F59E0B', '#3B82F6', '#EF4444',
@@ -103,7 +106,7 @@ export function TransactionSheet() {
 
   const isEditing = !!editingTransaction;
 
-  const [type, setType] = useState<'expense' | 'income'>('expense');
+  const [mode, setMode] = useState<'expense' | 'income' | 'save'>('expense');
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [note, setNote] = useState('');
@@ -118,13 +121,14 @@ export function TransactionSheet() {
   useEffect(() => {
     if (isSheetOpen) {
       if (editingTransaction) {
-        setType(editingTransaction.type);
+        const isSavingsTx = editingTransaction.type === 'expense' && SAVINGS_CATEGORY_ID_SET.has(editingTransaction.categoryId);
+        setMode(isSavingsTx ? 'save' : editingTransaction.type);
         setAmount(String(editingTransaction.amount));
         setCategoryId(editingTransaction.categoryId);
         setNote(editingTransaction.note);
         setDate(editingTransaction.date);
       } else {
-        setType('expense');
+        setMode('expense');
         setAmount('');
         setCategoryId('');
         setNote('');
@@ -134,9 +138,11 @@ export function TransactionSheet() {
     }
   }, [isSheetOpen, editingTransaction]);
 
-  const filteredCategories = categories.filter(
-    c => c.type === type || c.type === 'both'
-  );
+  const filteredCategories = mode === 'save'
+    ? categories.filter(c => c.type === 'savings')
+    : mode === 'expense'
+      ? categories.filter(c => c.type === 'expense' || c.type === 'commitment' || c.type === 'both')
+      : categories.filter(c => c.type === 'income' || c.type === 'both');
 
   const calculatedAmount = evaluateAmountExpression(amount);
 
@@ -144,7 +150,9 @@ export function TransactionSheet() {
     const parsed = evaluateAmountExpression(amount);
     if (!parsed || parsed <= 0 || !categoryId) return;
 
-    const payload = { type, amount: parsed, categoryId, note, date };
+    // 'save' is a UI mode; underlying transaction is an expense whose category is a savings one.
+    const storedType: 'expense' | 'income' = mode === 'income' ? 'income' : 'expense';
+    const payload = { type: storedType, amount: parsed, categoryId, note, date };
 
     if (isEditing && editingTransaction) {
       updateTransaction(editingTransaction.id, payload);
@@ -153,7 +161,7 @@ export function TransactionSheet() {
     }
 
     closeSheet();
-  }, [amount, categoryId, type, note, date, isEditing, editingTransaction, addTransaction, updateTransaction, closeSheet]);
+  }, [amount, categoryId, mode, note, date, isEditing, editingTransaction, addTransaction, updateTransaction, closeSheet]);
 
   const handleCalculatorKey = useCallback((key: typeof CALCULATOR_KEYS[number]) => {
     if (key === '=') {
@@ -272,23 +280,27 @@ export function TransactionSheet() {
 
               {/* Type Toggle */}
               <div className="flex rounded-xl bg-muted p-1 mb-2" data-testid="type-toggle">
-                {(['expense', 'income'] as const).map(t => (
-                  <button
-                    key={t}
-                    data-testid={`type-${t}`}
-                    onClick={() => { setType(t); setCategoryId(''); }}
-                    className={cn(
-                      'flex-1 py-2 rounded-lg text-sm font-semibold transition-all capitalize',
-                      type === t
-                        ? t === 'expense'
-                          ? 'bg-red-500 text-white shadow'
-                          : 'bg-emerald-500 text-white shadow'
-                        : 'text-muted-foreground'
-                    )}
-                  >
-                    {t}
-                  </button>
-                ))}
+                {(['expense', 'income', 'save'] as const).map(t => {
+                  const label = t === 'save' ? 'Save' : t;
+                  const activeBg = t === 'expense'
+                    ? 'bg-red-500 text-white shadow'
+                    : t === 'income'
+                      ? 'bg-emerald-500 text-white shadow'
+                      : 'bg-sky-500 text-white shadow';
+                  return (
+                    <button
+                      key={t}
+                      data-testid={`type-${t}`}
+                      onClick={() => { setMode(t); setCategoryId(''); }}
+                      className={cn(
+                        'flex-1 py-2 rounded-lg text-sm font-semibold transition-all capitalize',
+                        mode === t ? activeBg : 'text-muted-foreground'
+                      )}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -358,27 +370,29 @@ export function TransactionSheet() {
                     </button>
                   ))}
 
-                  {/* Add new category */}
-                  <button
-                    data-testid="add-new-category"
-                    onClick={() => setShowNewCat(v => !v)}
-                    className={cn(
-                      'flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-dashed transition-all text-xs font-medium',
-                      showNewCat
-                        ? 'border-accent text-accent'
-                        : 'border-border text-muted-foreground hover:border-accent/50'
-                    )}
-                  >
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center bg-muted">
-                      {showNewCat ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </div>
-                    <span>New</span>
-                  </button>
+                  {/* Add new category — disabled for hardcoded savings list */}
+                  {mode !== 'save' && (
+                    <button
+                      data-testid="add-new-category"
+                      onClick={() => setShowNewCat(v => !v)}
+                      className={cn(
+                        'flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-dashed transition-all text-xs font-medium',
+                        showNewCat
+                          ? 'border-accent text-accent'
+                          : 'border-border text-muted-foreground hover:border-accent/50'
+                      )}
+                    >
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center bg-muted">
+                        {showNewCat ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </div>
+                      <span>New</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* New Category Form */}
                 <AnimatePresence>
-                  {showNewCat && (
+                  {showNewCat && mode !== 'save' && (
                     <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
@@ -504,15 +518,17 @@ export function TransactionSheet() {
                   'w-full py-4 rounded-2xl text-base font-bold transition-all',
                   !calculatedAmount || calculatedAmount <= 0 || !categoryId
                     ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                    : type === 'expense'
-                      ? 'bg-red-500 text-white shadow-lg hover:bg-red-600'
-                      : 'bg-emerald-500 text-white shadow-lg hover:bg-emerald-600'
+                    : mode === 'income'
+                      ? 'bg-emerald-500 text-white shadow-lg hover:bg-emerald-600'
+                      : mode === 'save'
+                        ? 'bg-sky-500 text-white shadow-lg hover:bg-sky-600'
+                        : 'bg-red-500 text-white shadow-lg hover:bg-red-600'
                 )}
                 whileTap={{ scale: 0.97 }}
               >
                 {isEditing
                   ? 'Save Changes'
-                  : type === 'expense' ? 'Add Expense' : 'Add Income'}
+                  : mode === 'income' ? 'Add Income' : mode === 'save' ? 'Add Savings' : 'Add Expense'}
               </motion.button>
             </div>
           </motion.div>

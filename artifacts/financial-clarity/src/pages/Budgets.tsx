@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearch } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Check, X, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Check, X, AlertTriangle, ChevronDown, PiggyBank, Pencil } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -9,8 +9,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { addMonths, formatINR, formatMonthLabel } from '@/lib/finance-utils';
+import { addMonths, formatDateLabel, formatINR, formatMonthLabel } from '@/lib/finance-utils';
+import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
+
+const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 
 const COLOR_SWATCHES = [
   '#10B981', '#6366F1', '#F59E0B', '#3B82F6', '#EF4444',
@@ -20,10 +24,10 @@ const COLOR_SWATCHES = [
 
 export default function Budgets() {
   const {
-    budgets, categories,
+    budgets, categories, transactions,
     addBudget, updateBudget, deleteBudget, transferBudgetsToMonth,
-    getSpentForCategory, selectedMonth,
     addCategory, updateCategory, deleteCategory,
+    getSpentForCategory, selectedMonth,
   } = useFinance();
 
   const [showAddBudget, setShowAddBudget] = useState(false);
@@ -32,6 +36,8 @@ export default function Budgets() {
   const [highlightedCatId, setHighlightedCatId] = useState<string | null>(null);
   const budgetRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const search = useSearch();
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [isTxnSheetOpen, setIsTxnSheetOpen] = useState(false);
   const [newCatId, setNewCatId] = useState('');
   const [newLimit, setNewLimit] = useState('');
   const [editLimit, setEditLimit] = useState('');
@@ -42,12 +48,12 @@ export default function Budgets() {
   const [editCatName, setEditCatName] = useState('');
   const [editCatIcon, setEditCatIcon] = useState('DollarSign');
   const [editCatColor, setEditCatColor] = useState('#10B981');
-  const [editCatType, setEditCatType] = useState<'income' | 'expense'>('expense');
+  const [editCatType, setEditCatType] = useState<'income' | 'expense' | 'commitment'>('expense');
   const [showAddCat, setShowAddCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('DollarSign');
   const [newCatColor, setNewCatColor] = useState('#10B981');
-  const [newCatType, setNewCatType] = useState<'income' | 'expense'>('expense');
+  const [newCatType, setNewCatType] = useState<'income' | 'expense' | 'commitment'>('expense');
 
   const targetMonth = addMonths(selectedMonth, 1);
   const currentMonthBudgets = useMemo(
@@ -55,18 +61,42 @@ export default function Budgets() {
     [budgets, selectedMonth]
   );
 
-  const expenseCategories = useMemo(() => categories.filter(c => c.type === 'expense' || c.type === 'both'), [categories]);
-  const unbudgetedCategories = useMemo(() => expenseCategories.filter(c => !currentMonthBudgets.find(b => b.categoryId === c.id)), [expenseCategories, currentMonthBudgets]);
+  const expenseCategories = useMemo(() => categories.filter(c => c.type === 'expense' || c.type === 'commitment' || c.type === 'both'), [categories]);
+  const savingsCategories = useMemo(() => categories.filter(c => c.type === 'savings'), [categories]);
+  const budgetableCategories = useMemo(() => [...expenseCategories, ...savingsCategories], [expenseCategories, savingsCategories]);
+  const unbudgetedCategories = useMemo(() => budgetableCategories.filter(c => !currentMonthBudgets.find(b => b.categoryId === c.id)), [budgetableCategories, currentMonthBudgets]);
 
-  const budgetsWithData = useMemo(() =>
+  const allBudgetsWithData = useMemo(() =>
     currentMonthBudgets.map(b => {
       const cat = categories.find(c => c.id === b.categoryId);
       const spent = getSpentForCategory(b.categoryId, selectedMonth);
       const pct = b.limit > 0 ? (spent / b.limit) * 100 : 0;
-      return { ...b, cat, spent, pct };
-    }).sort((a, b) => b.pct - a.pct),
+      const isSavings = cat?.type === 'savings';
+      return { ...b, cat, spent, pct, isSavings };
+    }),
     [currentMonthBudgets, categories, getSpentForCategory, selectedMonth]
   );
+
+  const budgetsWithData = useMemo(
+    () => allBudgetsWithData.filter(b => !b.isSavings).sort((a, b) => b.pct - a.pct),
+    [allBudgetsWithData]
+  );
+  const savingsBudgetsWithData = useMemo(
+    () => allBudgetsWithData.filter(b => b.isSavings).sort((a, b) => b.pct - a.pct),
+    [allBudgetsWithData]
+  );
+
+  const selectedCategory = useMemo(
+    () => categories.find(c => c.id === selectedCategoryId),
+    [categories, selectedCategoryId]
+  );
+
+  const categoryTransactions = useMemo(() => {
+    if (!selectedCategoryId) return [];
+    return transactions
+      .filter(t => t.categoryId === selectedCategoryId && t.date.startsWith(selectedMonth))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [transactions, selectedCategoryId, selectedMonth]);
 
   const handleAddBudget = () => {
     if (!newCatId || !newLimit || parseFloat(newLimit) <= 0) return;
@@ -99,7 +129,7 @@ export default function Budgets() {
     setEditCatName(cat.name);
     setEditCatIcon(cat.icon);
     setEditCatColor(cat.color);
-    setEditCatType(cat.type === 'both' ? 'expense' : cat.type);
+    setEditCatType(cat.type === 'both' ? 'expense' : (cat.type as 'income' | 'expense' | 'commitment'));
   };
 
   const saveEditCat = () => {
@@ -118,7 +148,12 @@ export default function Budgets() {
     setShowAddCat(false);
   };
 
-  const totalBudget = currentMonthBudgets.reduce((s, b) => s + b.limit, 0);
+  const openCategoryTransactions = (categoryId: string) => {
+    setSelectedCategoryId(categoryId);
+    setIsTxnSheetOpen(true);
+  };
+
+  const totalBudget = budgetsWithData.reduce((s, b) => s + b.limit, 0);
   const totalSpent = budgetsWithData.reduce((s, b) => s + b.spent, 0);
 
   // Handle ?highlight=<categoryId> deep-link from Dashboard alert chips
@@ -187,7 +222,7 @@ export default function Budgets() {
       )}
 
       {/* Summary */}
-      {currentMonthBudgets.length > 0 && (
+      {budgetsWithData.length > 0 && (
         <div className="grid grid-cols-2 gap-3 mb-5">
           <div className="bg-card border border-border rounded-2xl p-4">
             <p className="text-xs text-muted-foreground mb-1">Total Budget</p>
@@ -248,12 +283,16 @@ export default function Budgets() {
       </AnimatePresence>
 
       {/* Budget List */}
-      {budgetsWithData.length === 0 && !showAddBudget && (
+      {budgetsWithData.length === 0 && savingsBudgetsWithData.length === 0 && !showAddBudget && (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
           <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4"><Plus size={24} /></div>
           <p className="text-sm font-semibold mb-1">No budgets set</p>
           <p className="text-xs text-center max-w-xs">Set monthly spending limits for your categories to track your progress</p>
         </div>
+      )}
+
+      {budgetsWithData.length > 0 && (
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Spending budgets</p>
       )}
 
       <div className="space-y-3 mb-6">
@@ -274,16 +313,14 @@ export default function Budgets() {
               tabIndex={editingBudgetId === b.id ? undefined : 0}
               onClick={() => {
                 if (editingBudgetId !== b.id) {
-                  setEditingBudgetId(b.id);
-                  setEditLimit(String(b.limit));
+                  openCategoryTransactions(b.categoryId);
                 }
               }}
               onKeyDown={e => {
                 if (editingBudgetId === b.id) return;
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  setEditingBudgetId(b.id);
-                  setEditLimit(String(b.limit));
+                  openCategoryTransactions(b.categoryId);
                 }
               }}
               className={cn(
@@ -309,6 +346,21 @@ export default function Budgets() {
                     </div>
                   </div>
                 </div>
+                {editingBudgetId !== b.id && (
+                  <button
+                    type="button"
+                    data-testid={`edit-budget-${b.id}`}
+                    onClick={e => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setEditingBudgetId(b.id);
+                      setEditLimit(String(b.limit));
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+                  >
+                    <Pencil size={12} /> Edit
+                  </button>
+                )}
               </div>
 
               <div className="relative h-2 bg-muted rounded-full overflow-hidden mb-2">
@@ -322,11 +374,11 @@ export default function Budgets() {
                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
                       <input data-testid={`edit-limit-${b.id}`} type="number" value={editLimit} onChange={e => setEditLimit(e.target.value)} className="w-full pl-6 pr-2 py-1.5 text-sm bg-muted rounded-lg border border-border outline-none focus:ring-1 focus:ring-accent" autoFocus />
                     </div>
-                    <button onClick={() => handleEditBudgetSave(b.id)} className="p-1.5 rounded-lg bg-emerald-500 text-white"><Check size={13} /></button>
-                    <button onClick={() => setEditingBudgetId(null)} className="p-1.5 rounded-lg bg-muted text-muted-foreground"><X size={13} /></button>
+                    <button onClick={e => { e.stopPropagation(); handleEditBudgetSave(b.id); }} className="p-1.5 rounded-lg bg-emerald-500 text-white"><Check size={13} /></button>
+                    <button onClick={e => { e.stopPropagation(); setEditingBudgetId(null); }} className="p-1.5 rounded-lg bg-muted text-muted-foreground"><X size={13} /></button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <button data-testid={`delete-budget-${b.id}`} aria-label={`Delete ${b.cat?.name || 'Unknown'} budget`} className="p-1.5 rounded-lg bg-destructive/10 text-destructive"><Trash2 size={13} /></button>
+                        <button onClick={e => e.stopPropagation()} data-testid={`delete-budget-${b.id}`} aria-label={`Delete ${b.cat?.name || 'Unknown'} budget`} className="p-1.5 rounded-lg bg-destructive/10 text-destructive"><Trash2 size={13} /></button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
@@ -352,6 +404,100 @@ export default function Budgets() {
         })}
       </div>
 
+      {/* ── Savings Targets ── */}
+      {savingsBudgetsWithData.length > 0 && (
+        <>
+          <div className="flex items-center gap-1.5 mb-2">
+            <PiggyBank size={12} className="text-sky-500" />
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Savings targets</p>
+          </div>
+          <div className="space-y-3 mb-6">
+            {savingsBudgetsWithData.map((b, i) => {
+              const isMet = b.pct >= 100;
+              const isClose = b.pct >= 70 && b.pct < 100;
+              const barColor = isMet ? '#10B981' : isClose ? '#F59E0B' : (b.cat?.color || '#0EA5E9');
+              return (
+                <motion.div
+                  key={b.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  role={editingBudgetId === b.id ? undefined : 'button'}
+                  tabIndex={editingBudgetId === b.id ? undefined : 0}
+                  onClick={() => {
+                    if (editingBudgetId !== b.id) {
+                      setEditingBudgetId(b.id);
+                      setEditLimit(String(b.limit));
+                    }
+                  }}
+                  onKeyDown={e => {
+                    if (editingBudgetId === b.id) return;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setEditingBudgetId(b.id);
+                      setEditLimit(String(b.limit));
+                    }
+                  }}
+                  className={cn('bg-card border rounded-2xl p-5 transition-colors', isMet ? 'border-emerald-200 dark:border-emerald-900' : 'border-border')}
+                  data-testid={`savings-budget-${b.id}`}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: (b.cat?.color || '#0EA5E9') + '22' }}>
+                        <CategoryIcon icon={b.cat?.icon || 'PiggyBank'} color={b.cat?.color || '#0EA5E9'} size={18} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{b.cat?.name || 'Unknown'}</p>
+                        <p className={cn('text-xs', isMet ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : isClose ? 'text-amber-500 font-semibold' : 'text-muted-foreground')}>
+                          {isMet ? 'On target' : isClose ? 'Almost there' : `${formatINR(Math.max(0, b.limit - b.spent))} to go`}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="relative h-2 bg-muted rounded-full overflow-hidden mb-2">
+                    <motion.div className="absolute left-0 top-0 h-full rounded-full" style={{ backgroundColor: barColor }} initial={{ width: 0 }} animate={{ width: `${Math.min(b.pct, 100)}%` }} transition={{ duration: 0.6, ease: 'easeOut', delay: i * 0.05 }} />
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    {editingBudgetId === b.id ? (
+                      <div className="flex items-center gap-2 w-full">
+                        <div className="relative flex-1">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
+                          <input data-testid={`edit-savings-limit-${b.id}`} type="number" value={editLimit} onChange={e => setEditLimit(e.target.value)} className="w-full pl-6 pr-2 py-1.5 text-sm bg-muted rounded-lg border border-border outline-none focus:ring-1 focus:ring-accent" autoFocus />
+                        </div>
+                        <button onClick={() => handleEditBudgetSave(b.id)} className="p-1.5 rounded-lg bg-emerald-500 text-white"><Check size={13} /></button>
+                        <button onClick={() => setEditingBudgetId(null)} className="p-1.5 rounded-lg bg-muted text-muted-foreground"><X size={13} /></button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <button data-testid={`delete-savings-budget-${b.id}`} aria-label={`Delete ${b.cat?.name || 'Unknown'} target`} className="p-1.5 rounded-lg bg-destructive/10 text-destructive"><Trash2 size={13} /></button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Savings Target?</AlertDialogTitle>
+                              <AlertDialogDescription>Remove the monthly savings target for {b.cat?.name || 'this category'}? Your saved transactions will not be affected.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => { deleteBudget(b.id); setEditingBudgetId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">{formatINR(b.spent)}</span> saved of {formatINR(b.limit)}</span>
+                        <span className={cn('text-xs font-bold', isMet ? 'text-emerald-600 dark:text-emerald-400' : isClose ? 'text-amber-500' : 'text-sky-500')}>{Math.round(b.pct)}%</span>
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
       {/* ── Category Management ── */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <button
@@ -369,7 +515,9 @@ export default function Budgets() {
           {showCatSection && (
             <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden border-t border-border">
               <div className="p-4 space-y-2">
-                {categories.map(cat => (
+                {categories.map(cat => {
+                  const isLockedSavings = SAVINGS_CATEGORY_ID_SET.has(cat.id);
+                  return (
                   <div key={cat.id}>
                     {editingCatId === cat.id ? (
                       <div className="border border-accent/30 rounded-xl p-3 space-y-2 bg-muted/30">
@@ -379,13 +527,18 @@ export default function Budgets() {
                           className="w-full px-3 py-2 text-sm bg-white dark:bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-accent"
                           placeholder="Name"
                         />
-                        <div className="flex gap-1.5">
-                          {(['expense', 'income'] as const).map(t => (
-                            <button key={t} onClick={() => setEditCatType(t)} className={cn('flex-1 py-1.5 rounded-lg text-xs font-medium capitalize', editCatType === t ? 'bg-accent text-white' : 'bg-white dark:bg-card text-muted-foreground border border-border')}>
-                              {t}
-                            </button>
-                          ))}
-                        </div>
+                        {!isLockedSavings && (
+                          <div className="flex gap-1.5">
+                            {(['expense', 'income', 'commitment'] as const).map(t => (
+                              <button key={t} onClick={() => setEditCatType(t)} className={cn('flex-1 py-1.5 rounded-lg text-xs font-medium capitalize', editCatType === t ? 'bg-accent text-white' : 'bg-white dark:bg-card text-muted-foreground border border-border')}>
+                                {t}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {isLockedSavings && (
+                          <p className="text-[10px] text-muted-foreground italic">Built-in savings category — type cannot be changed.</p>
+                        )}
                         <div className="flex flex-wrap gap-1.5">
                           {COLOR_SWATCHES.map(c => (
                             <button key={c} onClick={() => setEditCatColor(c)} className="w-6 h-6 rounded-full relative" style={{ backgroundColor: c }}>
@@ -404,23 +557,25 @@ export default function Budgets() {
                           <button onClick={saveEditCat} className="flex-1 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-semibold"><Check size={12} className="inline mr-1" />Save</button>
                           <button onClick={() => setEditingCatId(null)} className="flex-1 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-semibold"><X size={12} className="inline mr-1" />Cancel</button>
                         </div>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <button className="w-full py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-semibold">
-                              <Trash2 size={12} className="inline mr-1" />Delete Category
-                            </button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Category?</AlertDialogTitle>
-                              <AlertDialogDescription>Are you sure you really want to delete "{cat.name}"? Its associated budget will also be removed. Existing transactions will show as Unknown.</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => { deleteCategory(cat.id); setEditingCatId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        {!isLockedSavings && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button className="w-full py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-semibold">
+                                <Trash2 size={12} className="inline mr-1" />Delete Category
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Category?</AlertDialogTitle>
+                                <AlertDialogDescription>Are you sure you really want to delete "{cat.name}"? Its associated budget will also be removed. Existing transactions will show as Unknown.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => { deleteCategory(cat.id); setEditingCatId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                       </div>
                     ) : (
                       <button
@@ -433,12 +588,13 @@ export default function Budgets() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground">{cat.name}</p>
-                          <p className="text-[10px] text-muted-foreground capitalize">{cat.type}</p>
+                          <p className="text-[10px] text-muted-foreground capitalize">{cat.type}{isLockedSavings ? ' • built-in' : ''}</p>
                         </div>
                       </button>
                     )}
                   </div>
-                ))}
+                  );
+                })}
 
                 {/* Add New Category */}
                 <AnimatePresence>
@@ -448,7 +604,7 @@ export default function Budgets() {
                         <p className="text-xs font-bold text-foreground">New Category</p>
                         <input value={newCatName} onChange={e => setNewCatName(e.target.value)} className="w-full px-3 py-2 text-sm bg-white dark:bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-accent" placeholder="Category name" />
                         <div className="flex gap-1.5">
-                          {(['expense', 'income'] as const).map(t => (
+                          {(['expense', 'income', 'commitment'] as const).map(t => (
                             <button key={t} onClick={() => setNewCatType(t)} className={cn('flex-1 py-1.5 rounded-lg text-xs font-medium capitalize', newCatType === t ? 'bg-accent text-white' : 'bg-white dark:bg-card text-muted-foreground border border-border')}>
                               {t}
                             </button>
@@ -489,6 +645,40 @@ export default function Budgets() {
           )}
         </AnimatePresence>
       </div>
+
+      <Sheet open={isTxnSheetOpen} onOpenChange={setIsTxnSheetOpen}>
+        <SheetContent side="bottom" className="h-[50vh] max-h-[50vh] rounded-t-2xl px-0 pb-0 pt-5">
+          <SheetHeader className="px-5">
+            <SheetTitle className="text-base">{selectedCategory?.name || 'Category'} Transactions</SheetTitle>
+            <SheetDescription>
+              {formatMonthLabel(selectedMonth)} • {categoryTransactions.length} transaction{categoryTransactions.length === 1 ? '' : 's'}
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-4 h-[calc(50vh-88px)] overflow-y-auto border-t border-border">
+            {categoryTransactions.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center px-6 text-muted-foreground">
+                <p className="text-sm font-semibold mb-1">No transactions found</p>
+                <p className="text-xs">No records for this category in {formatMonthLabel(selectedMonth)}.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {categoryTransactions.map(t => (
+                  <div key={t.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{formatDateLabel(t.date, { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                      {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
+                    </div>
+                    <p className={cn('text-sm font-bold whitespace-nowrap', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+                      {t.type === 'income' ? '+' : '-'}{formatINR(t.amount)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
