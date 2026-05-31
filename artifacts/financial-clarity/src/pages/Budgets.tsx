@@ -1,33 +1,29 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Check, X, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Check, X, AlertTriangle, Pencil } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useFinance } from '@/context/FinanceContext';
-import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { addMonths, formatINR, formatMonthLabel } from '@/lib/finance-utils';
-
-const COLOR_SWATCHES = [
-  '#10B981', '#6366F1', '#F59E0B', '#3B82F6', '#EF4444',
-  '#F97316', '#8B5CF6', '#EC4899', '#14B8A6', '#06B6D4',
-  '#84CC16', '#D946EF', '#0EA5E9', '#F43F5E',
-];
+import { addMonths, formatDateLabel, formatINR, formatMonthLabel } from '@/lib/finance-utils';
 
 export default function Budgets() {
   const {
-    budgets, categories,
+    budgets, categories, transactions,
     addBudget, updateBudget, deleteBudget, transferBudgetsToMonth,
     getSpentForCategory, selectedMonth,
-    addCategory, updateCategory, deleteCategory,
   } = useFinance();
 
   const [showAddBudget, setShowAddBudget] = useState(false);
   const [transferMessage, setTransferMessage] = useState('');
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [isTxnSheetOpen, setIsTxnSheetOpen] = useState(false);
   const [newCatId, setNewCatId] = useState('');
   const [newLimit, setNewLimit] = useState('');
   const [editLimit, setEditLimit] = useState('');
@@ -63,6 +59,18 @@ export default function Budgets() {
     }).sort((a, b) => b.pct - a.pct),
     [currentMonthBudgets, categories, getSpentForCategory, selectedMonth]
   );
+
+  const selectedCategory = useMemo(
+    () => categories.find(c => c.id === selectedCategoryId),
+    [categories, selectedCategoryId]
+  );
+
+  const categoryTransactions = useMemo(() => {
+    if (!selectedCategoryId) return [];
+    return transactions
+      .filter(t => t.categoryId === selectedCategoryId && t.date.startsWith(selectedMonth))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [transactions, selectedCategoryId, selectedMonth]);
 
   const handleAddBudget = () => {
     if (!newCatId || !newLimit || parseFloat(newLimit) <= 0) return;
@@ -112,6 +120,9 @@ export default function Budgets() {
     setNewCatColor('#10B981');
     setNewCatType('expense');
     setShowAddCat(false);
+  const openCategoryTransactions = (categoryId: string) => {
+    setSelectedCategoryId(categoryId);
+    setIsTxnSheetOpen(true);
   };
 
   const totalBudget = currentMonthBudgets.reduce((s, b) => s + b.limit, 0);
@@ -251,16 +262,14 @@ export default function Budgets() {
               tabIndex={editingBudgetId === b.id ? undefined : 0}
               onClick={() => {
                 if (editingBudgetId !== b.id) {
-                  setEditingBudgetId(b.id);
-                  setEditLimit(String(b.limit));
+                  openCategoryTransactions(b.categoryId);
                 }
               }}
               onKeyDown={e => {
                 if (editingBudgetId === b.id) return;
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  setEditingBudgetId(b.id);
-                  setEditLimit(String(b.limit));
+                  openCategoryTransactions(b.categoryId);
                 }
               }}
               className={cn('bg-card border rounded-2xl p-5 transition-colors', isOver ? 'border-red-200 dark:border-red-900' : isWarning ? 'border-amber-200 dark:border-amber-900' : 'border-border')}
@@ -281,6 +290,21 @@ export default function Budgets() {
                     </div>
                   </div>
                 </div>
+                {editingBudgetId !== b.id && (
+                  <button
+                    type="button"
+                    data-testid={`edit-budget-${b.id}`}
+                    onClick={e => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setEditingBudgetId(b.id);
+                      setEditLimit(String(b.limit));
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+                  >
+                    <Pencil size={12} /> Edit
+                  </button>
+                )}
               </div>
 
               <div className="relative h-2 bg-muted rounded-full overflow-hidden mb-2">
@@ -294,11 +318,11 @@ export default function Budgets() {
                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
                       <input data-testid={`edit-limit-${b.id}`} type="number" value={editLimit} onChange={e => setEditLimit(e.target.value)} className="w-full pl-6 pr-2 py-1.5 text-sm bg-muted rounded-lg border border-border outline-none focus:ring-1 focus:ring-accent" autoFocus />
                     </div>
-                    <button onClick={() => handleEditBudgetSave(b.id)} className="p-1.5 rounded-lg bg-emerald-500 text-white"><Check size={13} /></button>
-                    <button onClick={() => setEditingBudgetId(null)} className="p-1.5 rounded-lg bg-muted text-muted-foreground"><X size={13} /></button>
+                    <button onClick={e => { e.stopPropagation(); handleEditBudgetSave(b.id); }} className="p-1.5 rounded-lg bg-emerald-500 text-white"><Check size={13} /></button>
+                    <button onClick={e => { e.stopPropagation(); setEditingBudgetId(null); }} className="p-1.5 rounded-lg bg-muted text-muted-foreground"><X size={13} /></button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <button data-testid={`delete-budget-${b.id}`} aria-label={`Delete ${b.cat?.name || 'Unknown'} budget`} className="p-1.5 rounded-lg bg-destructive/10 text-destructive"><Trash2 size={13} /></button>
+                        <button onClick={e => e.stopPropagation()} data-testid={`delete-budget-${b.id}`} aria-label={`Delete ${b.cat?.name || 'Unknown'} budget`} className="p-1.5 rounded-lg bg-destructive/10 text-destructive"><Trash2 size={13} /></button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
@@ -324,18 +348,14 @@ export default function Budgets() {
         })}
       </div>
 
-      {/* ── Category Management ── */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        <button
-          data-testid="toggle-categories"
-          onClick={() => setShowCatSection(v => !v)}
-          className="w-full flex items-center justify-between px-5 py-4 text-sm font-bold text-foreground hover:bg-muted/40 transition-colors"
-        >
-          <span>Manage Categories</span>
-          <div className={cn('transition-transform', showCatSection ? 'rotate-180' : '')}>
-            <ChevronDown size={16} className="text-muted-foreground" />
-          </div>
-        </button>
+      <Sheet open={isTxnSheetOpen} onOpenChange={setIsTxnSheetOpen}>
+        <SheetContent side="bottom" className="h-[50vh] max-h-[50vh] rounded-t-2xl px-0 pb-0 pt-5">
+          <SheetHeader className="px-5">
+            <SheetTitle className="text-base">{selectedCategory?.name || 'Category'} Transactions</SheetTitle>
+            <SheetDescription>
+              {formatMonthLabel(selectedMonth)} • {categoryTransactions.length} transaction{categoryTransactions.length === 1 ? '' : 's'}
+            </SheetDescription>
+          </SheetHeader>
 
         <AnimatePresence>
           {showCatSection && (
@@ -456,11 +476,30 @@ export default function Budgets() {
                 >
                   <Plus size={14} /> Add Category
                 </button>
+          <div className="mt-4 h-[calc(50vh-88px)] overflow-y-auto border-t border-border">
+            {categoryTransactions.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center px-6 text-muted-foreground">
+                <p className="text-sm font-semibold mb-1">No transactions found</p>
+                <p className="text-xs">No records for this category in {formatMonthLabel(selectedMonth)}.</p>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {categoryTransactions.map(t => (
+                  <div key={t.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{formatDateLabel(t.date, { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                      {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
+                    </div>
+                    <p className={cn('text-sm font-bold whitespace-nowrap', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+                      {t.type === 'income' ? '+' : '-'}{formatINR(t.amount)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

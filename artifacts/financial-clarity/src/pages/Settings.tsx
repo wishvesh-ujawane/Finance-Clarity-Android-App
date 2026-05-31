@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent } from 'react';
 import { Link } from 'wouter';
 import { ChevronRight, Download, FileUp, Repeat, ShieldCheck, Settings as SettingsIcon, Target } from 'lucide-react';
+import { ChevronRight, Download, FileUp, ShieldCheck, Shapes, Settings as SettingsIcon } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { useSecurity } from '@/context/SecurityContext';
 import { buildTransactionsCsv, exportCsvFile, parseTransactionsCsv } from '@/lib/csv';
@@ -151,6 +152,25 @@ export default function Settings() {
                   ? `App lock is on${securitySettings?.biometricEnabled ? ' \u2022 biometrics enabled' : ''}`
                   : 'Set a PIN to lock the app. Biometrics are offered on supported devices.'}
               </p>
+            </div>
+            <ChevronRight size={16} className="text-muted-foreground" />
+          </button>
+        </Link>
+
+        <div className="border-t border-border" />
+
+        <Link href="/settings/categories">
+          <button
+            type="button"
+            data-testid="settings-categories-link"
+            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/5 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+              <Shapes size={18} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-foreground">Manage Categories</p>
+              <p className="text-xs text-muted-foreground">Create, update, and delete your category list.</p>
             </div>
             <ChevronRight size={16} className="text-muted-foreground" />
           </button>

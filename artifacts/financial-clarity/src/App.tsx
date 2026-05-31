@@ -41,6 +41,7 @@ function AppLayout() {
           <Route path="/analysis" component={Analysis} />
           <Route path="/settings/security" component={Security} />
           <Route path="/settings/recurring" component={RecurringExpenses} />
+          <Route path="/settings/categories" component={Categories} />
           <Route path="/settings" component={Settings} />
           <Route component={NotFound} />
         </Switch>
