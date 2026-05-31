@@ -1,11 +1,14 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownLeft, ArrowRightLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownLeft, ArrowRightLeft, PiggyBank } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { addMonths, formatDateLabel, formatINR, formatINRCompact, formatMonthLabel } from '@/lib/finance-utils';
+import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
+
+const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 
 function prevMonth(month: string): string {
   return addMonths(month, -1);
@@ -17,7 +20,7 @@ const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 export default function Dashboard() {
   const {
     transactions, categories, selectedMonth, setSelectedMonth,
-    getTotalIncome, getTotalExpenses, getBalance, getCarryForward,
+    getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward,
     openEditSheet,
   } = useFinance();
 
@@ -26,6 +29,7 @@ export default function Dashboard() {
   const balance = getBalance(selectedMonth);
   const income = getTotalIncome(selectedMonth);
   const expenses = getTotalExpenses(selectedMonth);
+  const savings = getTotalSavings(selectedMonth);
   const carryForward = getCarryForward(selectedMonth);
   const netBalance = carryForward + balance;
 
@@ -50,9 +54,11 @@ export default function Dashboard() {
 
   const chartData = useMemo(() => {
     const expenseMap: Record<string, number> = {};
-    monthTransactions.filter(t => t.type === 'expense').forEach(t => {
-      expenseMap[t.categoryId] = (expenseMap[t.categoryId] || 0) + t.amount;
-    });
+    monthTransactions
+      .filter(t => t.type === 'expense' && !SAVINGS_CATEGORY_ID_SET.has(t.categoryId))
+      .forEach(t => {
+        expenseMap[t.categoryId] = (expenseMap[t.categoryId] || 0) + t.amount;
+      });
     return Object.entries(expenseMap)
       .map(([catId, value]) => {
         const cat = categories.find(c => c.id === catId);
@@ -115,7 +121,7 @@ export default function Dashboard() {
           )}
           {carryForward === 0 && <div className="mb-3" />}
 
-          <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/10">
+          <div className="grid grid-cols-4 gap-2 pt-3 border-t border-white/10">
             <div>
               <div className="flex items-center gap-1 mb-0.5">
                 <ArrowDownLeft size={10} className="text-emerald-400" />
@@ -129,6 +135,13 @@ export default function Dashboard() {
                 <p className="text-[10px] text-white/50">Expenses</p>
               </div>
               <p className="text-sm font-bold text-red-400 truncate" data-testid="expenses-amount">{formatINRCompact(expenses)}</p>
+            </div>
+            <div>
+              <div className="flex items-center gap-1 mb-0.5">
+                <PiggyBank size={10} className="text-sky-400" />
+                <p className="text-[10px] text-white/50">Saved</p>
+              </div>
+              <p className="text-sm font-bold text-sky-400 truncate" data-testid="savings-amount">{formatINRCompact(savings)}</p>
             </div>
             <div>
               <p className="text-[10px] text-white/50 mb-0.5">This Month</p>
@@ -240,9 +253,20 @@ export default function Dashboard() {
                             {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <span className={cn('text-sm font-bold', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
-                              {t.type === 'income' ? '+' : '-'}{formatINRCompact(t.amount)}
-                            </span>
+                            {(() => {
+                              const isSavings = t.type === 'expense' && SAVINGS_CATEGORY_ID_SET.has(t.categoryId);
+                              const colorClass = t.type === 'income'
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : isSavings
+                                  ? 'text-sky-600 dark:text-sky-400'
+                                  : 'text-red-500 dark:text-red-400';
+                              const prefix = t.type === 'income' ? '+' : isSavings ? '↗' : '−';
+                              return (
+                                <span className={cn('text-sm font-bold', colorClass)}>
+                                  {prefix}{formatINRCompact(t.amount)}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
                       );

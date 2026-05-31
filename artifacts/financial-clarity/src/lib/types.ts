@@ -12,8 +12,11 @@ export interface Category {
   name: string;
   icon: string;
   color: string;
-  type: 'income' | 'expense' | 'commitment' | 'both';
+  type: 'income' | 'expense' | 'commitment' | 'savings' | 'both';
 }
+
+export const SAVINGS_CATEGORY_IDS = ['savings-goal', 'savings-emergency'] as const;
+export type SavingsCategoryId = typeof SAVINGS_CATEGORY_IDS[number];
 
 export interface Budget {
   id: string;
@@ -34,6 +37,8 @@ export interface RecurringExpense {
 }
 
 export interface SavingsGoal {
-  monthly: number;
-  annual: number;
+  goal: { monthly: number; annual: number };
+  emergency: { monthly: number; annual: number };
 }
+
+export type GoalEntry = SavingsGoal['goal'];
