@@ -1,5 +1,5 @@
-import { Capacitor } from '@capacitor/core';
-import type { AvailableResult, BiometricAuthError } from '@capgo/capacitor-native-biometric';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+import { NativeBiometric, type AvailableResult } from '@capgo/capacitor-native-biometric';
 
 export interface BiometricAvailability {
   isAvailable: boolean;
@@ -7,10 +7,24 @@ export interface BiometricAvailability {
   details?: AvailableResult;
 }
 
+interface BiometricSettingsPlugin {
+  openEnrollment(): Promise<{ opened: boolean }>;
+}
+
+const BiometricSettings = registerPlugin<BiometricSettingsPlugin>('BiometricSettings');
+
+const BIOMETRIC_ERROR = {
+  BIOMETRICS_UNAVAILABLE: 1,
+  USER_LOCKOUT: 2,
+  BIOMETRICS_NOT_ENROLLED: 3,
+  USER_TEMPORARY_LOCKOUT: 4,
+  PASSCODE_NOT_SET: 14,
+} as const;
+
 let pluginInitialized = false;
 let pluginAvailable = false;
 
-async function ensurePluginLoaded(): Promise<void> {
+function ensurePluginLoaded(): void {
   if (pluginInitialized) return;
   pluginInitialized = true;
   
@@ -20,9 +34,6 @@ async function ensurePluginLoaded(): Promise<void> {
   }
 
   try {
-    // Dynamically import to ensure it's loaded on native platform
-    const { NativeBiometric } = await import('@capgo/capacitor-native-biometric');
-    // Verify the plugin has the expected methods
     if (NativeBiometric && typeof NativeBiometric.isAvailable === 'function') {
       pluginAvailable = true;
     }
@@ -32,48 +43,43 @@ async function ensurePluginLoaded(): Promise<void> {
   }
 }
 
-async function getPlugin() {
-  await ensurePluginLoaded();
-  if (!pluginAvailable) return null;
-  try {
-    const { NativeBiometric } = await import('@capgo/capacitor-native-biometric');
-    return NativeBiometric;
-  } catch {
-    return null;
-  }
-}
-
-function messageFromAvailability(result: AvailableResult): string {
+export function describeBiometricAvailability(result: AvailableResult): string {
   if (result.isAvailable) return 'Biometric authentication is available.';
   if (result.deviceIsSecure === false) {
-    return 'Device lock screen is not configured. Set PIN/Pattern/Password in Android settings first.';
+    return 'Device lock screen is not configured. Set a PIN, pattern, or password in Android settings first.';
   }
-  if (result.errorCode === 3 as BiometricAuthError) {
+  if (result.errorCode === BIOMETRIC_ERROR.BIOMETRICS_NOT_ENROLLED) {
     return 'No biometrics enrolled. Add fingerprint or face in Android settings.';
   }
-  if (result.errorCode === 1 as BiometricAuthError) {
+  if (result.errorCode === BIOMETRIC_ERROR.BIOMETRICS_UNAVAILABLE) {
     return 'Biometric hardware is unavailable on this device.';
   }
-  if (result.errorCode === 2 as BiometricAuthError || result.errorCode === 4 as BiometricAuthError) {
-    return 'Biometric is temporarily locked. Wait and try again.';
+  if (
+    result.errorCode === BIOMETRIC_ERROR.USER_LOCKOUT ||
+    result.errorCode === BIOMETRIC_ERROR.USER_TEMPORARY_LOCKOUT
+  ) {
+    return 'Biometric unlock is temporarily locked. Wait and try again.';
+  }
+  if (result.errorCode === BIOMETRIC_ERROR.PASSCODE_NOT_SET) {
+    return 'Device credential fallback is not configured.';
   }
   return 'Biometric authentication is not available right now.';
 }
 
 export async function getBiometricAvailability(): Promise<BiometricAvailability> {
   try {
-    const plugin = await getPlugin();
-    if (!plugin) {
+    ensurePluginLoaded();
+    if (!pluginAvailable) {
       return {
         isAvailable: false,
         reason: 'Biometrics are only available in the Android app runtime, not browser preview.',
       };
     }
     
-    const result = await plugin.isAvailable({ useFallback: true });
+    const result = await NativeBiometric.isAvailable({ useFallback: false });
     return {
       isAvailable: Boolean(result?.isAvailable),
-      reason: messageFromAvailability(result),
+      reason: describeBiometricAvailability(result),
       details: result,
     };
   } catch (error) {
@@ -94,12 +100,12 @@ export async function addBiometryChangeListener(
   listener: (result: AvailableResult) => void
 ): Promise<(() => Promise<void>) | null> {
   try {
-    const plugin = await getPlugin();
-    if (!plugin || !('addListener' in plugin)) {
+    ensurePluginLoaded();
+    if (!pluginAvailable || !('addListener' in NativeBiometric)) {
       return null;
     }
     
-    const handle = await (plugin as any).addListener('biometryChange', listener);
+    const handle = await NativeBiometric.addListener('biometryChange', listener);
     if (!handle) return null;
     
     return async () => {
@@ -119,10 +125,10 @@ export async function addBiometryChangeListener(
 
 export async function verifyBiometric(reason = 'Unlock Fiscal Focus'): Promise<boolean> {
   try {
-    const plugin = await getPlugin();
-    if (!plugin) return false;
+    ensurePluginLoaded();
+    if (!pluginAvailable) return false;
     
-    await (plugin as any).verifyIdentity({
+    await NativeBiometric.verifyIdentity({
       reason,
       title: 'Unlock Fiscal Focus',
       subtitle: 'Use biometrics to continue',
@@ -132,6 +138,18 @@ export async function verifyBiometric(reason = 'Unlock Fiscal Focus'): Promise<b
     return true;
   } catch (error) {
     console.error('[biometric] verifyIdentity error', error);
+    return false;
+  }
+}
+
+export async function openBiometricEnrollmentSettings(): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return false;
+
+  try {
+    const result = await BiometricSettings.openEnrollment();
+    return Boolean(result.opened);
+  } catch (error) {
+    console.error('[biometric] openEnrollment error', error);
     return false;
   }
 }
