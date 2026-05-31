@@ -13,3 +13,6 @@ project(':capacitor-share').projectDir = new File('../../../node_modules/.pnpm/@
 
 include ':capgo-capacitor-native-biometric'
 project(':capgo-capacitor-native-biometric').projectDir = new File('../../../node_modules/.pnpm/@capgo+capacitor-native-bio_af8a268be286875dc5439382accbfccd/node_modules/@capgo/capacitor-native-biometric/android')
+
+include ':codetrix-studio-capacitor-google-auth'
+project(':codetrix-studio-capacitor-google-auth').projectDir = new File('../../../node_modules/.pnpm/@codetrix-studio+capacitor-_c606f4e720b1d44054ada29ab6b25242/node_modules/@codetrix-studio/capacitor-google-auth/android')

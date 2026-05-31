@@ -232,6 +232,9 @@ importers:
       '@capgo/capacitor-native-biometric':
         specifier: ^7.2.0
         version: 7.6.0(@capacitor/core@8.3.1)
+      '@codetrix-studio/capacitor-google-auth':
+        specifier: 3.4.0-rc.4
+        version: 3.4.0-rc.4(@capacitor/core@8.3.1)
       html-to-image:
         specifier: ^1.11.13
         version: 1.11.13
@@ -788,6 +791,11 @@ packages:
     resolution: {integrity: sha512-ZQ+Nc+uS2sT8TED/REYlmGV34ASFsBe30YdABBQIRL+A2iVbWtdiL0FbX+1sKKXzrS2DGf+mD657Qwl1jGSDLg==}
     peerDependencies:
       '@capacitor/core': '>=7.0.0'
+
+  '@codetrix-studio/capacitor-google-auth@3.4.0-rc.4':
+    resolution: {integrity: sha512-d548/xKrbMHHbzMYSWnlgZCLZYo2zzY7Onrh3x8ujojrb7atkNK68I6su5WgmaBt4E+R4gxBsWams4554aOFjA==}
+    peerDependencies:
+      '@capacitor/core': ^6.0.0
 
   '@commander-js/extra-typings@14.0.0':
     resolution: {integrity: sha512-hIn0ncNaJRLkZrxBIp5AsW/eXEHNKYQBh0aPdoUqNgD+Io3NIykQqpKFyKcuasZhicGaEZJX/JBSIkZ4e5x8Dg==}
@@ -3680,6 +3688,10 @@ snapshots:
   '@capacitor/synapse@1.0.4': {}
 
   '@capgo/capacitor-native-biometric@7.6.0(@capacitor/core@8.3.1)':
+    dependencies:
+      '@capacitor/core': 8.3.1
+
+  '@codetrix-studio/capacitor-google-auth@3.4.0-rc.4(@capacitor/core@8.3.1)':
     dependencies:
       '@capacitor/core': 8.3.1
 

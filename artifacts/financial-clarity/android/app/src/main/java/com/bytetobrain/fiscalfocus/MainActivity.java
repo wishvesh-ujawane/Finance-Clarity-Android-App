@@ -1,4 +1,4 @@
-package com.yourname.fiscalfocus;
+package com.bytetobrain.fiscalfocus;
 
 import com.getcapacitor.BridgeActivity;
 

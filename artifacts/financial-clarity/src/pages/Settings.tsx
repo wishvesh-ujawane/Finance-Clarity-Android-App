@@ -6,6 +6,7 @@ import { useSecurity } from '@/context/SecurityContext';
 import { buildTransactionsCsv, exportCsvFile, parseTransactionsCsv } from '@/lib/csv';
 import { formatINR } from '@/lib/finance-utils';
 import { cn } from '@/lib/utils';
+import { BackupSettingsCard } from '@/components/BackupSettingsCard';
 
 const IMPORT_COLORS = ['#10B981', '#6366F1', '#F59E0B', '#3B82F6', '#EF4444', '#F97316', '#8B5CF6', '#EC4899'];
 
@@ -325,6 +326,8 @@ export default function Settings() {
           )}
         </div>
       </div>
+
+      <BackupSettingsCard />
 
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <div className="flex items-center gap-3 px-5 py-4 border-b border-border">

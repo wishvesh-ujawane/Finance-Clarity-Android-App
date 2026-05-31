@@ -85,6 +85,10 @@ interface FinanceContextType {
   getBalance: (month?: string) => number;
   getCarryForward: (month: string) => number;
   getSpentForCategory: (categoryId: string, month: string) => number;
+  /** Re-reads all entities from localStorage. Used after a Drive restore. */
+  reloadFromStorage: () => void;
+  /** Monotonic timestamp bumped on every mutation; consumed by auto-backup. */
+  lastChangedAt: number;
 }
 
 const FinanceContext = createContext<FinanceContextType | null>(null);
@@ -266,13 +270,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [lastChangedAt, setLastChangedAt] = useState<number>(0);
 
-  useEffect(() => { saveToStorage('transactions', transactions); }, [transactions]);
-  useEffect(() => { saveToStorage('categories', categories); }, [categories]);
-  useEffect(() => { saveToStorage('budgets', budgets); }, [budgets]);
-  useEffect(() => { saveToStorage('recurring', recurringExpenses); }, [recurringExpenses]);
+  useEffect(() => { saveToStorage('transactions', transactions); setLastChangedAt(Date.now()); }, [transactions]);
+  useEffect(() => { saveToStorage('categories', categories); setLastChangedAt(Date.now()); }, [categories]);
+  useEffect(() => { saveToStorage('budgets', budgets); setLastChangedAt(Date.now()); }, [budgets]);
+  useEffect(() => { saveToStorage('recurring', recurringExpenses); setLastChangedAt(Date.now()); }, [recurringExpenses]);
   useEffect(() => {
     try { localStorage.setItem(getStorageKey('savings-goal'), JSON.stringify(savingsGoal)); } catch { /* ignore */ }
+    setLastChangedAt(Date.now());
   }, [savingsGoal]);
 
   const addTransaction = useCallback((t: Omit<Transaction, 'id'>) => {
@@ -405,6 +411,46 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setSavingsGoalState(goal);
   }, []);
 
+  const reloadFromStorage = useCallback(() => {
+    // Re-read all five entities from localStorage. Used after a Drive restore.
+    const txns = loadArrayFromStorage('transactions', [], isValidTransaction).map(t => ({ ...t, note: t.note || '' }));
+    setTransactions(txns);
+
+    const storedCats = loadArrayFromStorage('categories', [], isValidCategory);
+    setCategories(storedCats.length === 0 ? DEFAULT_CATEGORIES : ensureSavingsCategories(storedCats));
+
+    const storedBudgets = loadArrayFromStorage('budgets', [], isValidBudget).map(b => ({ ...b, month: b.month || currentMonth() }));
+    setBudgets(storedBudgets);
+
+    setRecurringExpenses(loadArrayFromStorage('recurring', [], isValidRecurring));
+
+    try {
+      const raw = localStorage.getItem(getStorageKey('savings-goal'));
+      const empty: SavingsGoal = { goal: { monthly: 0, annual: 0 }, emergency: { monthly: 0, annual: 0 } };
+      if (!raw) {
+        setSavingsGoalState(empty);
+      } else {
+        const parsed = JSON.parse(raw) as unknown;
+        const validEntry = (v: unknown): v is { monthly: number; annual: number } =>
+          isObject(v) && typeof v.monthly === 'number' && Number.isFinite(v.monthly)
+          && typeof v.annual === 'number' && Number.isFinite(v.annual);
+        if (isObject(parsed) && (validEntry(parsed.goal) || validEntry(parsed.emergency))) {
+          setSavingsGoalState({
+            goal: validEntry(parsed.goal) ? { monthly: parsed.goal.monthly, annual: parsed.goal.annual } : { monthly: 0, annual: 0 },
+            emergency: validEntry(parsed.emergency) ? { monthly: parsed.emergency.monthly, annual: parsed.emergency.annual } : { monthly: 0, annual: 0 },
+          });
+        } else if (isObject(parsed) && validEntry(parsed)) {
+          setSavingsGoalState({ goal: { monthly: parsed.monthly, annual: parsed.annual }, emergency: { monthly: 0, annual: 0 } });
+        } else {
+          setSavingsGoalState(empty);
+        }
+      }
+    } catch {
+      // ignore
+    }
+    setLastChangedAt(Date.now());
+  }, []);
+
   // Recurring materializer: for each active recurring expense, generate one
   // transaction per month from startMonth..currentMonth that hasn't been generated yet.
   useEffect(() => {
@@ -519,6 +565,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       isSheetOpen, editingTransaction,
       openSheet, openEditSheet, closeSheet,
       getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getSpentForCategory,
+      reloadFromStorage, lastChangedAt,
     }}>
       {children}
     </FinanceContext.Provider>
