@@ -1,49 +1,32 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Check, X, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Check, X, AlertTriangle, Pencil } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useFinance } from '@/context/FinanceContext';
-import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { addMonths, formatINR, formatMonthLabel } from '@/lib/finance-utils';
-
-const COLOR_SWATCHES = [
-  '#10B981', '#6366F1', '#F59E0B', '#3B82F6', '#EF4444',
-  '#F97316', '#8B5CF6', '#EC4899', '#14B8A6', '#06B6D4',
-  '#84CC16', '#D946EF', '#0EA5E9', '#F43F5E',
-];
+import { addMonths, formatDateLabel, formatINR, formatMonthLabel } from '@/lib/finance-utils';
 
 export default function Budgets() {
   const {
-    budgets, categories,
+    budgets, categories, transactions,
     addBudget, updateBudget, deleteBudget, transferBudgetsToMonth,
     getSpentForCategory, selectedMonth,
-    addCategory, updateCategory, deleteCategory,
   } = useFinance();
 
   const [showAddBudget, setShowAddBudget] = useState(false);
   const [transferMessage, setTransferMessage] = useState('');
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [isTxnSheetOpen, setIsTxnSheetOpen] = useState(false);
   const [newCatId, setNewCatId] = useState('');
   const [newLimit, setNewLimit] = useState('');
   const [editLimit, setEditLimit] = useState('');
-
-  // Category management state
-  const [showCatSection, setShowCatSection] = useState(false);
-  const [editingCatId, setEditingCatId] = useState<string | null>(null);
-  const [editCatName, setEditCatName] = useState('');
-  const [editCatIcon, setEditCatIcon] = useState('DollarSign');
-  const [editCatColor, setEditCatColor] = useState('#10B981');
-  const [editCatType, setEditCatType] = useState<'income' | 'expense'>('expense');
-  const [showAddCat, setShowAddCat] = useState(false);
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatIcon, setNewCatIcon] = useState('DollarSign');
-  const [newCatColor, setNewCatColor] = useState('#10B981');
-  const [newCatType, setNewCatType] = useState<'income' | 'expense'>('expense');
 
   const targetMonth = addMonths(selectedMonth, 1);
   const currentMonthBudgets = useMemo(
@@ -63,6 +46,18 @@ export default function Budgets() {
     }).sort((a, b) => b.pct - a.pct),
     [currentMonthBudgets, categories, getSpentForCategory, selectedMonth]
   );
+
+  const selectedCategory = useMemo(
+    () => categories.find(c => c.id === selectedCategoryId),
+    [categories, selectedCategoryId]
+  );
+
+  const categoryTransactions = useMemo(() => {
+    if (!selectedCategoryId) return [];
+    return transactions
+      .filter(t => t.categoryId === selectedCategoryId && t.date.startsWith(selectedMonth))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [transactions, selectedCategoryId, selectedMonth]);
 
   const handleAddBudget = () => {
     if (!newCatId || !newLimit || parseFloat(newLimit) <= 0) return;
@@ -88,30 +83,9 @@ export default function Budgets() {
     setEditingBudgetId(null);
   };
 
-  const startEditCat = (catId: string) => {
-    const cat = categories.find(c => c.id === catId);
-    if (!cat) return;
-    setEditingCatId(catId);
-    setEditCatName(cat.name);
-    setEditCatIcon(cat.icon);
-    setEditCatColor(cat.color);
-    setEditCatType(cat.type === 'both' ? 'expense' : cat.type);
-  };
-
-  const saveEditCat = () => {
-    if (!editingCatId || !editCatName.trim()) return;
-    updateCategory(editingCatId, { name: editCatName.trim(), icon: editCatIcon, color: editCatColor, type: editCatType });
-    setEditingCatId(null);
-  };
-
-  const handleAddCategory = () => {
-    if (!newCatName.trim()) return;
-    addCategory({ name: newCatName.trim(), icon: newCatIcon, color: newCatColor, type: newCatType });
-    setNewCatName('');
-    setNewCatIcon('DollarSign');
-    setNewCatColor('#10B981');
-    setNewCatType('expense');
-    setShowAddCat(false);
+  const openCategoryTransactions = (categoryId: string) => {
+    setSelectedCategoryId(categoryId);
+    setIsTxnSheetOpen(true);
   };
 
   const totalBudget = currentMonthBudgets.reduce((s, b) => s + b.limit, 0);
@@ -251,16 +225,14 @@ export default function Budgets() {
               tabIndex={editingBudgetId === b.id ? undefined : 0}
               onClick={() => {
                 if (editingBudgetId !== b.id) {
-                  setEditingBudgetId(b.id);
-                  setEditLimit(String(b.limit));
+                  openCategoryTransactions(b.categoryId);
                 }
               }}
               onKeyDown={e => {
                 if (editingBudgetId === b.id) return;
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  setEditingBudgetId(b.id);
-                  setEditLimit(String(b.limit));
+                  openCategoryTransactions(b.categoryId);
                 }
               }}
               className={cn('bg-card border rounded-2xl p-5 transition-colors', isOver ? 'border-red-200 dark:border-red-900' : isWarning ? 'border-amber-200 dark:border-amber-900' : 'border-border')}
@@ -281,6 +253,21 @@ export default function Budgets() {
                     </div>
                   </div>
                 </div>
+                {editingBudgetId !== b.id && (
+                  <button
+                    type="button"
+                    data-testid={`edit-budget-${b.id}`}
+                    onClick={e => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setEditingBudgetId(b.id);
+                      setEditLimit(String(b.limit));
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+                  >
+                    <Pencil size={12} /> Edit
+                  </button>
+                )}
               </div>
 
               <div className="relative h-2 bg-muted rounded-full overflow-hidden mb-2">
@@ -294,11 +281,11 @@ export default function Budgets() {
                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
                       <input data-testid={`edit-limit-${b.id}`} type="number" value={editLimit} onChange={e => setEditLimit(e.target.value)} className="w-full pl-6 pr-2 py-1.5 text-sm bg-muted rounded-lg border border-border outline-none focus:ring-1 focus:ring-accent" autoFocus />
                     </div>
-                    <button onClick={() => handleEditBudgetSave(b.id)} className="p-1.5 rounded-lg bg-emerald-500 text-white"><Check size={13} /></button>
-                    <button onClick={() => setEditingBudgetId(null)} className="p-1.5 rounded-lg bg-muted text-muted-foreground"><X size={13} /></button>
+                    <button onClick={e => { e.stopPropagation(); handleEditBudgetSave(b.id); }} className="p-1.5 rounded-lg bg-emerald-500 text-white"><Check size={13} /></button>
+                    <button onClick={e => { e.stopPropagation(); setEditingBudgetId(null); }} className="p-1.5 rounded-lg bg-muted text-muted-foreground"><X size={13} /></button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <button data-testid={`delete-budget-${b.id}`} aria-label={`Delete ${b.cat?.name || 'Unknown'} budget`} className="p-1.5 rounded-lg bg-destructive/10 text-destructive"><Trash2 size={13} /></button>
+                        <button onClick={e => e.stopPropagation()} data-testid={`delete-budget-${b.id}`} aria-label={`Delete ${b.cat?.name || 'Unknown'} budget`} className="p-1.5 rounded-lg bg-destructive/10 text-destructive"><Trash2 size={13} /></button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
@@ -324,143 +311,39 @@ export default function Budgets() {
         })}
       </div>
 
-      {/* ── Category Management ── */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        <button
-          data-testid="toggle-categories"
-          onClick={() => setShowCatSection(v => !v)}
-          className="w-full flex items-center justify-between px-5 py-4 text-sm font-bold text-foreground hover:bg-muted/40 transition-colors"
-        >
-          <span>Manage Categories</span>
-          <div className={cn('transition-transform', showCatSection ? 'rotate-180' : '')}>
-            <ChevronDown size={16} className="text-muted-foreground" />
-          </div>
-        </button>
+      <Sheet open={isTxnSheetOpen} onOpenChange={setIsTxnSheetOpen}>
+        <SheetContent side="bottom" className="h-[50vh] max-h-[50vh] rounded-t-2xl px-0 pb-0 pt-5">
+          <SheetHeader className="px-5">
+            <SheetTitle className="text-base">{selectedCategory?.name || 'Category'} Transactions</SheetTitle>
+            <SheetDescription>
+              {formatMonthLabel(selectedMonth)} • {categoryTransactions.length} transaction{categoryTransactions.length === 1 ? '' : 's'}
+            </SheetDescription>
+          </SheetHeader>
 
-        <AnimatePresence>
-          {showCatSection && (
-            <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden border-t border-border">
-              <div className="p-4 space-y-2">
-                {categories.map(cat => (
-                  <div key={cat.id}>
-                    {editingCatId === cat.id ? (
-                      <div className="border border-accent/30 rounded-xl p-3 space-y-2 bg-muted/30">
-                        <input
-                          value={editCatName}
-                          onChange={e => setEditCatName(e.target.value)}
-                          className="w-full px-3 py-2 text-sm bg-white dark:bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-accent"
-                          placeholder="Name"
-                        />
-                        <div className="flex gap-1.5">
-                          {(['expense', 'income'] as const).map(t => (
-                            <button key={t} onClick={() => setEditCatType(t)} className={cn('flex-1 py-1.5 rounded-lg text-xs font-medium capitalize', editCatType === t ? 'bg-accent text-white' : 'bg-white dark:bg-card text-muted-foreground border border-border')}>
-                              {t}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {COLOR_SWATCHES.map(c => (
-                            <button key={c} onClick={() => setEditCatColor(c)} className="w-6 h-6 rounded-full relative" style={{ backgroundColor: c }}>
-                              {editCatColor === c && <Check size={11} className="absolute inset-0 m-auto text-white" strokeWidth={3} />}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="grid grid-cols-8 gap-1">
-                          {ICON_OPTIONS.slice(0, 16).map(ico => (
-                            <button key={ico} onClick={() => setEditCatIcon(ico)} className={cn('w-8 h-8 rounded-lg flex items-center justify-center', editCatIcon === ico ? 'bg-accent text-white' : 'bg-white dark:bg-card border border-border text-muted-foreground')}>
-                              <CategoryIcon icon={ico} size={13} />
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={saveEditCat} className="flex-1 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-semibold"><Check size={12} className="inline mr-1" />Save</button>
-                          <button onClick={() => setEditingCatId(null)} className="flex-1 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-semibold"><X size={12} className="inline mr-1" />Cancel</button>
-                        </div>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <button className="w-full py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-semibold">
-                              <Trash2 size={12} className="inline mr-1" />Delete Category
-                            </button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Category?</AlertDialogTitle>
-                              <AlertDialogDescription>Are you sure you really want to delete "{cat.name}"? Its associated budget will also be removed. Existing transactions will show as Unknown.</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => { deleteCategory(cat.id); setEditingCatId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => startEditCat(cat.id)}
-                        className="w-full group flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/40 transition-colors text-left"
-                      >
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: cat.color + '22' }}>
-                          <CategoryIcon icon={cat.icon} color={cat.color} size={14} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground">{cat.name}</p>
-                          <p className="text-[10px] text-muted-foreground capitalize">{cat.type}</p>
-                        </div>
-                      </button>
-                    )}
+          <div className="mt-4 h-[calc(50vh-88px)] overflow-y-auto border-t border-border">
+            {categoryTransactions.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center px-6 text-muted-foreground">
+                <p className="text-sm font-semibold mb-1">No transactions found</p>
+                <p className="text-xs">No records for this category in {formatMonthLabel(selectedMonth)}.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {categoryTransactions.map(t => (
+                  <div key={t.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{formatDateLabel(t.date, { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                      {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
+                    </div>
+                    <p className={cn('text-sm font-bold whitespace-nowrap', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+                      {t.type === 'income' ? '+' : '-'}{formatINR(t.amount)}
+                    </p>
                   </div>
                 ))}
-
-                {/* Add New Category */}
-                <AnimatePresence>
-                  {showAddCat && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                      <div className="border border-border rounded-xl p-3 space-y-2 mt-2 bg-muted/20">
-                        <p className="text-xs font-bold text-foreground">New Category</p>
-                        <input value={newCatName} onChange={e => setNewCatName(e.target.value)} className="w-full px-3 py-2 text-sm bg-white dark:bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-accent" placeholder="Category name" />
-                        <div className="flex gap-1.5">
-                          {(['expense', 'income'] as const).map(t => (
-                            <button key={t} onClick={() => setNewCatType(t)} className={cn('flex-1 py-1.5 rounded-lg text-xs font-medium capitalize', newCatType === t ? 'bg-accent text-white' : 'bg-white dark:bg-card text-muted-foreground border border-border')}>
-                              {t}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {COLOR_SWATCHES.map(c => (
-                            <button key={c} onClick={() => setNewCatColor(c)} className="w-6 h-6 rounded-full relative" style={{ backgroundColor: c }}>
-                              {newCatColor === c && <Check size={11} className="absolute inset-0 m-auto text-white" strokeWidth={3} />}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="grid grid-cols-8 gap-1">
-                          {ICON_OPTIONS.slice(0, 16).map(ico => (
-                            <button key={ico} onClick={() => setNewCatIcon(ico)} className={cn('w-8 h-8 rounded-lg flex items-center justify-center', newCatIcon === ico ? 'bg-accent text-white' : 'bg-white dark:bg-card border border-border text-muted-foreground')}>
-                              <CategoryIcon icon={ico} size={13} />
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={handleAddCategory} className="flex-1 py-1.5 rounded-lg bg-accent text-white text-xs font-semibold">Create</button>
-                          <button onClick={() => setShowAddCat(false)} className="flex-1 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-semibold">Cancel</button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <button
-                  data-testid="add-category-btn"
-                  onClick={() => setShowAddCat(v => !v)}
-                  className="w-full py-2.5 rounded-xl border-2 border-dashed border-border text-sm font-medium text-muted-foreground hover:border-accent/40 hover:text-accent transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <Plus size={14} /> Add Category
-                </button>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
