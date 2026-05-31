@@ -4,10 +4,12 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { FinanceProvider } from '@/context/FinanceContext';
 import { SecurityProvider, useSecurity } from '@/context/SecurityContext';
+import { BackupProvider } from '@/context/BackupContext';
 import { Navigation } from '@/components/Navigation';
 import { FAB } from '@/components/FAB';
 import { TransactionSheet } from '@/components/TransactionSheet';
 import { LockScreen } from '@/components/LockScreen';
+import { FirstLaunchRestoreModal } from '@/components/FirstLaunchRestoreModal';
 import Dashboard from '@/pages/Dashboard';
 import Budgets from '@/pages/Budgets';
 import Analysis from '@/pages/Analysis';
@@ -50,6 +52,7 @@ function AppLayout() {
       {!isLocked && <FAB />}
       <TransactionSheet />
       <LockScreen />
+      {!isLocked && <FirstLaunchRestoreModal />}
     </div>
   );
 }
@@ -61,12 +64,14 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <FinanceProvider>
         <SecurityProvider>
-          <TooltipProvider>
-            <WouterRouter base={routerBase}>
-              <AppLayout />
-            </WouterRouter>
-            <Toaster />
-          </TooltipProvider>
+          <BackupProvider>
+            <TooltipProvider>
+              <WouterRouter base={routerBase}>
+                <AppLayout />
+              </WouterRouter>
+              <Toaster />
+            </TooltipProvider>
+          </BackupProvider>
         </SecurityProvider>
       </FinanceProvider>
     </QueryClientProvider>
