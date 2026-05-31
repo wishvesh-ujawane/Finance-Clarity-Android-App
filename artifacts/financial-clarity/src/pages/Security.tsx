@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'wouter';
-import { ArrowLeft, Fingerprint, KeyRound, ShieldCheck, ShieldOff } from 'lucide-react';
+import { ArrowLeft, KeyRound, ShieldCheck, ShieldOff } from 'lucide-react';
 import { useSecurity } from '@/context/SecurityContext';
-import { Switch } from '@/components/ui/switch';
 import { PinSetupDialog, type PinDialogMode } from '@/components/PinSetupDialog';
 import { verifyPin } from '@/lib/security';
 
@@ -10,12 +9,8 @@ export default function Security() {
   const {
     settings,
     isAppLockEnabled,
-    biometricAvailable,
-    biometricReason,
     setupPin,
     changePin,
-    enableBiometric,
-    disableBiometric,
     disableAppLock,
   } = useSecurity();
 
@@ -23,7 +18,6 @@ export default function Security() {
   const [pendingCurrentPin, setPendingCurrentPin] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [biometricBusy, setBiometricBusy] = useState(false);
 
   const showMessage = (msg: string) => { setMessage(msg); setError(''); };
   const showError = (msg: string) => { setError(msg); setMessage(''); };
@@ -82,27 +76,6 @@ export default function Security() {
     return ok;
   };
 
-  const handleBiometricToggle = async (next: boolean) => {
-    if (biometricBusy) return;
-    setBiometricBusy(true);
-    const busyTimeout = window.setTimeout(() => {
-      setBiometricBusy(false);
-    }, 12000);
-    try {
-      if (next) {
-        const ok = await enableBiometric();
-        if (ok) showMessage('Biometric unlock enabled.');
-        else showError('Could not enable biometrics.');
-      } else {
-        disableBiometric();
-        showMessage('Biometric unlock disabled.');
-      }
-    } finally {
-      window.clearTimeout(busyTimeout);
-      setBiometricBusy(false);
-    }
-  };
-
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-8">
       <div className="mb-6 flex items-center gap-3">
@@ -131,8 +104,8 @@ export default function Security() {
             <p className="text-sm font-bold text-foreground">App Lock</p>
             <p className="text-xs text-muted-foreground">
               {isAppLockEnabled
-                ? 'A 4-digit PIN unlocks the app. Biometrics can unlock too.'
-                : 'Require a PIN (and optionally biometrics) to open the app.'}
+                ? 'A 4-digit PIN unlocks the app. Biometrics are enabled for secure unlock.'
+                : 'Require a 4-digit PIN (with biometrics) to open the app.'}
             </p>
           </div>
         </div>
@@ -162,30 +135,6 @@ export default function Security() {
                 </span>
                 <span className="text-xs font-medium text-white/60">4 digits</span>
               </button>
-
-              <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-border bg-background">
-                <div className="flex items-center gap-2">
-                  <Fingerprint size={16} className="text-accent" />
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Biometric unlock</p>
-                    <p className="text-xs text-muted-foreground">
-                      {biometricAvailable
-                        ? 'Use fingerprint or face to unlock.'
-                        : biometricReason}
-                    </p>
-                    {!biometricAvailable && (
-                      <p className="text-[11px] text-muted-foreground/80 mt-0.5">
-                        You can still toggle on to test biometric prompt.
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <Switch
-                  data-testid="security-biometric-toggle"
-                  checked={Boolean(settings?.biometricEnabled)}
-                  onCheckedChange={handleBiometricToggle}
-                />
-              </div>
 
               <button
                 type="button"

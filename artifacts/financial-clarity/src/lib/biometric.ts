@@ -1,40 +1,46 @@
 import { Capacitor } from '@capacitor/core';
 import type { AvailableResult, BiometricAuthError } from '@capgo/capacitor-native-biometric';
 
-interface BiometricPlugin {
-  isAvailable: (options?: { useFallback?: boolean }) => Promise<AvailableResult>;
-  addListener?: (eventName: 'biometryChange', listener: (result: AvailableResult) => void) => Promise<{ remove: () => Promise<void> }>;
-  verifyIdentity: (options: {
-    reason?: string;
-    title?: string;
-    subtitle?: string;
-    description?: string;
-    useFallback?: boolean;
-    maxAttempts?: number;
-  }) => Promise<void>;
-}
-
 export interface BiometricAvailability {
   isAvailable: boolean;
   reason: string;
   details?: AvailableResult;
 }
 
-let cachedPlugin: BiometricPlugin | null | undefined;
+let pluginInitialized = false;
+let pluginAvailable = false;
 
-async function getPlugin(): Promise<BiometricPlugin | null> {
-  if (cachedPlugin !== undefined) return cachedPlugin;
+async function ensurePluginLoaded(): Promise<void> {
+  if (pluginInitialized) return;
+  pluginInitialized = true;
+  
   if (!Capacitor.isNativePlatform()) {
-    cachedPlugin = null;
+    pluginAvailable = false;
+    return;
+  }
+
+  try {
+    // Dynamically import to ensure it's loaded on native platform
+    const { NativeBiometric } = await import('@capgo/capacitor-native-biometric');
+    // Verify the plugin has the expected methods
+    if (NativeBiometric && typeof NativeBiometric.isAvailable === 'function') {
+      pluginAvailable = true;
+    }
+  } catch (error) {
+    console.error('[biometric] Failed to load plugin', error);
+    pluginAvailable = false;
+  }
+}
+
+async function getPlugin() {
+  await ensurePluginLoaded();
+  if (!pluginAvailable) return null;
+  try {
+    const { NativeBiometric } = await import('@capgo/capacitor-native-biometric');
+    return NativeBiometric;
+  } catch {
     return null;
   }
-  try {
-    const mod = await import('@capgo/capacitor-native-biometric');
-    cachedPlugin = (mod as unknown as { NativeBiometric: BiometricPlugin }).NativeBiometric ?? null;
-  } catch {
-    cachedPlugin = null;
-  }
-  return cachedPlugin;
 }
 
 function messageFromAvailability(result: AvailableResult): string {
@@ -55,21 +61,23 @@ function messageFromAvailability(result: AvailableResult): string {
 }
 
 export async function getBiometricAvailability(): Promise<BiometricAvailability> {
-  const plugin = await getPlugin();
-  if (!plugin) {
-    return {
-      isAvailable: false,
-      reason: 'Biometrics are only available in the Android app runtime, not browser preview.',
-    };
-  }
   try {
-    const result = await plugin.isAvailable({ useFallback: false });
+    const plugin = await getPlugin();
+    if (!plugin) {
+      return {
+        isAvailable: false,
+        reason: 'Biometrics are only available in the Android app runtime, not browser preview.',
+      };
+    }
+    
+    const result = await plugin.isAvailable({ useFallback: true });
     return {
       isAvailable: Boolean(result?.isAvailable),
       reason: messageFromAvailability(result),
       details: result,
     };
-  } catch {
+  } catch (error) {
+    console.error('[biometric] isAvailable error', error);
     return {
       isAvailable: false,
       reason: 'Failed to query biometric status from native plugin.',
@@ -85,31 +93,45 @@ export async function isBiometricAvailable(): Promise<boolean> {
 export async function addBiometryChangeListener(
   listener: (result: AvailableResult) => void
 ): Promise<(() => Promise<void>) | null> {
-  const plugin = await getPlugin();
-  if (!plugin?.addListener) return null;
   try {
-    const handle = await plugin.addListener('biometryChange', listener);
+    const plugin = await getPlugin();
+    if (!plugin || !('addListener' in plugin)) {
+      return null;
+    }
+    
+    const handle = await (plugin as any).addListener('biometryChange', listener);
+    if (!handle) return null;
+    
     return async () => {
-      await handle.remove();
+      try {
+        if (handle.remove) {
+          await handle.remove();
+        }
+      } catch (error) {
+        console.error('[biometric] Failed to remove listener', error);
+      }
     };
-  } catch {
+  } catch (error) {
+    console.error('[biometric] addListener error', error);
     return null;
   }
 }
 
 export async function verifyBiometric(reason = 'Unlock Fiscal Focus'): Promise<boolean> {
-  const plugin = await getPlugin();
-  if (!plugin) return false;
   try {
-    await plugin.verifyIdentity({
+    const plugin = await getPlugin();
+    if (!plugin) return false;
+    
+    await (plugin as any).verifyIdentity({
       reason,
       title: 'Unlock Fiscal Focus',
       subtitle: 'Use biometrics to continue',
-      useFallback: false,
+      useFallback: true,
       maxAttempts: 3,
     });
     return true;
-  } catch {
+  } catch (error) {
+    console.error('[biometric] verifyIdentity error', error);
     return false;
   }
 }

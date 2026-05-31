@@ -62,23 +62,34 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
   // Keep status fresh when app resumes or when native biometry state changes.
   useEffect(() => {
     let removeListener: (() => Promise<void>) | null = null;
+    let mounted = true;
 
-    addBiometryChangeListener((result) => {
-      setBiometricAvailable(Boolean(result.isAvailable));
-      if (result.isAvailable) {
-        setBiometricReason('Biometric authentication is available.');
-      } else if (result.deviceIsSecure === false) {
-        setBiometricReason('Device lock screen is not configured. Set PIN/Pattern/Password in Android settings first.');
-      } else if (result.errorCode === 3) {
-        setBiometricReason('No biometrics enrolled. Add fingerprint or face in Android settings.');
-      } else {
-        setBiometricReason('Biometric authentication is not available right now.');
+    const setupListener = async () => {
+      try {
+        const cleanup = await addBiometryChangeListener((result) => {
+          if (!mounted) return;
+          setBiometricAvailable(Boolean(result.isAvailable));
+          if (result.isAvailable) {
+            setBiometricReason('Biometric authentication is available.');
+          } else if (result.deviceIsSecure === false) {
+            setBiometricReason('Device lock screen is not configured. Set PIN/Pattern/Password in Android settings first.');
+          } else if (result.errorCode === 3) {
+            setBiometricReason('No biometrics enrolled. Add fingerprint or face in Android settings.');
+          } else {
+            setBiometricReason('Biometric authentication is not available right now.');
+          }
+        });
+        if (mounted) {
+          removeListener = cleanup;
+        } else if (cleanup) {
+          await cleanup();
+        }
+      } catch (error) {
+        console.error('[security] Failed to setup biometry listener', error);
       }
-    }).then((cleanup) => {
-      removeListener = cleanup;
-    }).catch(() => {
-      // ignore
-    });
+    };
+
+    void setupListener();
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -88,6 +99,7 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
+      mounted = false;
       document.removeEventListener('visibilitychange', handleVisibility);
       if (removeListener) {
         void removeListener();

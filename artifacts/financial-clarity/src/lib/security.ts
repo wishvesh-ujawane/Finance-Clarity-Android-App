@@ -83,7 +83,7 @@ export async function createSecuritySettings(pin: string, overrides?: Partial<Pi
   return {
     pinHash,
     pinSalt: salt,
-    biometricEnabled: overrides?.biometricEnabled ?? false,
+    biometricEnabled: true,
     lockTimeoutMs: overrides?.lockTimeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS,
     updatedAt: Date.now(),
   };
