@@ -187,6 +187,14 @@ export function BackupProvider({ children }: { children: ReactNode }) {
 
   const folderIdRef = useRef<string | null>(localStorage.getItem(DRIVE_FOLDER_CACHE_KEY));
   const autoBackupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoBackupRunningRef = useRef(false);
+  // Keep a live ref to prefs/status so the auto-backup callback stays stable
+  // across renders. Recreating it caused multiple effects to re-fire and
+  // trigger duplicate backup attempts right after sign-in.
+  const prefsRef = useRef(prefs);
+  useEffect(() => { prefsRef.current = prefs; }, [prefs]);
+  const statusRef = useRef(status);
+  useEffect(() => { statusRef.current = status; }, [status]);
 
   // Verify the cached profile against the native session. If the silent
   // refresh fails, the lib clears the cache and we drop the stale user.
@@ -358,35 +366,49 @@ export function BackupProvider({ children }: { children: ReactNode }) {
   }, [status]);
 
   // ---------------- Auto-backup ----------------
+  // Stable identity: reads live state via refs so this callback never changes
+  // and the effects below don't re-fire on every prefs / status update.
   const runAutoBackup = useCallback(async () => {
-    if (!prefs.autoBackupEnabled) return;
+    if (autoBackupRunningRef.current) return;
+    const p = prefsRef.current;
+    if (!p.autoBackupEnabled) return;
     if (!isSignedInLib()) return;
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
-    if (status !== 'idle') return;
-    const due = prefs.lastBackupAt === null || (Date.now() - prefs.lastBackupAt) >= AUTO_BACKUP_INTERVAL_MS;
+    if (statusRef.current !== 'idle') return;
+    // Never auto-backup before the user has done at least one successful
+    // manual backup. This prevents the "just signed in → instant 403"
+    // experience when Drive permissions or scopes are still settling, and
+    // makes sure the user has verified the connection works.
+    if (p.lastBackupAt === null) return;
+    const due = (Date.now() - p.lastBackupAt) >= AUTO_BACKUP_INTERVAL_MS;
     if (!due) return;
 
-    // Skip if data unchanged since last backup.
+    autoBackupRunningRef.current = true;
     try {
-      const snapshot = buildBackup();
-      const hash = await hashBackupData(snapshot);
-      if (hash === prefs.lastBackupHash) {
-        updatePrefs({ lastBackupAt: Date.now() }); // Reset clock without uploading.
-        return;
+      // Skip if data unchanged since last backup.
+      try {
+        const snapshot = buildBackup();
+        const hash = await hashBackupData(snapshot);
+        if (hash === p.lastBackupHash) {
+          updatePrefs({ lastBackupAt: Date.now() }); // Reset clock without uploading.
+          return;
+        }
+      } catch {
+        // Fall through; backupNow will catch real errors.
       }
-    } catch {
-      // Fall through; backupNow will catch real errors.
-    }
 
-    try {
-      await backupNow();
-    } catch (err) {
-      updatePrefs({
-        lastAutoBackupFailedAt: Date.now(),
-        lastAutoBackupError: humanizeError(err),
-      });
+      try {
+        await backupNow();
+      } catch (err) {
+        updatePrefs({
+          lastAutoBackupFailedAt: Date.now(),
+          lastAutoBackupError: humanizeError(err),
+        });
+      }
+    } finally {
+      autoBackupRunningRef.current = false;
     }
-  }, [backupNow, prefs.autoBackupEnabled, prefs.lastBackupAt, prefs.lastBackupHash, status, updatePrefs]);
+  }, [backupNow, updatePrefs]);
 
   // Trigger debounced auto-backup attempt when local data changes.
   useEffect(() => {
@@ -397,9 +419,10 @@ export function BackupProvider({ children }: { children: ReactNode }) {
     };
   }, [lastChangedAt, runAutoBackup]);
 
-  // Also check on app foreground / cold start.
+  // Re-check on app foreground only. We deliberately do NOT call
+  // runAutoBackup() in the effect body — doing so re-fires on every
+  // re-render and produced the duplicate post-sign-in errors.
   useEffect(() => {
-    void runAutoBackup();
     let remove: (() => void) | null = null;
     let cancelled = false;
     void App.addListener('appStateChange', (state: AppState) => {
