@@ -179,7 +179,7 @@ const BackupContext = createContext<BackupContextValue | null>(null);
 export function BackupProvider({ children }: { children: ReactNode }) {
   const { reloadFromStorage, lastChangedAt } = useFinance();
 
-  const [user, setUser] = useState<GoogleUser | null>(null);
+  const [user, setUser] = useState<GoogleUser | null>(() => getCurrentUser());
   const [status, setStatus] = useState<BackupStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<BackupPrefs>(() => readPrefs());
@@ -188,13 +188,14 @@ export function BackupProvider({ children }: { children: ReactNode }) {
   const folderIdRef = useRef<string | null>(localStorage.getItem(DRIVE_FOLDER_CACHE_KEY));
   const autoBackupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Try silent refresh on mount so the user stays signed in across launches.
+  // Verify the cached profile against the native session. If the silent
+  // refresh fails, the lib clears the cache and we drop the stale user.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const cached = await trySilentRefresh();
+      const refreshed = await trySilentRefresh();
       if (cancelled) return;
-      if (cached) setUser(cached);
+      setUser(refreshed);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -221,7 +222,12 @@ export function BackupProvider({ children }: { children: ReactNode }) {
     try {
       const u = await signInLib();
       setUser(u);
-      updatePrefs({ signedInEmail: u.email });
+      // A fresh grant invalidates any stale auto-backup failure banner.
+      updatePrefs({
+        signedInEmail: u.email,
+        lastAutoBackupFailedAt: null,
+        lastAutoBackupError: null,
+      });
       setStatus('idle');
       return u;
     } catch (err) {
@@ -234,7 +240,13 @@ export function BackupProvider({ children }: { children: ReactNode }) {
     await signOutLib();
     setUser(null);
     setRemoteBackup(null);
-    updatePrefs({ signedInEmail: null });
+    folderIdRef.current = null;
+    try { localStorage.removeItem(DRIVE_FOLDER_CACHE_KEY); } catch { /* ignore */ }
+    updatePrefs({
+      signedInEmail: null,
+      lastAutoBackupFailedAt: null,
+      lastAutoBackupError: null,
+    });
   }, [updatePrefs]);
 
   const checkRemoteBackup = useCallback(async (): Promise<RemoteBackupInfo | null> => {
