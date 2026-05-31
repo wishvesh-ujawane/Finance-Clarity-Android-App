@@ -7,15 +7,22 @@ import {
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useFinance } from '@/context/FinanceContext';
-import { CategoryIcon } from '@/components/CategoryIcon';
+import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { addMonths, formatDateLabel, formatINR, formatMonthLabel } from '@/lib/finance-utils';
+
+const COLOR_SWATCHES = [
+  '#10B981', '#6366F1', '#F59E0B', '#3B82F6', '#EF4444',
+  '#F97316', '#8B5CF6', '#EC4899', '#14B8A6', '#06B6D4',
+  '#84CC16', '#D946EF', '#0EA5E9', '#F43F5E',
+];
 
 export default function Budgets() {
   const {
     budgets, categories, transactions,
     addBudget, updateBudget, deleteBudget, transferBudgetsToMonth,
+    addCategory, updateCategory, deleteCategory,
     getSpentForCategory, selectedMonth,
   } = useFinance();
 
@@ -120,6 +127,8 @@ export default function Budgets() {
     setNewCatColor('#10B981');
     setNewCatType('expense');
     setShowAddCat(false);
+  };
+
   const openCategoryTransactions = (categoryId: string) => {
     setSelectedCategoryId(categoryId);
     setIsTxnSheetOpen(true);
@@ -476,6 +485,11 @@ export default function Budgets() {
                 >
                   <Plus size={14} /> Add Category
                 </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
           <div className="mt-4 h-[calc(50vh-88px)] overflow-y-auto border-t border-border">
             {categoryTransactions.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center px-6 text-muted-foreground">
