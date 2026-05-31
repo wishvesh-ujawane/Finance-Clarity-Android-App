@@ -1,11 +1,16 @@
 import { useState, useMemo } from 'react';
+import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownLeft, ArrowRightLeft } from 'lucide-react';
+import {
+  ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ArrowRightLeft,
+} from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
-import { addMonths, formatDateLabel, formatINR, formatINRCompact, formatMonthLabel } from '@/lib/finance-utils';
+import {
+  addMonths, formatAmount, formatDateLabel, formatMonthLabel, localDateStr,
+} from '@/lib/finance-utils';
 
 function prevMonth(month: string): string {
   return addMonths(month, -1);
@@ -14,40 +19,55 @@ function prevMonth(month: string): string {
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.05 } } };
 const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 
+const OTHERS_SLICE_COLOR = '#9CA3AF';
+const TOP_SLICE_COUNT = 6;
+
 export default function Dashboard() {
   const {
-    transactions, categories, selectedMonth, setSelectedMonth,
-    getTotalIncome, getTotalExpenses, getBalance, getCarryForward,
+    transactions, categories, budgets, selectedMonth, setSelectedMonth,
+    getTotalIncome, getTotalExpenses, getBalance, getCarryForward, getSpentForCategory,
     openEditSheet,
   } = useFinance();
 
+  const [, setLocation] = useLocation();
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+  const [legendExpanded, setLegendExpanded] = useState(false);
 
   const balance = getBalance(selectedMonth);
   const income = getTotalIncome(selectedMonth);
   const expenses = getTotalExpenses(selectedMonth);
   const carryForward = getCarryForward(selectedMonth);
   const netBalance = carryForward + balance;
+  const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
 
-  const isCurrentMonth = selectedMonth === new Date().toISOString().slice(0, 7);
+  const todayKey = localDateStr(new Date());
+  const isCurrentMonth = selectedMonth === todayKey.slice(0, 7);
 
   const monthTransactions = useMemo(
     () => transactions.filter(t => t.date.startsWith(selectedMonth)),
     [transactions, selectedMonth]
   );
 
-  // Group recent transactions by date (last 5 dates)
-  const groupedRecent = useMemo(() => {
-    const sorted = [...monthTransactions].sort((a, b) => b.date.localeCompare(a.date));
-    const dateMap: Record<string, typeof sorted> = {};
-    sorted.forEach(t => {
-      if (!dateMap[t.date]) dateMap[t.date] = [];
-      dateMap[t.date].push(t);
-    });
-    const dates = Object.keys(dateMap).sort((a, b) => b.localeCompare(a)).slice(0, 5);
-    return dates.map(date => ({ date, transactions: dateMap[date] }));
-  }, [monthTransactions]);
+  // Today's spend + avg per day (current month: through today; past months: through last day of month)
+  const { todaySpend, avgPerDay } = useMemo(() => {
+    const today = isCurrentMonth
+      ? monthTransactions
+          .filter(t => t.type === 'expense' && t.date === todayKey)
+          .reduce((s, t) => s + t.amount, 0)
+      : 0;
+    const [yStr, mStr] = selectedMonth.split('-').map(Number);
+    const monthLastDay = new Date(yStr, mStr, 0).getDate();
+    const days = isCurrentMonth ? Math.max(1, new Date().getDate()) : monthLastDay;
+    return { todaySpend: today, avgPerDay: expenses / days };
+  }, [monthTransactions, isCurrentMonth, todayKey, selectedMonth, expenses]);
 
+  // Income category ids (used for transaction styling + skipping in budget alerts)
+  const incomeCategoryIds = useMemo(
+    () => new Set(categories.filter(c => c.type === 'income').map(c => c.id)),
+    [categories]
+  );
+
+  // Aggregate spending per category for the month (used by donut + alerts)
   const chartData = useMemo(() => {
     const expenseMap: Record<string, number> = {};
     monthTransactions.filter(t => t.type === 'expense').forEach(t => {
@@ -61,7 +81,60 @@ export default function Dashboard() {
       .sort((a, b) => b.value - a.value);
   }, [monthTransactions, categories]);
 
+  // Donut feed: top 6 + Others
+  const donutData = useMemo(() => {
+    if (chartData.length <= TOP_SLICE_COUNT) return chartData;
+    const top = chartData.slice(0, TOP_SLICE_COUNT);
+    const restSum = chartData.slice(TOP_SLICE_COUNT).reduce((s, e) => s + e.value, 0);
+    return [...top, { name: 'Others', value: restSum, color: OTHERS_SLICE_COLOR, catId: '__others' }];
+  }, [chartData]);
+
+  // Budget totals for hero progress bar
+  const budgetTotals = useMemo(() => {
+    const monthly = budgets.filter(b => b.month === selectedMonth);
+    const limit = monthly.reduce((s, b) => s + b.limit, 0);
+    const spent = monthly.reduce((s, b) => s + getSpentForCategory(b.categoryId, selectedMonth), 0);
+    const pct = limit > 0 ? (spent / limit) * 100 : 0;
+    return { limit, spent, pct, count: monthly.length };
+  }, [budgets, selectedMonth, getSpentForCategory]);
+
+  // Budget alert chips: per-budget pct > 75
+  const budgetAlerts = useMemo(() => {
+    return budgets
+      .filter(b => b.month === selectedMonth)
+      .map(b => {
+        const cat = categories.find(c => c.id === b.categoryId);
+        const spent = getSpentForCategory(b.categoryId, selectedMonth);
+        const pct = b.limit > 0 ? (spent / b.limit) * 100 : 0;
+        return { categoryId: b.categoryId, name: cat?.name || 'Unknown', pct, overspend: spent - b.limit };
+      })
+      .filter(a => a.pct > 75)
+      .sort((a, b) => b.pct - a.pct);
+  }, [budgets, selectedMonth, categories, getSpentForCategory]);
+
+  // Group recent transactions by date (last 5 dates)
+  const groupedRecent = useMemo(() => {
+    const sorted = [...monthTransactions].sort((a, b) => b.date.localeCompare(a.date));
+    const dateMap: Record<string, typeof sorted> = {};
+    sorted.forEach(t => {
+      if (!dateMap[t.date]) dateMap[t.date] = [];
+      dateMap[t.date].push(t);
+    });
+    const dates = Object.keys(dateMap).sort((a, b) => b.localeCompare(a)).slice(0, 5);
+    return dates.map(date => ({ date, transactions: dateMap[date] }));
+  }, [monthTransactions]);
+
+  const shownTxnCount = useMemo(
+    () => groupedRecent.reduce((s, g) => s + g.transactions.length, 0),
+    [groupedRecent]
+  );
+
   const getCategoryById = (id: string) => categories.find(c => c.id === id);
+
+  const budgetBarColor =
+    budgetTotals.pct > 100 ? 'bg-red-400'
+    : budgetTotals.pct >= 75 ? 'bg-amber-400'
+    : 'bg-emerald-400';
 
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-8">
@@ -83,7 +156,7 @@ export default function Dashboard() {
       </div>
 
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-4">
-        {/* Balance Hero — compact layout for large numbers */}
+        {/* Balance Hero */}
         <motion.div variants={item} className="rounded-2xl bg-[hsl(222,65%,13%)] text-white p-5 relative overflow-hidden" data-testid="balance-card">
           <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-white/5 pointer-events-none" />
           <div className="absolute -right-4 -bottom-12 w-48 h-48 rounded-full bg-white/5 pointer-events-none" />
@@ -98,46 +171,120 @@ export default function Dashboard() {
             style={{ fontFamily: 'var(--font-display)' }}
             data-testid="balance-amount"
           >
-            {formatINRCompact(netBalance)}
+            {formatAmount(netBalance)}
+          </p>
+
+          {/* Today's spend + avg/day */}
+          <p className="text-[12px] text-white/65 mb-2 leading-tight">
+            Spent {formatAmount(todaySpend)} today · avg {formatAmount(Math.round(avgPerDay))}/day
           </p>
 
           {/* Carry Forward */}
-          {carryForward !== 0 && (
+          {carryForward !== 0 ? (
             <div className="flex items-center gap-1.5 mb-3">
               <ArrowRightLeft size={10} className="text-white/40 flex-shrink-0" />
               <p className="text-[11px] text-white/40 leading-tight">
                 Carried from {formatMonthLabel(prevMonth(selectedMonth))}:
                 <span className={cn('font-semibold ml-1', carryForward >= 0 ? 'text-emerald-400/80' : 'text-red-400/80')}>
-                  {formatINRCompact(carryForward)}
+                  {formatAmount(carryForward)}
                 </span>
               </p>
             </div>
+          ) : (
+            <div className="mb-3" />
           )}
-          {carryForward === 0 && <div className="mb-3" />}
 
-          <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/10">
+          {/* 2×2 stats grid */}
+          <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/10">
             <div>
               <div className="flex items-center gap-1 mb-0.5">
-                <ArrowDownLeft size={10} className="text-emerald-400" />
+                <ArrowUp size={10} className="text-emerald-400" />
                 <p className="text-[10px] text-white/50">Income</p>
               </div>
-              <p className="text-sm font-bold text-emerald-400 truncate" data-testid="income-amount">{formatINRCompact(income)}</p>
+              <p className="text-sm font-bold text-emerald-400 truncate" data-testid="income-amount">{formatAmount(income)}</p>
             </div>
             <div>
               <div className="flex items-center gap-1 mb-0.5">
-                <ArrowUpRight size={10} className="text-red-400" />
+                <ArrowDown size={10} className="text-red-400" />
                 <p className="text-[10px] text-white/50">Expenses</p>
               </div>
-              <p className="text-sm font-bold text-red-400 truncate" data-testid="expenses-amount">{formatINRCompact(expenses)}</p>
+              <p className="text-sm font-bold text-red-400 truncate" data-testid="expenses-amount">{formatAmount(expenses)}</p>
+            </div>
+            <div className={cn('transition-colors', balance < 0 && 'bg-[rgba(226,75,74,0.15)] rounded-lg px-2 py-1 -mx-2 -my-1')}>
+              <div className="flex items-center gap-1 mb-0.5">
+                {balance > 0
+                  ? <ArrowUp size={10} className="text-emerald-400" />
+                  : balance < 0
+                    ? <ArrowDown size={10} className="text-red-400" />
+                    : <ArrowUpDown size={10} className="text-white/50" />}
+                <p className="text-[10px] text-white/50">Net flow</p>
+              </div>
+              <p className={cn('text-sm font-bold truncate', balance > 0 ? 'text-emerald-400' : balance < 0 ? 'text-red-400' : 'text-white')}>
+                {formatAmount(balance)}
+              </p>
             </div>
             <div>
-              <p className="text-[10px] text-white/50 mb-0.5">This Month</p>
-              <p className={cn('text-sm font-bold truncate', balance >= 0 ? 'text-white' : 'text-red-400')}>
-                {formatINRCompact(balance)}
+              <p className="text-[10px] text-white/50 mb-0.5">Savings</p>
+              <p className={cn('text-sm font-bold truncate', savingsRate >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                {savingsRate.toFixed(1)}%
               </p>
             </div>
           </div>
+
+          {/* Budget progress (only when budgets exist for this month) */}
+          {budgetTotals.limit > 0 && (
+            <button
+              type="button"
+              onClick={() => setLocation('/budgets')}
+              className="mt-4 w-full text-left group"
+              data-testid="hero-budget-bar"
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] text-white/60">
+                  Budget · {formatAmount(budgetTotals.spent)} of {formatAmount(budgetTotals.limit)}
+                </span>
+                <span className="text-[11px] font-semibold text-white/80">{Math.round(budgetTotals.pct)}%</span>
+              </div>
+              <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className={cn('h-full rounded-full transition-all', budgetBarColor)}
+                  style={{ width: `${Math.min(budgetTotals.pct, 100)}%` }}
+                />
+              </div>
+            </button>
+          )}
         </motion.div>
+
+        {/* Budget Alert Strip (only if any chip) */}
+        {budgetAlerts.length > 0 && (
+          <motion.div variants={item} className="-mx-4 px-4 md:mx-0 md:px-0" data-testid="budget-alerts-strip">
+            <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+              {budgetAlerts.map(alert => {
+                const over = alert.pct > 100;
+                const chipClass = over
+                  ? 'bg-[#FCEBEB] text-[#A32D2D]'
+                  : 'bg-[#FAEEDA] text-[#854F0B]';
+                const label = over
+                  ? `🔴 ${alert.name} +${formatAmount(alert.overspend)}`
+                  : `🟡 ${alert.name} ${Math.round(alert.pct)}%`;
+                return (
+                  <button
+                    key={alert.categoryId}
+                    type="button"
+                    onClick={() => setLocation(`/budgets?highlight=${encodeURIComponent(alert.categoryId)}`)}
+                    className={cn(
+                      'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap hover:opacity-90 transition-opacity',
+                      chipClass,
+                    )}
+                    data-testid={`budget-alert-${alert.categoryId}`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
 
         {/* Spending Chart */}
         <motion.div variants={item} className="bg-card border border-border rounded-2xl p-5">
@@ -153,45 +300,55 @@ export default function Dashboard() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={chartData}
+                      data={donutData}
                       cx="50%"
                       cy="50%"
                       innerRadius={55}
                       outerRadius={90}
                       paddingAngle={2}
                       dataKey="value"
-                      onMouseEnter={(_, index) => setHoveredCategory(chartData[index]?.catId)}
+                      onMouseEnter={(_, index) => setHoveredCategory(donutData[index]?.catId ?? null)}
                       onMouseLeave={() => setHoveredCategory(null)}
                     >
-                      {chartData.map(entry => (
+                      {donutData.map(entry => (
                         <Cell key={entry.catId} fill={entry.color} opacity={hoveredCategory && hoveredCategory !== entry.catId ? 0.45 : 1} stroke="none" />
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number) => [formatINR(value), '']}
+                      formatter={(value: number) => [formatAmount(value), '']}
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: '12px' }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="w-full md:w-1/2 space-y-2">
-                {chartData.map(entry => (
-                  <div
-                    key={entry.catId}
-                    className={cn('flex items-center justify-between transition-opacity', hoveredCategory && hoveredCategory !== entry.catId ? 'opacity-40' : 'opacity-100')}
-                    onMouseEnter={() => setHoveredCategory(entry.catId)}
-                    onMouseLeave={() => setHoveredCategory(null)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
-                      <span className="text-xs text-muted-foreground truncate max-w-[100px]">{entry.name}</span>
+              <div className="w-full md:w-1/2">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                  {chartData.slice(0, legendExpanded ? chartData.length : TOP_SLICE_COUNT).map(entry => (
+                    <div
+                      key={entry.catId}
+                      className={cn('flex items-center gap-2 transition-opacity', hoveredCategory && hoveredCategory !== entry.catId ? 'opacity-40' : 'opacity-100')}
+                      onMouseEnter={() => setHoveredCategory(entry.catId)}
+                      onMouseLeave={() => setHoveredCategory(null)}
+                    >
+                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
+                      <span className="text-[13px] text-foreground flex-1 leading-tight">{entry.name}</span>
+                      <span className="text-[13px] font-medium text-foreground">{formatAmount(entry.value)}</span>
                     </div>
-                    <span className="text-xs font-semibold text-foreground ml-2">{formatINRCompact(entry.value)}</span>
-                  </div>
-                ))}
-                <div className="pt-2 border-t border-border flex justify-between">
+                  ))}
+                </div>
+                {chartData.length > TOP_SLICE_COUNT && (
+                  <button
+                    type="button"
+                    onClick={() => setLegendExpanded(v => !v)}
+                    className="mt-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                    data-testid="legend-toggle"
+                  >
+                    {legendExpanded ? 'Collapse' : `Expand (${chartData.length - TOP_SLICE_COUNT} more)`}
+                  </button>
+                )}
+                <div className="mt-3 pt-2 border-t border-border flex justify-between">
                   <span className="text-xs font-bold text-foreground">Total</span>
-                  <span className="text-xs font-bold text-foreground">{formatINRCompact(expenses)}</span>
+                  <span className="text-xs font-bold text-foreground">{formatAmount(expenses)}</span>
                 </div>
               </div>
             </div>
@@ -200,57 +357,75 @@ export default function Dashboard() {
 
         {/* Recent Transactions — grouped by date */}
         <motion.div variants={item} className="bg-card border border-border rounded-2xl p-5">
-          <h2 className="text-sm font-bold text-foreground mb-4" style={{ fontFamily: 'var(--font-display)' }}>Recent Transactions</h2>
+          <h2 className="text-sm font-bold text-foreground mb-4" style={{ fontFamily: 'var(--font-display)' }}>
+            Recent Transactions ({monthTransactions.length} this month)
+          </h2>
           {groupedRecent.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
               <p className="text-sm font-medium">No transactions this month</p>
               <p className="text-xs mt-1">Tap the + button to add your first transaction</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {groupedRecent.map(({ date, transactions: dayTxns }) => (
-                <div key={date}>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2">{formatDateLabel(date)}</p>
-                  <div className="space-y-1">
-                    {dayTxns.map(t => {
-                      const cat = getCategoryById(t.categoryId);
-                      return (
-                        <div
-                          key={t.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => openEditSheet(t)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              openEditSheet(t);
-                            }
-                          }}
-                          className="group flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-muted/60 transition-colors cursor-pointer"
-                          data-testid={`transaction-${t.id}`}
-                        >
+            <>
+              <div className="space-y-4">
+                {groupedRecent.map(({ date, transactions: dayTxns }) => (
+                  <div key={date}>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2">{formatDateLabel(date)}</p>
+                    <div className="space-y-1">
+                      {dayTxns.map(t => {
+                        const cat = getCategoryById(t.categoryId);
+                        const isIncome = t.type === 'income' || incomeCategoryIds.has(t.categoryId);
+                        return (
                           <div
-                            className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ backgroundColor: (cat?.color || '#6366F1') + '22' }}
+                            key={t.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => openEditSheet(t)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                openEditSheet(t);
+                              }
+                            }}
+                            className={cn(
+                              'group flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-muted/60 transition-colors cursor-pointer',
+                              isIncome && 'border-l-[3px] border-[#1D9E75] bg-[rgba(29,158,117,0.04)]',
+                            )}
+                            data-testid={`transaction-${t.id}`}
                           >
-                            <CategoryIcon icon={cat?.icon || 'DollarSign'} color={cat?.color || '#6366F1'} size={16} />
+                            <div
+                              className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                              style={{ backgroundColor: (cat?.color || '#6366F1') + '22' }}
+                            >
+                              <CategoryIcon icon={cat?.icon || 'DollarSign'} color={cat?.color || '#6366F1'} size={16} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">{cat?.name || 'Unknown'}</p>
+                              {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <span className={cn('text-sm font-bold', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
+                                {t.type === 'income' ? '+' : '-'}{formatAmount(t.amount)}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">{cat?.name || 'Unknown'}</p>
-                            {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
-                          </div>
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <span className={cn('text-sm font-bold', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
-                              {t.type === 'income' ? '+' : '-'}{formatINRCompact(t.amount)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+              {monthTransactions.length > shownTxnCount && (
+                <button
+                  type="button"
+                  onClick={() => setLocation('/transactions')}
+                  className="block mx-auto mt-4 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  data-testid="view-all-transactions"
+                >
+                  View all {monthTransactions.length} transactions →
+                </button>
+              )}
+            </>
           )}
         </motion.div>
       </motion.div>

@@ -7,13 +7,23 @@ export function formatINR(amount: number) {
   }).format(amount);
 }
 
-export function formatINRCompact(amount: number) {
-  const abs = Math.abs(amount);
-  const sign = amount < 0 ? '-' : '';
-  if (abs >= 10000000) return `${sign}₹${(abs / 10000000).toFixed(2)} Cr`;
-  if (abs >= 100000) return `${sign}₹${(abs / 100000).toFixed(2)} L`;
-  return formatINR(amount);
+/**
+ * Canonical currency formatter. Use everywhere.
+ * - >= 1 Cr: ₹X.XX Cr (kept beyond spec to avoid huge L numbers)
+ * - >= 1 L:  ₹X.XX L
+ * - otherwise: ₹X,XX,XXX (en-IN grouping)
+ */
+export function formatAmount(value: number): string {
+  const abs = Math.abs(value);
+  let formatted: string;
+  if (abs >= 10000000) formatted = `₹${(abs / 10000000).toFixed(2)} Cr`;
+  else if (abs >= 100000) formatted = `₹${(abs / 100000).toFixed(2)} L`;
+  else formatted = `₹${abs.toLocaleString('en-IN')}`;
+  return value < 0 ? `-${formatted}` : formatted;
 }
+
+// Back-compat alias — keeps existing call sites working against the single canonical impl.
+export const formatINRCompact = formatAmount;
 
 export function formatShortINR(amount: number) {
   if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
