@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearch } from 'wouter';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Plus, Trash2, Check, X, AlertTriangle, PiggyBank, Pencil } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -10,6 +10,7 @@ import {
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { addMonths, formatDateLabel, formatINR, formatMonthLabel } from '@/lib/finance-utils';
 
@@ -106,6 +107,19 @@ export default function Budgets() {
 
   const totalBudget = budgetsWithData.reduce((s, b) => s + b.limit, 0);
   const totalSpent = budgetsWithData.reduce((s, b) => s + b.spent, 0);
+  const totalSavingsBudget = savingsBudgetsWithData.reduce((s, b) => s + b.limit, 0);
+  const { toast } = useToast();
+
+  const openAddBudget = () => {
+    if (unbudgetedCategories.length === 0) {
+      toast({
+        title: 'No categories left for a budget',
+        description: 'All your categories already have a budget. Add a new category or delete an existing budget.',
+      });
+      return;
+    }
+    setShowAddBudget(true);
+  };
 
   // Handle ?highlight=<categoryId> deep-link from Dashboard alert chips
   useEffect(() => {
@@ -159,8 +173,11 @@ export default function Budgets() {
           </AlertDialog>
           <button
             data-testid="add-budget-button"
-            onClick={() => setShowAddBudget(v => !v)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors"
+            onClick={openAddBudget}
+            className={cn(
+              'flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent text-white text-sm font-semibold transition-colors',
+              unbudgetedCategories.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent/90'
+            )}
           >
             <Plus size={15} />
             Add
@@ -179,6 +196,11 @@ export default function Budgets() {
             <p className="text-xs text-muted-foreground mb-1">Total Budget</p>
             <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(totalBudget)}</p>
             <p className="text-xs text-muted-foreground mt-1">{formatMonthLabel(selectedMonth)}</p>
+            {totalSavingsBudget > 0 && (
+              <p className="text-[11px] text-sky-600 dark:text-sky-400 mt-1 font-medium" data-testid="savings-budget-sub">
+                + Savings {formatINR(totalSavingsBudget)}
+              </p>
+            )}
           </div>
           <div className="bg-card border border-border rounded-2xl p-4">
             <p className="text-xs text-muted-foreground mb-1">Spent on budgeted</p>
@@ -192,46 +214,47 @@ export default function Budgets() {
         </div>
       )}
 
-      {/* Add Budget Form */}
-      <AnimatePresence>
-        {showAddBudget && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mb-4">
-            <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-              <p className="text-sm font-bold text-foreground">New Budget</p>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Category</label>
-                <select
-                  data-testid="budget-category-select"
-                  value={newCatId}
-                  onChange={e => setNewCatId(e.target.value)}
-                  className="w-full px-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
-                >
-                  <option value="">Select a category</option>
-                  {unbudgetedCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Monthly Limit</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₹</span>
-                  <input
-                    data-testid="budget-limit-input"
-                    type="number"
-                    placeholder="0"
-                    value={newLimit}
-                    onChange={e => setNewLimit(e.target.value)}
-                    className="w-full pl-8 pr-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setShowAddBudget(false)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
-                <button data-testid="budget-save" onClick={handleAddBudget} disabled={!newCatId || !newLimit || parseFloat(newLimit) <= 0} className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-50">Save Budget</button>
+      {/* Add Budget Sheet */}
+      <Sheet open={showAddBudget} onOpenChange={setShowAddBudget}>
+        <SheetContent side="bottom" className="h-[70vh] rounded-t-2xl flex flex-col">
+          <SheetHeader className="text-left">
+            <SheetTitle>New Budget</SheetTitle>
+            <SheetDescription>Set a monthly limit for {formatMonthLabel(selectedMonth)}.</SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 mt-4 flex-1 overflow-y-auto">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Category</label>
+              <select
+                data-testid="budget-category-select"
+                value={newCatId}
+                onChange={e => setNewCatId(e.target.value)}
+                className="w-full px-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
+              >
+                <option value="">Select a category</option>
+                {unbudgetedCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Monthly Limit</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₹</span>
+                <input
+                  data-testid="budget-limit-input"
+                  type="number"
+                  placeholder="0"
+                  value={newLimit}
+                  onChange={e => setNewLimit(e.target.value)}
+                  className="w-full pl-8 pr-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
+                />
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+          <div className="flex gap-2 pt-4 border-t border-border">
+            <button onClick={() => setShowAddBudget(false)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
+            <button data-testid="budget-save" onClick={handleAddBudget} disabled={!newCatId || !newLimit || parseFloat(newLimit) <= 0} className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-50">Save Budget</button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Budget List */}
       {budgetsWithData.length === 0 && savingsBudgetsWithData.length === 0 && !showAddBudget && (

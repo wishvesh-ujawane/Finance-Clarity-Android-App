@@ -7,10 +7,15 @@ import { cn } from '@/lib/utils';
 import { formatDateLabel, formatINR, localDateStr } from '@/lib/finance-utils';
 import { buildTransactionsCsv, exportCsvFile } from '@/lib/csv';
 
-type RangePreset = 'last1' | 'last3' | 'custom';
+type RangePreset = 'current' | 'last1' | 'last3' | 'custom';
 
 function getPresetRange(preset: RangePreset, customFrom: string, customTo: string): { from: string; to: string } {
   const now = new Date();
+  if (preset === 'current') {
+    // Current month: 1st of this month through today
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { from: localDateStr(firstOfMonth), to: localDateStr(now) };
+  }
   if (preset === 'last1') {
     // Previous full calendar month only (e.g. May → April 1–30)
     const firstOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -30,6 +35,10 @@ function getPresetRange(preset: RangePreset, customFrom: string, customTo: strin
 }
 
 function formatPeriodLabel(preset: RangePreset, from: string, to: string): string {
+  if (preset === 'current') {
+    const d = new Date(from + 'T00:00:00');
+    return `${d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })} (so far)`;
+  }
   if (preset === 'last1') {
     const d = new Date(from + 'T00:00:00');
     return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
@@ -41,7 +50,7 @@ function formatPeriodLabel(preset: RangePreset, from: string, to: string): strin
 export default function Transactions() {
   const { transactions, categories, openEditSheet } = useFinance();
 
-  const [preset, setPreset] = useState<RangePreset>('last3');
+  const [preset, setPreset] = useState<RangePreset>('current');
   const [customFrom, setCustomFrom] = useState(() => {
     const d = new Date();
     d.setMonth(d.getMonth() - 3);
@@ -159,6 +168,7 @@ export default function Transactions() {
       <div className="bg-card border border-border rounded-2xl p-4 mb-4 space-y-3">
         <div className="flex gap-2">
           {([
+            { key: 'current', label: 'This Month' },
             { key: 'last1', label: 'Last Month' },
             { key: 'last3', label: 'Last 3 Months' },
             { key: 'custom', label: 'Custom' },
@@ -168,7 +178,7 @@ export default function Transactions() {
               data-testid={`range-${key}`}
               onClick={() => setPreset(key)}
               className={cn(
-                'flex-1 py-2 rounded-xl text-xs font-semibold transition-all',
+                'flex-1 py-2 rounded-xl text-[11px] font-semibold transition-all',
                 preset === key ? 'bg-accent text-white shadow' : 'bg-muted text-muted-foreground hover:text-foreground'
               )}
             >
@@ -255,7 +265,9 @@ export default function Transactions() {
           </div>
           <p className="text-sm font-semibold mb-1">No transactions found</p>
           <p className="text-xs text-center max-w-xs">
-            {preset === 'last1'
+            {preset === 'current'
+              ? `No transactions yet for ${formatPeriodLabel(preset, effectiveFrom, effectiveTo)}`
+              : preset === 'last1'
               ? `No transactions recorded for ${formatPeriodLabel(preset, effectiveFrom, effectiveTo)}`
               : preset === 'last3'
                 ? 'No transactions in the last 3 months'

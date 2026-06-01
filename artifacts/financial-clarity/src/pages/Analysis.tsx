@@ -124,9 +124,9 @@ export default function Analysis() {
   } = useFinance();
   const [allCategoriesOpen, setAllCategoriesOpen] = useState(false);
   const [selectedPieSlice, setSelectedPieSlice] = useState<string | null>(null);
-  const [budgetTooltipOpen, setBudgetTooltipOpen] = useState(false);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null);
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState<number | null>(null);
   const [suggestionsApplied, setSuggestionsApplied] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const overviewRef = useRef<HTMLDivElement>(null);
@@ -582,6 +582,53 @@ export default function Analysis() {
     });
   }, [monthlyTransactions, categories]);
 
+  // ─── Trends: Daily spend calendar (selected month) ─────────────────────
+  const dailySpend = useMemo(() => {
+    const map: Record<number, { total: number; txns: typeof transactions }> = {};
+    monthlyTransactions.filter(t => t.type === 'expense').forEach(t => {
+      const day = parseInt(t.date.slice(-2), 10);
+      if (!map[day]) map[day] = { total: 0, txns: [] };
+      map[day].total += t.amount;
+      map[day].txns.push(t);
+    });
+    return map;
+  }, [monthlyTransactions, transactions]);
+
+  const maxDailySpend = useMemo(() => {
+    let max = 0;
+    for (const k in dailySpend) max = Math.max(max, dailySpend[k].total);
+    return max;
+  }, [dailySpend]);
+
+  const calendarCells = useMemo(() => {
+    const [year, monthNum] = selectedMonth.split('-').map(Number);
+    const firstDayJs = new Date(year, monthNum - 1, 1).getDay(); // 0=Sun..6=Sat
+    const leadingBlanks = firstDayJs === 0 ? 6 : firstDayJs - 1; // Mon-start
+    const cells: ({ kind: 'blank' } | { kind: 'day'; day: number; total: number; intensity: number })[] = [];
+    for (let i = 0; i < leadingBlanks; i++) cells.push({ kind: 'blank' });
+    for (let day = 1; day <= daysInSelectedMonth; day++) {
+      const total = dailySpend[day]?.total || 0;
+      const intensity = maxDailySpend > 0 ? total / maxDailySpend : 0;
+      cells.push({ kind: 'day', day, total, intensity });
+    }
+    return cells;
+  }, [selectedMonth, daysInSelectedMonth, dailySpend, maxDailySpend]);
+
+  const selectedDayTxns = useMemo(() => {
+    if (selectedCalendarDay === null) return [];
+    const entry = dailySpend[selectedCalendarDay];
+    if (!entry) return [];
+    return [...entry.txns].sort((a, b) => b.amount - a.amount);
+  }, [selectedCalendarDay, dailySpend]);
+
+  const selectedDayDateLabel = useMemo(() => {
+    if (selectedCalendarDay === null) return '';
+    const [year, monthNum] = selectedMonth.split('-').map(Number);
+    return new Date(year, monthNum - 1, selectedCalendarDay).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+  }, [selectedCalendarDay, selectedMonth]);
+
+  const getCategoryById = (id: string) => categories.find(c => c.id === id);
+
   // ─── Trends Chart D: Budget burn-down ──────────────────────────────────
   const burndownData = useMemo(() => {
     // Day-to-day budget for selected month (exclude commitment categories)
@@ -774,32 +821,13 @@ export default function Analysis() {
             </Link>
           )}
 
+          {/* Zone 1 — How am I doing this month? */}
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-1" data-testid="zone-label-1">How am I doing this month?</p>
           <div className="bg-card border border-border rounded-2xl p-5" data-testid="monthly-budget-health">
             <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-              <div className="flex items-center gap-2">
-                <div>
-                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Monthly Budget</p>
-                  <h2 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Budget Health</h2>
-                </div>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setBudgetTooltipOpen(v => !v)}
-                    onBlur={() => setTimeout(() => setBudgetTooltipOpen(false), 150)}
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    aria-label="What counts as discretionary spend?"
-                  >
-                    <Info size={16} />
-                  </button>
-                  {budgetTooltipOpen && (
-                    <div className="absolute z-10 top-full left-0 mt-1 w-64 p-3 rounded-xl bg-popover border border-border shadow-lg text-xs text-foreground">
-                      <p className="font-semibold mb-1">Discretionary vs Commitments</p>
-                      <p className="text-muted-foreground leading-relaxed">
-                        Budget Health tracks discretionary day-to-day spending. Categories marked as <span className="font-semibold text-foreground">commitments</span> (rent, EMIs, SIPs, subscriptions) are excluded — they are fixed obligations. You can mark categories as commitments in <span className="font-semibold text-foreground">Categories</span>.
-                      </p>
-                    </div>
-                  )}
-                </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Monthly Budget</p>
+                <h2 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Budget Health</h2>
               </div>
               <div className="flex items-center gap-2">
                 {monthlyBudgetTotal > 0 && (
@@ -877,124 +905,54 @@ export default function Analysis() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Zone 2 — Key numbers */}
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-1" data-testid="zone-label-2">Key numbers</p>
+          <div className="grid grid-cols-2 gap-3" data-testid="key-numbers-grid">
             <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-total-spent">
-              <div className="flex items-center gap-1 mb-1">
-                <p className="text-xs text-muted-foreground">Total Spent</p>
-                <UITooltip>
-                  <UITooltipTrigger asChild>
-                    <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="What is Total Spent?">
-                      <Info size={14} />
-                    </button>
-                  </UITooltipTrigger>
-                  <UITooltipContent>All expense transactions this month, excluding savings transfers. Includes both commitments and discretionary spend.</UITooltipContent>
-                </UITooltip>
+              <p className="text-xs text-muted-foreground mb-1">Total Spent</p>
+              <p className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(monthlyExpenses)}</p>
+              {spentChange.pct !== null && (
+                <p className={cn('text-[11px] mt-1 flex items-center gap-0.5 font-semibold', spentChange.pct <= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+                  {spentChange.pct <= 0 ? <ArrowDownRight size={11} /> : <ArrowUpRight size={11} />}
+                  {Math.abs(spentChange.pct).toFixed(1)}% vs last month
+                </p>
+              )}
+            </div>
+
+            {biggestExpense ? (
+              <button
+                type="button"
+                onClick={() => openEditSheet(biggestExpense.transaction)}
+                className="bg-card border border-border rounded-2xl p-4 text-left hover:bg-muted/40 transition-colors"
+                data-testid="biggest-expense-card"
+              >
+                <p className="text-xs text-muted-foreground mb-1">Biggest Expense</p>
+                <p className="text-lg font-bold text-red-500" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(biggestExpense.transaction.amount)}</p>
+                <p className="text-[11px] text-muted-foreground truncate mt-1">{biggestExpense.categoryName}</p>
+              </button>
+            ) : (
+              <div className="bg-card border border-border rounded-2xl p-4" data-testid="biggest-expense-card">
+                <p className="text-xs text-muted-foreground mb-1">Biggest Expense</p>
+                <p className="text-lg font-bold text-muted-foreground" style={{ fontFamily: 'var(--font-display)' }}>—</p>
+                <p className="text-[11px] text-muted-foreground mt-1">No spend yet</p>
               </div>
-              <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(monthlyExpenses)}</p>
-              {spentChange.pct === null ? (
-                <p className="text-xs mt-2 flex items-center gap-1 font-semibold text-muted-foreground">
-                  <span aria-label={spentChange.label}>—</span>
-                  <UITooltip>
-                    <UITooltipTrigger asChild>
-                      <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="Why no percentage change">
-                        <Info size={14} />
-                      </button>
-                    </UITooltipTrigger>
-                    <UITooltipContent>{spentChange.label}</UITooltipContent>
-                  </UITooltip>
-                </p>
-              ) : (
-                <p className={cn('text-xs mt-2 flex items-center gap-1 font-semibold', spentChange.pct <= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
-                  {spentChange.pct <= 0 ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
-                  {Math.abs(spentChange.pct).toFixed(1)}% {spentChange.pct >= 0 ? 'increased' : 'decreased'} vs last month
-                </p>
-              )}
+            )}
+
+            <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-avg-day">
+              <p className="text-xs text-muted-foreground mb-1">Avg / day</p>
+              <p className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(Math.round(avgSpendPerDay))}</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Over {elapsedDays} day{elapsedDays === 1 ? '' : 's'}</p>
             </div>
 
-            <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-total-income">
-              <p className="text-xs text-muted-foreground mb-1">Total Income</p>
-              <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(monthlyIncome)}</p>
-              {incomeChange.pct === null ? (
-                <p className="text-xs mt-2 flex items-center gap-1 font-semibold text-muted-foreground">
-                  <span aria-label={incomeChange.label}>—</span>
-                  <UITooltip>
-                    <UITooltipTrigger asChild>
-                      <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="Why no percentage change">
-                        <Info size={14} />
-                      </button>
-                    </UITooltipTrigger>
-                    <UITooltipContent>{incomeChange.label}</UITooltipContent>
-                  </UITooltip>
-                </p>
-              ) : (
-                <p className={cn('text-xs mt-2 flex items-center gap-1 font-semibold', incomeChange.pct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
-                  {incomeChange.pct >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                  {Math.abs(incomeChange.pct).toFixed(1)}% {incomeChange.pct >= 0 ? 'increased' : 'decreased'} vs last month
-                </p>
-              )}
-            </div>
-
-            <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-savings">
-              <div className="flex items-center gap-1 mb-1">
-                <p className="text-xs text-muted-foreground">Savings</p>
-                <UITooltip>
-                  <UITooltipTrigger asChild>
-                    <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="What is Savings?">
-                      <Info size={14} />
-                    </button>
-                  </UITooltipTrigger>
-                  <UITooltipContent>Amount you moved into savings (Goal + Emergency) this month. The rate compares this to the cash you had at the start of the month.</UITooltipContent>
-                </UITooltip>
-              </div>
-              <p className={cn('text-xl font-bold', monthlySavings >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')} style={{ fontFamily: 'var(--font-display)' }}>
-                {formatINR(monthlySavings)}
-              </p>
-              {savingsRatePct === null ? (
-                <p className="text-xs mt-2 text-muted-foreground">— rate (no carry-forward)</p>
-              ) : (
-                <p className={cn('text-xs mt-2 font-semibold', savingsRatePct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
-                  {savingsRatePct.toFixed(1)}% of carry-forward
-                </p>
-              )}
-            </div>
-
-            <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-transaction-count">
-              <p className="text-xs text-muted-foreground mb-1">Transactions</p>
-              <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{transactionCount}</p>
-              <p className="text-xs mt-2 text-muted-foreground">Avg spend/day: <span className="font-semibold text-foreground">{formatINR(avgSpendPerDay)}</span></p>
+            <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-commitments">
+              <p className="text-xs text-muted-foreground mb-1">Commitments</p>
+              <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(monthlyCommitments)}</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Fixed bills this month</p>
             </div>
           </div>
 
-          {savingsRatePct === null && currentSummary.totalSavings > 0 && (
-            <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl px-4 py-2.5 text-xs text-muted-foreground" data-testid="savings-rate-hint">
-              No carry-forward from previous months — the savings rate is shown once you have pocket cash to compare against.
-            </div>
-          )}
-
-          {biggestExpense && (
-            <button
-              type="button"
-              onClick={() => openEditSheet(biggestExpense.transaction)}
-              className="w-full bg-card border border-border rounded-2xl p-4 text-left hover:bg-muted/40 transition-colors"
-              data-testid="biggest-expense-card"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${biggestExpense.categoryColor}22` }}>
-                  <CategoryIcon icon={biggestExpense.categoryIcon} color={biggestExpense.categoryColor} size={18} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Biggest expense this month</p>
-                  <p className="text-sm font-semibold text-foreground truncate">
-                    {biggestExpense.transaction.note || biggestExpense.categoryName}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {biggestExpense.categoryName} • {new Date(`${biggestExpense.transaction.date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                  </p>
-                </div>
-                <p className="text-base font-bold text-red-500 flex-shrink-0">{formatINR(biggestExpense.transaction.amount)}</p>
-              </div>
-            </button>
-          )}
+          {/* Zone 3 — Where did the money go? */}
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-1" data-testid="zone-label-3">Where did the money go?</p>
 
           <div className="bg-card border border-border rounded-2xl p-5" data-testid="top-categories-pie">
             <div className="flex items-center justify-between mb-4">
@@ -1102,35 +1060,6 @@ export default function Analysis() {
             )}
           </div>
 
-          <div className="bg-card border border-border rounded-2xl p-5" data-testid="six-month-spending-trend-overview">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>6 Month Spending Trend</h2>
-              <span className="text-xs text-muted-foreground">Current: <span className="font-semibold text-foreground">{formatINR(monthlyExpenses)}</span></span>
-            </div>
-
-            {spendingTrendData.length === 0 ? (
-              <div className="h-44 flex items-center justify-center text-sm text-muted-foreground">No spending data to display</div>
-            ) : (
-              <>
-                {trendIsPartial && trendFirstRecordedMonth && (
-                  <p className="text-[11px] text-muted-foreground mb-2">Showing data from {formatMonthYear(trendFirstRecordedMonth)}</p>
-                )}
-                <ResponsiveContainer width="100%" height={190}>
-                <BarChart data={spendingTrendData} barSize={28} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-                  <XAxis dataKey="month" axisLine={false} tickLine={false} interval={0} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} />
-                  <YAxis axisLine={false} tickLine={false} domain={[0, barChartYMax]} tickFormatter={formatShortINR} tick={{ fontSize: 10, fill: 'hsl(215, 16%, 47%)' }} width={44} />
-                  <Tooltip formatter={(value: number) => [formatINR(value), 'Spent']} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: '12px' }} />
-                  <Bar dataKey="spent" radius={[6, 6, 0, 0]} minPointSize={4}>
-                    {spendingTrendData.map(item => (
-                      <Cell key={item.raw} fill={item.raw === selectedMonth ? '#EF4444' : '#FCA5A5'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-              </>
-            )}
-          </div>
-
           <div className="bg-card border border-border rounded-2xl p-5" data-testid="budget-vs-spent-card">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -1165,6 +1094,8 @@ export default function Analysis() {
             )}
           </div>
 
+          {/* Zone 4 — What should I do? */}
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-1" data-testid="zone-label-4">What should I do?</p>
           <div className="bg-card border border-border rounded-2xl p-5" data-testid="smart-insights-card">
             <div className="flex items-start gap-3 mb-3">
               <div className="w-9 h-9 rounded-xl bg-accent/15 text-accent flex items-center justify-center flex-shrink-0">
@@ -1490,6 +1421,46 @@ export default function Analysis() {
             </div>
 
             <div className="space-y-4 align-top" style={{ width: paneWidth || '100%', flexShrink: 0 }} role="tabpanel" aria-hidden={activeTab !== 'trends'}>
+          {/* Daily spending calendar — heatmap of the selected month */}
+          <div className="bg-card border border-border rounded-2xl p-5" data-testid="daily-spend-calendar">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Daily spending — {formatMonthYear(selectedMonth)}</h2>
+              <span className="text-xs text-muted-foreground">Tap a day</span>
+            </div>
+            <div className="grid grid-cols-7 gap-1 mb-2 text-[10px] font-semibold text-muted-foreground text-center">
+              {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(l => <div key={l}>{l}</div>)}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {calendarCells.map((c, i) => {
+                if (c.kind === 'blank') return <div key={`b${i}`} className="aspect-square" />;
+                const bg = c.total > 0
+                  ? `rgba(239, 68, 68, ${0.15 + 0.65 * c.intensity})`
+                  : 'transparent';
+                return (
+                  <button
+                    key={c.day}
+                    type="button"
+                    onClick={() => c.total > 0 && setSelectedCalendarDay(c.day)}
+                    disabled={c.total === 0}
+                    className={cn(
+                      'aspect-square rounded-lg flex flex-col items-center justify-center text-[10px] font-semibold transition-all border',
+                      c.total > 0 ? 'border-red-500/20 hover:scale-105 cursor-pointer text-foreground' : 'border-border/40 text-muted-foreground/60'
+                    )}
+                    style={{ backgroundColor: bg }}
+                    data-testid={`cal-day-${c.day}`}
+                    aria-label={c.total > 0 ? `${c.day} — spent ${formatINR(c.total)}` : `${c.day} — no spend`}
+                  >
+                    <span>{c.day}</span>
+                    {c.total > 0 && <span className="text-[8px] opacity-80 mt-0.5">{formatShortINR(c.total)}</span>}
+                  </button>
+                );
+              })}
+            </div>
+            {maxDailySpend === 0 && (
+              <p className="text-xs text-muted-foreground text-center mt-3">No expenses recorded for this month.</p>
+            )}
+          </div>
+
           <div className="bg-card border border-border rounded-2xl p-5" data-testid="income-expense-trend">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Income vs Spend - Last 6 Months</h2>
@@ -1716,6 +1687,52 @@ export default function Analysis() {
                   <span className="text-sm font-bold text-foreground flex-shrink-0">{formatINR(item.amount)}</span>
                 </div>
               ))}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* ─── Day-detail bottom sheet (calendar tap) ─── */}
+      <Sheet open={selectedCalendarDay !== null} onOpenChange={(o) => { if (!o) setSelectedCalendarDay(null); }}>
+        <SheetContent side="bottom" className="h-[50vh] overflow-y-auto rounded-t-2xl p-5">
+          <SheetHeader className="text-left mb-4 pr-8">
+            <SheetTitle className="text-base" style={{ fontFamily: 'var(--font-display)' }}>
+              {selectedDayDateLabel}
+            </SheetTitle>
+            <SheetDescription>
+              {selectedCalendarDay !== null && dailySpend[selectedCalendarDay]
+                ? `Spent ${formatINR(dailySpend[selectedCalendarDay].total)} across ${dailySpend[selectedCalendarDay].txns.length} transaction${dailySpend[selectedCalendarDay].txns.length === 1 ? '' : 's'}`
+                : 'No expenses recorded'}
+            </SheetDescription>
+          </SheetHeader>
+
+          {selectedDayTxns.length === 0 ? (
+            <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">No expenses on this day</div>
+          ) : (
+            <div className="divide-y divide-border rounded-xl border border-border overflow-hidden" data-testid="day-detail-list">
+              {selectedDayTxns.map(t => {
+                const cat = getCategoryById(t.categoryId);
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => { setSelectedCalendarDay(null); openEditSheet(t); }}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                    data-testid={`day-txn-${t.id}`}
+                  >
+                    <div className="min-w-0 flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${cat?.color || '#94A3B8'}22` }}>
+                        <CategoryIcon icon={cat?.icon || 'circle'} color={cat?.color || '#94A3B8'} size={16} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{t.note || cat?.name || 'Expense'}</p>
+                        <p className="text-[11px] text-muted-foreground">{cat?.name || 'Uncategorized'}</p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold text-red-500 flex-shrink-0">{formatINR(t.amount)}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </SheetContent>

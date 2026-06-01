@@ -2,12 +2,11 @@ import { useState, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import {
-  ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ArrowRightLeft, Info, PiggyBank,
+  ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ArrowRightLeft,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
-import { Tooltip as UITooltip, TooltipTrigger as UITooltipTrigger, TooltipContent as UITooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import {
   addMonths, formatAmount, formatDateLabel, formatMonthLabel, localDateStr,
@@ -29,7 +28,7 @@ const TOP_SLICE_COUNT = 6;
 export default function Dashboard() {
   const {
     transactions, categories, budgets, selectedMonth, setSelectedMonth,
-    getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getSpentForCategory,
+    getTotalIncome, getTotalExpenses, getBalance, getCarryForward, getNetBalanceToDate, getSpentForCategory,
     openEditSheet,
   } = useFinance();
 
@@ -43,9 +42,7 @@ export default function Dashboard() {
   const balance = getBalance(selectedMonth);
   const income = getTotalIncome(selectedMonth);
   const expenses = getTotalExpenses(selectedMonth);
-  const savings = getTotalSavings(selectedMonth);
   const carryForward = getCarryForward(selectedMonth);
-  const savingsRate = carryForward > 0 ? (savings / carryForward) * 100 : 0;
 
   const todayKey = localDateStr(new Date());
   const isCurrentMonth = selectedMonth === todayKey.slice(0, 7);
@@ -171,7 +168,7 @@ export default function Dashboard() {
           <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-white/5 pointer-events-none" />
           <div className="absolute -right-4 -bottom-12 w-48 h-48 rounded-full bg-white/5 pointer-events-none" />
 
-          <p className="text-xs text-white/50 font-medium uppercase tracking-wider mb-1">Net Balance</p>
+          <p className="text-xs text-white/50 font-medium uppercase tracking-wider mb-1">Balance</p>
           <p
             className={cn(
               'font-bold mb-1 leading-tight',
@@ -183,29 +180,13 @@ export default function Dashboard() {
           >
             {formatAmount(netBalance)}
           </p>
-          <p className="text-[11px] text-white/50 mb-2 leading-tight">Total cash through today — same on every month</p>
 
           {/* Today's spend + avg/day */}
-          <p className="text-[12px] text-white/65 mb-2 leading-tight">
+          <p className="text-[12px] text-white/65 mb-3 leading-tight">
             Spent {formatAmount(todaySpend)} today · avg {formatAmount(Math.round(avgPerDay))}/day
           </p>
 
-          {/* Carry Forward */}
-          {carryForward !== 0 ? (
-            <div className="flex items-center gap-1.5 mb-3">
-              <ArrowRightLeft size={10} className="text-white/40 flex-shrink-0" />
-              <p className="text-[11px] text-white/40 leading-tight">
-                Carried from {formatMonthLabel(prevMonth(selectedMonth))}:
-                <span className={cn('font-semibold ml-1', carryForward >= 0 ? 'text-emerald-400/80' : 'text-red-400/80')}>
-                  {formatAmount(carryForward)}
-                </span>
-              </p>
-            </div>
-          ) : (
-            <div className="mb-3" />
-          )}
-
-          {/* 2×2 stats grid: Income / Expenses / Saved / Net flow (savings rate shown under Saved) */}
+          {/* 2×2 stats grid: Income / Expenses / Carry-forward / {Month} Balance */}
           <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/10">
             <div>
               <div className="flex items-center gap-1 mb-0.5">
@@ -223,25 +204,13 @@ export default function Dashboard() {
             </div>
             <div>
               <div className="flex items-center gap-1 mb-0.5">
-                <PiggyBank size={10} className="text-sky-400" />
-                <p className="text-[10px] text-white/50">To savings</p>
-                <UITooltip>
-                  <UITooltipTrigger asChild>
-                    <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-white/40 hover:text-white/70" aria-label="What is To savings?">
-                      <Info size={14} />
-                    </button>
-                  </UITooltipTrigger>
-                  <UITooltipContent>Transferred to your savings goals this month.</UITooltipContent>
-                </UITooltip>
+                <ArrowRightLeft size={10} className="text-white/50" />
+                <p className="text-[10px] text-white/50">Carry-forward</p>
               </div>
-              <p className="text-sm font-bold text-sky-400 truncate" data-testid="savings-amount">{formatAmount(savings)}</p>
-              {carryForward > 0 ? (
-                <p className={cn('text-[10px] mt-0.5 truncate', savingsRate >= 0 ? 'text-emerald-400/80' : 'text-red-400/80')}>
-                  {savingsRate.toFixed(1)}% of carry-forward
-                </p>
-              ) : (
-                <p className="text-[10px] mt-0.5 truncate text-white/50">— rate</p>
-              )}
+              <p className={cn('text-sm font-bold truncate', carryForward > 0 ? 'text-emerald-400' : carryForward < 0 ? 'text-red-400' : 'text-white/70')}>
+                {formatAmount(carryForward)}
+              </p>
+              <p className="text-[10px] text-white/50 mt-0.5 truncate">from {formatMonthLabel(prevMonth(selectedMonth))}</p>
             </div>
             <div className={cn('transition-colors', balance < 0 && 'bg-[rgba(226,75,74,0.15)] rounded-lg px-2 py-1 -mx-2 -my-1')}>
               <div className="flex items-center gap-1 mb-0.5">
@@ -250,50 +219,15 @@ export default function Dashboard() {
                   : balance < 0
                     ? <ArrowDown size={10} className="text-red-400" />
                     : <ArrowUpDown size={10} className="text-white/50" />}
-                <p className="text-[10px] text-white/50">This month's cash flow</p>
-                <UITooltip>
-                  <UITooltipTrigger asChild>
-                    <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-white/40 hover:text-white/70" aria-label="What is this month's cash flow?">
-                      <Info size={14} />
-                    </button>
-                  </UITooltipTrigger>
-                  <UITooltipContent>Income received this month minus expenses and savings. May be negative early in the month before salary arrives.</UITooltipContent>
-                </UITooltip>
+                <p className="text-[10px] text-white/50 truncate">{formatMonthLabel(selectedMonth)} balance</p>
               </div>
-              <p className={cn('text-sm font-bold truncate', balance > 0 ? 'text-emerald-400' : balance < 0 ? 'text-red-400' : 'text-white')}>
+              <p
+                className={cn('text-sm font-bold truncate', balance > 0 ? 'text-emerald-400' : balance < 0 ? 'text-red-400' : 'text-white')}
+                data-testid="month-net-balance-amount"
+              >
                 {formatAmount(balance)}
               </p>
             </div>
-          </div>
-        </motion.div>
-
-        {/* Net balance this month — small companion card */}
-        <motion.div variants={item} className="rounded-2xl bg-card border border-border p-4" data-testid="month-net-balance-card">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Net balance this month</p>
-                <UITooltip>
-                  <UITooltipTrigger asChild>
-                    <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="What is Net balance this month?">
-                      <Info size={14} />
-                    </button>
-                  </UITooltipTrigger>
-                  <UITooltipContent>Income received this month minus expenses and savings. May be 0 if salary hasn't arrived yet.</UITooltipContent>
-                </UITooltip>
-              </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">for {formatMonthLabel(selectedMonth)}</p>
-            </div>
-            <p
-              className={cn(
-                'text-xl font-bold tabular-nums',
-                balance > 0 ? 'text-emerald-500' : balance < 0 ? 'text-red-500' : 'text-muted-foreground'
-              )}
-              style={{ fontFamily: 'var(--font-display)' }}
-              data-testid="month-net-balance-amount"
-            >
-              {formatAmount(balance)}
-            </p>
           </div>
         </motion.div>
 
