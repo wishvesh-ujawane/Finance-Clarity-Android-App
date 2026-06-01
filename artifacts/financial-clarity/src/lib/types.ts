@@ -37,8 +37,8 @@ export interface RecurringExpense {
 }
 
 export interface SavingsGoal {
-  goal: { monthly: number; annual: number };
-  emergency: { monthly: number; annual: number };
+  goal: { monthly: number; annual: number; createdAt?: string };
+  emergency: { monthly: number; annual: number; createdAt?: string };
 }
 
 export type GoalEntry = SavingsGoal['goal'];

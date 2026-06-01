@@ -1,16 +1,21 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Download, FileText } from 'lucide-react';
+import { Calendar, Download, FileText, Search, X } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { formatDateLabel, formatINR, localDateStr } from '@/lib/finance-utils';
 import { buildTransactionsCsv, exportCsvFile } from '@/lib/csv';
 
-type RangePreset = 'last1' | 'last3' | 'custom';
+type RangePreset = 'current' | 'last1' | 'last3' | 'custom';
 
 function getPresetRange(preset: RangePreset, customFrom: string, customTo: string): { from: string; to: string } {
   const now = new Date();
+  if (preset === 'current') {
+    // Current month: 1st of this month through today
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { from: localDateStr(firstOfMonth), to: localDateStr(now) };
+  }
   if (preset === 'last1') {
     // Previous full calendar month only (e.g. May → April 1–30)
     const firstOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -30,6 +35,10 @@ function getPresetRange(preset: RangePreset, customFrom: string, customTo: strin
 }
 
 function formatPeriodLabel(preset: RangePreset, from: string, to: string): string {
+  if (preset === 'current') {
+    const d = new Date(from + 'T00:00:00');
+    return `${d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })} (so far)`;
+  }
   if (preset === 'last1') {
     const d = new Date(from + 'T00:00:00');
     return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
@@ -41,7 +50,7 @@ function formatPeriodLabel(preset: RangePreset, from: string, to: string): strin
 export default function Transactions() {
   const { transactions, categories, openEditSheet } = useFinance();
 
-  const [preset, setPreset] = useState<RangePreset>('last3');
+  const [preset, setPreset] = useState<RangePreset>('current');
   const [customFrom, setCustomFrom] = useState(() => {
     const d = new Date();
     d.setMonth(d.getMonth() - 3);
@@ -50,6 +59,7 @@ export default function Transactions() {
   });
   const [customTo, setCustomTo] = useState(() => localDateStr(new Date()));
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [exportError, setExportError] = useState('');
 
   const { from: effectiveFrom, to: effectiveTo } = useMemo(
@@ -57,15 +67,31 @@ export default function Transactions() {
     [preset, customFrom, customTo]
   );
 
+  const categoryById = useMemo(
+    () => new Map(categories.map(c => [c.id, c])),
+    [categories]
+  );
+
   const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return transactions
       .filter(t => {
         if (t.date < effectiveFrom || t.date > effectiveTo) return false;
         if (filterType !== 'all' && t.type !== filterType) return false;
+        if (q) {
+          const cat = categoryById.get(t.categoryId);
+          const haystack = [
+            cat?.name || '',
+            t.note || '',
+            String(t.amount),
+            t.amount.toFixed(2),
+          ].join(' ').toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
         return true;
       })
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [transactions, effectiveFrom, effectiveTo, filterType]);
+  }, [transactions, effectiveFrom, effectiveTo, filterType, searchQuery, categoryById]);
 
   const grouped = useMemo(() => {
     const map: Record<string, typeof filtered> = {};
@@ -79,7 +105,7 @@ export default function Transactions() {
   const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const totalExpenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
 
-  const getCategoryById = (id: string) => categories.find(c => c.id === id);
+  const getCategoryById = (id: string) => categoryById.get(id);
 
   const downloadCSV = useCallback(async () => {
     setExportError('');
@@ -114,10 +140,35 @@ export default function Transactions() {
       </div>
       {exportError && <p className="text-xs font-medium text-red-500 mb-3">{exportError}</p>}
 
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <input
+          type="text"
+          data-testid="transactions-search"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search by category, note, or amount"
+          className="w-full pl-9 pr-9 py-2.5 text-sm bg-card border border-border rounded-xl outline-none focus:ring-2 focus:ring-accent text-foreground placeholder:text-muted-foreground"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            data-testid="transactions-search-clear"
+            onClick={() => setSearchQuery('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center"
+            aria-label="Clear search"
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
+
       {/* Range Filters */}
       <div className="bg-card border border-border rounded-2xl p-4 mb-4 space-y-3">
         <div className="flex gap-2">
           {([
+            { key: 'current', label: 'This Month' },
             { key: 'last1', label: 'Last Month' },
             { key: 'last3', label: 'Last 3 Months' },
             { key: 'custom', label: 'Custom' },
@@ -127,7 +178,7 @@ export default function Transactions() {
               data-testid={`range-${key}`}
               onClick={() => setPreset(key)}
               className={cn(
-                'flex-1 py-2 rounded-xl text-xs font-semibold transition-all',
+                'flex-1 py-2 rounded-xl text-[11px] font-semibold transition-all',
                 preset === key ? 'bg-accent text-white shadow' : 'bg-muted text-muted-foreground hover:text-foreground'
               )}
             >
@@ -214,7 +265,9 @@ export default function Transactions() {
           </div>
           <p className="text-sm font-semibold mb-1">No transactions found</p>
           <p className="text-xs text-center max-w-xs">
-            {preset === 'last1'
+            {preset === 'current'
+              ? `No transactions yet for ${formatPeriodLabel(preset, effectiveFrom, effectiveTo)}`
+              : preset === 'last1'
               ? `No transactions recorded for ${formatPeriodLabel(preset, effectiveFrom, effectiveTo)}`
               : preset === 'last3'
                 ? 'No transactions in the last 3 months'

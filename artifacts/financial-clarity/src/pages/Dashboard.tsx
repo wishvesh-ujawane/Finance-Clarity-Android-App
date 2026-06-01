@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import {
-  ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ArrowRightLeft, PiggyBank,
+  ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ArrowRightLeft,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useFinance } from '@/context/FinanceContext';
@@ -28,7 +28,7 @@ const TOP_SLICE_COUNT = 6;
 export default function Dashboard() {
   const {
     transactions, categories, budgets, selectedMonth, setSelectedMonth,
-    getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getSpentForCategory,
+    getTotalIncome, getTotalExpenses, getBalance, getCarryForward, getNetBalanceToDate, getSpentForCategory,
     openEditSheet,
   } = useFinance();
 
@@ -36,13 +36,13 @@ export default function Dashboard() {
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [legendExpanded, setLegendExpanded] = useState(false);
 
+  // Pocket cash through today — month-agnostic, identical on every month tab.
+  const netBalance = getNetBalanceToDate();
+  // Per-month figures (these DO change with the month picker).
   const balance = getBalance(selectedMonth);
   const income = getTotalIncome(selectedMonth);
   const expenses = getTotalExpenses(selectedMonth);
-  const savings = getTotalSavings(selectedMonth);
   const carryForward = getCarryForward(selectedMonth);
-  const netBalance = carryForward + balance;
-  const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
 
   const todayKey = localDateStr(new Date());
   const isCurrentMonth = selectedMonth === todayKey.slice(0, 7);
@@ -53,10 +53,11 @@ export default function Dashboard() {
   );
 
   // Today's spend + avg per day (current month: through today; past months: through last day of month)
+  // Excludes savings-category transactions — those are transfers, not spend.
   const { todaySpend, avgPerDay } = useMemo(() => {
     const today = isCurrentMonth
       ? monthTransactions
-          .filter(t => t.type === 'expense' && t.date === todayKey)
+          .filter(t => t.type === 'expense' && !SAVINGS_CATEGORY_ID_SET.has(t.categoryId) && t.date === todayKey)
           .reduce((s, t) => s + t.amount, 0)
       : 0;
     const [yStr, mStr] = selectedMonth.split('-').map(Number);
@@ -167,7 +168,7 @@ export default function Dashboard() {
           <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-white/5 pointer-events-none" />
           <div className="absolute -right-4 -bottom-12 w-48 h-48 rounded-full bg-white/5 pointer-events-none" />
 
-          <p className="text-xs text-white/50 font-medium uppercase tracking-wider mb-1">Net Balance</p>
+          <p className="text-xs text-white/50 font-medium uppercase tracking-wider mb-1">Balance</p>
           <p
             className={cn(
               'font-bold mb-1 leading-tight',
@@ -181,26 +182,11 @@ export default function Dashboard() {
           </p>
 
           {/* Today's spend + avg/day */}
-          <p className="text-[12px] text-white/65 mb-2 leading-tight">
+          <p className="text-[12px] text-white/65 mb-3 leading-tight">
             Spent {formatAmount(todaySpend)} today · avg {formatAmount(Math.round(avgPerDay))}/day
           </p>
 
-          {/* Carry Forward */}
-          {carryForward !== 0 ? (
-            <div className="flex items-center gap-1.5 mb-3">
-              <ArrowRightLeft size={10} className="text-white/40 flex-shrink-0" />
-              <p className="text-[11px] text-white/40 leading-tight">
-                Carried from {formatMonthLabel(prevMonth(selectedMonth))}:
-                <span className={cn('font-semibold ml-1', carryForward >= 0 ? 'text-emerald-400/80' : 'text-red-400/80')}>
-                  {formatAmount(carryForward)}
-                </span>
-              </p>
-            </div>
-          ) : (
-            <div className="mb-3" />
-          )}
-
-          {/* 2×2 stats grid: Income / Expenses / Saved / Net flow (savings rate shown under Saved) */}
+          {/* 2×2 stats grid: Income / Expenses / Carry-forward / {Month} Balance */}
           <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/10">
             <div>
               <div className="flex items-center gap-1 mb-0.5">
@@ -218,13 +204,13 @@ export default function Dashboard() {
             </div>
             <div>
               <div className="flex items-center gap-1 mb-0.5">
-                <PiggyBank size={10} className="text-sky-400" />
-                <p className="text-[10px] text-white/50">Saved</p>
+                <ArrowRightLeft size={10} className="text-white/50" />
+                <p className="text-[10px] text-white/50">Carry-forward</p>
               </div>
-              <p className="text-sm font-bold text-sky-400 truncate" data-testid="savings-amount">{formatAmount(savings)}</p>
-              <p className={cn('text-[10px] mt-0.5 truncate', savingsRate >= 0 ? 'text-emerald-400/80' : 'text-red-400/80')}>
-                {savingsRate.toFixed(1)}% rate
+              <p className={cn('text-sm font-bold truncate', carryForward > 0 ? 'text-emerald-400' : carryForward < 0 ? 'text-red-400' : 'text-white/70')}>
+                {formatAmount(carryForward)}
               </p>
+              <p className="text-[10px] text-white/50 mt-0.5 truncate">from {formatMonthLabel(prevMonth(selectedMonth))}</p>
             </div>
             <div className={cn('transition-colors', balance < 0 && 'bg-[rgba(226,75,74,0.15)] rounded-lg px-2 py-1 -mx-2 -my-1')}>
               <div className="flex items-center gap-1 mb-0.5">
@@ -233,20 +219,25 @@ export default function Dashboard() {
                   : balance < 0
                     ? <ArrowDown size={10} className="text-red-400" />
                     : <ArrowUpDown size={10} className="text-white/50" />}
-                <p className="text-[10px] text-white/50">Net flow</p>
+                <p className="text-[10px] text-white/50 truncate">{formatMonthLabel(selectedMonth)} balance</p>
               </div>
-              <p className={cn('text-sm font-bold truncate', balance > 0 ? 'text-emerald-400' : balance < 0 ? 'text-red-400' : 'text-white')}>
+              <p
+                className={cn('text-sm font-bold truncate', balance > 0 ? 'text-emerald-400' : balance < 0 ? 'text-red-400' : 'text-white')}
+                data-testid="month-net-balance-amount"
+              >
                 {formatAmount(balance)}
               </p>
             </div>
           </div>
+        </motion.div>
 
-          {/* Budget progress (only when budgets exist for this month) */}
-          {budgetTotals.limit > 0 && (
+        {/* Budget progress (only when budgets exist for this month) */}
+        {budgetTotals.limit > 0 && (
+          <motion.div variants={item} className="rounded-2xl bg-[hsl(222,65%,13%)] text-white px-5 py-4 relative overflow-hidden" data-testid="balance-card-footer">
             <button
               type="button"
               onClick={() => setLocation('/budgets')}
-              className="mt-4 w-full text-left group"
+              className="w-full text-left group"
               data-testid="hero-budget-bar"
             >
               <div className="flex items-center justify-between mb-1.5">
@@ -262,8 +253,8 @@ export default function Dashboard() {
                 />
               </div>
             </button>
-          )}
-        </motion.div>
+          </motion.div>
+        )}
 
         {/* Budget Alert Strip (only if any chip) */}
         {budgetAlerts.length > 0 && (
