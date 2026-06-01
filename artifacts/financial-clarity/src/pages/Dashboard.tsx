@@ -2,11 +2,12 @@ import { useState, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import {
-  ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ArrowRightLeft, PiggyBank,
+  ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ArrowRightLeft, Info, PiggyBank,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
+import { Tooltip as UITooltip, TooltipTrigger as UITooltipTrigger, TooltipContent as UITooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import {
   addMonths, formatAmount, formatDateLabel, formatMonthLabel, localDateStr,
@@ -42,10 +43,12 @@ export default function Dashboard() {
   const savings = getTotalSavings(selectedMonth);
   const carryForward = getCarryForward(selectedMonth);
   const netBalance = carryForward + balance;
-  const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
+  const savingsRate = income > 0 ? (savings / income) * 100 : 0;
 
   const todayKey = localDateStr(new Date());
   const isCurrentMonth = selectedMonth === todayKey.slice(0, 7);
+  // Bug 6 / Bug 8: suppress savings figures when the current month has no income yet.
+  const hideSavingsForZeroIncome = isCurrentMonth && income === 0;
 
   const monthTransactions = useMemo(
     () => transactions.filter(t => t.date.startsWith(selectedMonth)),
@@ -219,12 +222,33 @@ export default function Dashboard() {
             <div>
               <div className="flex items-center gap-1 mb-0.5">
                 <PiggyBank size={10} className="text-sky-400" />
-                <p className="text-[10px] text-white/50">Saved</p>
+                <p className="text-[10px] text-white/50">To savings</p>
+                <UITooltip>
+                  <UITooltipTrigger asChild>
+                    <button type="button" className="inline-flex items-center text-white/40 hover:text-white/70" aria-label="What is To savings?">
+                      <Info size={10} />
+                    </button>
+                  </UITooltipTrigger>
+                  <UITooltipContent>Transferred to your savings goals this month.</UITooltipContent>
+                </UITooltip>
               </div>
-              <p className="text-sm font-bold text-sky-400 truncate" data-testid="savings-amount">{formatAmount(savings)}</p>
-              <p className={cn('text-[10px] mt-0.5 truncate', savingsRate >= 0 ? 'text-emerald-400/80' : 'text-red-400/80')}>
-                {savingsRate.toFixed(1)}% rate
-              </p>
+              {hideSavingsForZeroIncome ? (
+                <>
+                  <p className="text-sm font-bold text-white/60 truncate" data-testid="savings-amount">—</p>
+                  <p className="text-[10px] mt-0.5 truncate text-white/50">Add income to see savings</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-bold text-sky-400 truncate" data-testid="savings-amount">{formatAmount(savings)}</p>
+                  {income > 0 ? (
+                    <p className={cn('text-[10px] mt-0.5 truncate', savingsRate >= 0 ? 'text-emerald-400/80' : 'text-red-400/80')}>
+                      {savingsRate.toFixed(1)}% rate
+                    </p>
+                  ) : (
+                    <p className="text-[10px] mt-0.5 truncate text-white/50">— rate</p>
+                  )}
+                </>
+              )}
             </div>
             <div className={cn('transition-colors', balance < 0 && 'bg-[rgba(226,75,74,0.15)] rounded-lg px-2 py-1 -mx-2 -my-1')}>
               <div className="flex items-center gap-1 mb-0.5">
@@ -233,13 +257,25 @@ export default function Dashboard() {
                   : balance < 0
                     ? <ArrowDown size={10} className="text-red-400" />
                     : <ArrowUpDown size={10} className="text-white/50" />}
-                <p className="text-[10px] text-white/50">Net flow</p>
+                <p className="text-[10px] text-white/50">Cash surplus / deficit</p>
+                <UITooltip>
+                  <UITooltipTrigger asChild>
+                    <button type="button" className="inline-flex items-center text-white/40 hover:text-white/70" aria-label="What is Cash surplus / deficit?">
+                      <Info size={10} />
+                    </button>
+                  </UITooltipTrigger>
+                  <UITooltipContent>Income minus expenses. Does not include savings transfers.</UITooltipContent>
+                </UITooltip>
               </div>
               <p className={cn('text-sm font-bold truncate', balance > 0 ? 'text-emerald-400' : balance < 0 ? 'text-red-400' : 'text-white')}>
                 {formatAmount(balance)}
               </p>
             </div>
           </div>
+
+          {hideSavingsForZeroIncome && (
+            <p className="text-[10px] text-white/50 mt-3" data-testid="add-income-hint">Add this month's income for accurate figures.</p>
+          )}
 
           {/* Budget progress (only when budgets exist for this month) */}
           {budgetTotals.limit > 0 && (

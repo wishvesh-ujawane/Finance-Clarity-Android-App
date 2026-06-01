@@ -181,7 +181,7 @@ export default function Budgets() {
             <p className="text-xs text-muted-foreground mt-1">{formatMonthLabel(selectedMonth)}</p>
           </div>
           <div className="bg-card border border-border rounded-2xl p-4">
-            <p className="text-xs text-muted-foreground mb-1">Total Spent</p>
+            <p className="text-xs text-muted-foreground mb-1">Spent on budgeted</p>
             <p className={cn('text-xl font-bold', totalSpent > totalBudget ? 'text-red-500' : 'text-foreground')} style={{ fontFamily: 'var(--font-display)' }}>
               {formatINR(totalSpent)}
             </p>

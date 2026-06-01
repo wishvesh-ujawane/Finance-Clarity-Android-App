@@ -59,6 +59,50 @@ export function addMonths(month: string, delta: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+export type MonthStatus = 'past' | 'current' | 'future';
+
+/** Returns whether the given YYYY-MM month is past, current, or future. */
+export function getMonthStatus(month: string): MonthStatus {
+  const cur = currentMonth();
+  if (month < cur) return 'past';
+  if (month > cur) return 'future';
+  return 'current';
+}
+
+export interface MoMChange {
+  /** Percentage change, or null if a change cannot be expressed meaningfully. */
+  pct: number | null;
+  /** Reason label when pct is null; empty string when pct is a valid number. */
+  label: string;
+}
+
+/**
+ * Month-over-month percentage change with explicit "cannot compute" cases.
+ * Returns `pct: null` (with a reason label) for first-month, no-prior-data,
+ * or in-progress current months — callers should render "—" in those cases.
+ */
+export function getMonthOverMonthChange(
+  current: number,
+  previous: number,
+  opts: { previousHasData: boolean; currentMonthInProgress: boolean },
+): MoMChange {
+  if (!opts.previousHasData) return { pct: null, label: 'First recorded month' };
+  if (previous === 0) return { pct: null, label: 'No prior data' };
+  if (opts.currentMonthInProgress) return { pct: null, label: 'Month in progress' };
+  return { pct: ((current - previous) / previous) * 100, label: '' };
+}
+
+/**
+ * Returns the number of whole calendar months between two YYYY-MM-DD dates.
+ * Always non-negative; if `to` is before `from`, returns 0.
+ */
+export function monthsBetween(fromDate: string, toDate: string): number {
+  const [fy, fm] = fromDate.slice(0, 7).split('-').map(Number);
+  const [ty, tm] = toDate.slice(0, 7).split('-').map(Number);
+  const diff = (ty - fy) * 12 + (tm - fm);
+  return Math.max(0, diff);
+}
+
 export function formatDateLabel(
   dateStr: string,
   options: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' },

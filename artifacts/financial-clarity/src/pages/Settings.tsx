@@ -6,6 +6,14 @@ import { useSecurity } from '@/context/SecurityContext';
 import { formatINR } from '@/lib/finance-utils';
 import { FeedbackSheet } from '@/components/FeedbackSheet';
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-2">
+      {children}
+    </p>
+  );
+}
+
 export default function Settings() {
   const { recurringExpenses, savingsGoal } = useFinance();
   const { isAppLockEnabled, settings: securitySettings } = useSecurity();
@@ -16,36 +24,15 @@ export default function Settings() {
     || savingsGoal.emergency.monthly > 0 || savingsGoal.emergency.annual > 0;
 
   return (
-    <div className="p-4 md:p-6 pb-24 md:pb-8">
+    <div className="p-4 md:p-6 pb-24 md:pb-8 flex flex-col min-h-screen">
       <div className="mb-6">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Data</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Preferences</p>
         <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Settings</h1>
       </div>
 
-      <div className="bg-card border border-border rounded-2xl overflow-hidden mb-4">
-        <Link href="/settings/security">
-          <button
-            type="button"
-            data-testid="settings-security-link"
-            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/5 transition-colors"
-          >
-            <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
-              <ShieldCheck size={18} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-foreground">Security</p>
-              <p className="text-xs text-muted-foreground">
-                {isAppLockEnabled
-                  ? `App lock is on${securitySettings?.biometricEnabled ? ' \u2022 biometrics enabled' : ''}`
-                  : 'Set a PIN to lock the app. Biometrics are offered on supported devices.'}
-              </p>
-            </div>
-            <ChevronRight size={16} className="text-muted-foreground" />
-          </button>
-        </Link>
-
-        <div className="border-t border-border" />
-
+      {/* Finances */}
+      <SectionLabel>Finances</SectionLabel>
+      <div className="bg-card border border-border rounded-2xl overflow-hidden mb-5">
         <Link href="/settings/categories">
           <button
             type="button"
@@ -62,9 +49,9 @@ export default function Settings() {
             <ChevronRight size={16} className="text-muted-foreground" />
           </button>
         </Link>
-      </div>
 
-      <div className="bg-card border border-border rounded-2xl overflow-hidden mb-4">
+        <div className="border-t border-border" />
+
         <Link href="/settings/recurring">
           <button
             type="button"
@@ -110,7 +97,32 @@ export default function Settings() {
         </Link>
       </div>
 
-      <div className="bg-card border border-border rounded-2xl overflow-hidden mb-4">
+      {/* Privacy & Data */}
+      <SectionLabel>Privacy & Data</SectionLabel>
+      <div className="bg-card border border-border rounded-2xl overflow-hidden mb-5">
+        <Link href="/settings/security">
+          <button
+            type="button"
+            data-testid="settings-security-link"
+            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/5 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+              <ShieldCheck size={18} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-foreground">Security</p>
+              <p className="text-xs text-muted-foreground">
+                {isAppLockEnabled
+                  ? `App lock is on${securitySettings?.biometricEnabled ? ' \u2022 biometrics enabled' : ''}`
+                  : 'Set a PIN to lock the app. Biometrics are offered on supported devices.'}
+              </p>
+            </div>
+            <ChevronRight size={16} className="text-muted-foreground" />
+          </button>
+        </Link>
+
+        <div className="border-t border-border" />
+
         <Link href="/settings/backup">
           <button
             type="button"
@@ -129,6 +141,8 @@ export default function Settings() {
         </Link>
       </div>
 
+      {/* Support */}
+      <SectionLabel>Support</SectionLabel>
       <div className="bg-card border border-border rounded-2xl overflow-hidden mb-6">
         <button
           type="button"
@@ -147,12 +161,12 @@ export default function Settings() {
         </button>
       </div>
 
-      <div className="pt-4 flex flex-col items-center text-center gap-1">
-        <p className="text-xs font-semibold text-muted-foreground" data-testid="app-version">
+      <div className="mt-auto pt-6 flex flex-col items-center text-center gap-1.5">
+        <p className="text-sm font-semibold text-muted-foreground" data-testid="app-version">
           v{__APP_VERSION__}
         </p>
-        <p className="text-xs text-muted-foreground inline-flex items-center gap-1">
-          Made with <Heart size={12} className="text-red-500 fill-red-500" /> for finance enthusiasts
+        <p className="text-sm text-muted-foreground inline-flex items-center gap-1.5">
+          Made with <Heart size={14} className="text-red-500 fill-red-500" /> for finance enthusiasts
         </p>
       </div>
 

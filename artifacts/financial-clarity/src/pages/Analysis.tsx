@@ -6,8 +6,9 @@ import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip as UITooltip, TooltipTrigger as UITooltipTrigger, TooltipContent as UITooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { addMonths, formatINR, formatShortINR, formatMonthYear, localDateStr } from '@/lib/finance-utils';
+import { addMonths, formatINR, formatShortINR, formatMonthYear, localDateStr, getMonthStatus, getMonthOverMonthChange, monthsBetween, type MoMChange } from '@/lib/finance-utils';
 import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
 
 function shiftMonth(month: string, offset: number) {
@@ -44,8 +45,20 @@ function getMonthTotal(
   month: string,
   type: 'expense' | 'income'
 ) {
+  // For 'expense', exclude savings-category transactions so totals match the
+  // canonical getMonthSummary definition (savings are tracked separately).
   return transactions
     .filter(t => t.type === type && t.date.startsWith(month))
+    .filter(t => !(type === 'expense' && SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number])))
+    .reduce((sum, t) => sum + t.amount, 0);
+}
+
+function getMonthSavingsTotal(
+  transactions: ReturnType<typeof useFinance>['transactions'],
+  month: string,
+) {
+  return transactions
+    .filter(t => t.type === 'expense' && t.date.startsWith(month) && SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number]))
     .reduce((sum, t) => sum + t.amount, 0);
 }
 
@@ -53,6 +66,7 @@ function getExpenseMapForMonth(transactions: ReturnType<typeof useFinance>['tran
   const map: Record<string, number> = {};
   transactions
     .filter(t => t.type === 'expense' && t.date.startsWith(month))
+    .filter(t => !SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number]))
     .forEach(t => {
       map[t.categoryId] = (map[t.categoryId] || 0) + t.amount;
     });
@@ -85,18 +99,12 @@ function getDateRangeExpenseTotal(transactions: ReturnType<typeof useFinance>['t
   const startAt = start.getTime();
   const endAt = end.getTime();
   return transactions
-    .filter(t => t.type === 'expense')
+    .filter(t => t.type === 'expense' && !SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number]))
     .filter(t => {
       const time = parseLocalDate(t.date).getTime();
       return time >= startAt && time <= endAt;
     })
     .reduce((sum, t) => sum + t.amount, 0);
-}
-
-function getChangePct(current: number, previous: number) {
-  if (previous > 0) return ((current - previous) / previous) * 100;
-  if (current > 0) return 100;
-  return 0;
 }
 
 export default function Analysis() {
@@ -110,6 +118,7 @@ export default function Analysis() {
     recurringExpenses,
     savingsGoal,
     addBudget,
+    getMonthSummary,
   } = useFinance();
   const [allCategoriesOpen, setAllCategoriesOpen] = useState(false);
   const [selectedPieSlice, setSelectedPieSlice] = useState<string | null>(null);
@@ -131,11 +140,21 @@ export default function Analysis() {
   const previousIncome = useMemo(() => getMonthTotal(transactions, previousMonth, 'income'), [transactions, previousMonth]);
   const previousExpenses = useMemo(() => getMonthTotal(transactions, previousMonth, 'expense'), [transactions, previousMonth]);
 
-  const monthlySavings = monthlyIncome - monthlyExpenses;
-  const previousSavings = previousIncome - previousExpenses;
-  const spentChangePct = getChangePct(monthlyExpenses, previousExpenses);
-  const incomeChangePct = getChangePct(monthlyIncome, previousIncome);
-  const savingsChangePct = getChangePct(monthlySavings, previousSavings);
+  // Canonical per-month summary for selected + previous month (single source of truth).
+  const currentSummary = useMemo(() => getMonthSummary(selectedMonth), [getMonthSummary, selectedMonth]);
+  const prevSummary = useMemo(() => getMonthSummary(previousMonth), [getMonthSummary, previousMonth]);
+  const monthStatus = useMemo(() => getMonthStatus(selectedMonth), [selectedMonth]);
+  const isCurrentMonthInProgress = monthStatus === 'current';
+
+  const monthlySavings = currentSummary.totalSavings;
+  const previousSavings = prevSummary.totalSavings;
+  const momOpts = { previousHasData: prevSummary.hasData, currentMonthInProgress: isCurrentMonthInProgress };
+  const spentChange: MoMChange = getMonthOverMonthChange(monthlyExpenses, previousExpenses, momOpts);
+  const incomeChange: MoMChange = getMonthOverMonthChange(monthlyIncome, previousIncome, momOpts);
+  const savingsChange: MoMChange = getMonthOverMonthChange(monthlySavings, previousSavings, momOpts);
+
+  // Bug 6: when current month has no income recorded yet, don't surface a misleading negative "Savings" figure.
+  const hideSavingsKpi = isCurrentMonthInProgress && currentSummary.totalIncome === 0;
 
   const daysInSelectedMonth = useMemo(() => {
     const [year, monthNum] = selectedMonth.split('-').map(Number);
@@ -203,13 +222,22 @@ export default function Analysis() {
   const top5Categories = allCategorySpending.slice(0, 5);
 
   const spendingTrendData = useMemo(() => {
-    return last6Months.map(month => ({
-      month: monthLabel(month),
-      raw: month,
-      spent: getMonthTotal(transactions, month, 'expense'),
-      income: getMonthTotal(transactions, month, 'income'),
-    }));
-  }, [last6Months, transactions]);
+    return last6Months
+      .map(month => {
+        const summary = getMonthSummary(month);
+        return {
+          month: monthLabel(month),
+          raw: month,
+          spent: summary.totalExpenses,
+          income: summary.totalIncome,
+          hasData: summary.hasData,
+        };
+      })
+      .filter(d => d.hasData);
+  }, [last6Months, getMonthSummary]);
+
+  const trendFirstRecordedMonth = spendingTrendData.length > 0 ? spendingTrendData[0].raw : null;
+  const trendIsPartial = spendingTrendData.length > 0 && spendingTrendData.length < last6Months.length;
 
   const budgetVsSpentRows = useMemo(() => {
     return budgets
@@ -244,7 +272,7 @@ export default function Analysis() {
       return getDateRangeExpenseTotal(transactions, start, end);
     });
     const previous4WeekAvg = previous4WeekTotals.reduce((sum, value) => sum + value, 0) / 4;
-    const deltaPct = getChangePct(thisWeekSpend, previous4WeekAvg);
+    const deltaPct = previous4WeekAvg > 0 ? ((thisWeekSpend - previous4WeekAvg) / previous4WeekAvg) * 100 : null;
 
     return {
       thisWeekSpend,
@@ -305,23 +333,23 @@ export default function Analysis() {
       });
     }
 
-    if (previousExpenses > 0) {
+    if (previousExpenses > 0 && spentChange.pct !== null) {
       items.push({
         id: 'spend-vs-last',
-        text: `Spending is ${spentChangePct >= 0 ? 'up' : 'down'} ${Math.abs(spentChangePct).toFixed(1)}% vs last month${topCategory ? `, led by ${topCategory.name}.` : '.'}`,
-        severity: spentChangePct > 10 ? 'warning' : spentChangePct < -5 ? 'positive' : 'neutral',
+        text: `Spending is ${spentChange.pct >= 0 ? 'up' : 'down'} ${Math.abs(spentChange.pct).toFixed(1)}% vs last month${topCategory ? `, led by ${topCategory.name}.` : '.'}`,
+        severity: spentChange.pct > 10 ? 'warning' : spentChange.pct < -5 ? 'positive' : 'neutral',
       });
     }
 
-    if (previousIncome > 0 || monthlyIncome > 0) {
+    if ((previousIncome > 0 || monthlyIncome > 0) && savingsChange.pct !== null) {
       items.push({
         id: 'savings-rate',
-        text: `Savings rate moved from ${Math.max(0, previousSavingsRate).toFixed(1)}% to ${Math.max(0, monthlySavingsRate).toFixed(1)}% (${savingsChangePct >= 0 ? '+' : ''}${savingsChangePct.toFixed(1)}%).`,
-        severity: savingsChangePct >= 0 ? 'positive' : 'warning',
+        text: `Savings rate moved from ${Math.max(0, previousSavingsRate).toFixed(1)}% to ${Math.max(0, monthlySavingsRate).toFixed(1)}% (${savingsChange.pct >= 0 ? '+' : ''}${savingsChange.pct.toFixed(1)}%).`,
+        severity: savingsChange.pct >= 0 ? 'positive' : 'warning',
       });
     }
 
-    if (weeklyInsight.previous4WeekAvg > 0) {
+    if (weeklyInsight.previous4WeekAvg > 0 && weeklyInsight.deltaPct !== null) {
       const isSpike = weeklyInsight.deltaPct > 20;
       items.push({
         id: 'weekly-pace',
@@ -347,13 +375,13 @@ export default function Analysis() {
     monthlyBudgetTotal,
     spentPct,
     previousExpenses,
-    spentChangePct,
+    spentChange,
     topCategory,
     previousIncome,
     monthlyIncome,
     previousSavingsRate,
     monthlySavingsRate,
-    savingsChangePct,
+    savingsChange,
     weeklyInsight,
   ]);
 
@@ -446,30 +474,38 @@ export default function Analysis() {
   // ─── Planning Card C: Savings goal progress ────────────────────────────
   const savingsGoalsProgress = useMemo(() => {
     if (!savingsGoal) return [];
-    const year = today.getFullYear();
-    const monthIndex = today.getMonth() + 1;
-    const ytdMonthPrefixes: string[] = [];
-    for (let m = 0; m <= today.getMonth(); m++) {
-      ytdMonthPrefixes.push(`${year}-${String(m + 1).padStart(2, '0')}`);
-    }
-    const ytdSavingsByCat: Record<string, number> = {};
-    for (const t of transactions) {
-      if (t.type !== 'expense') continue;
-      if (!SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number])) continue;
-      if (!ytdMonthPrefixes.some(p => t.date.startsWith(p))) continue;
-      ytdSavingsByCat[t.categoryId] = (ytdSavingsByCat[t.categoryId] ?? 0) + t.amount;
-    }
+    const todayStrLocal = localDateStr(today);
+    // End-of-year target anchor for the annual cycle.
+    const targetDateStr = `${today.getFullYear()}-12-31`;
     const entries = [
       { key: 'goal' as const, id: 'savings-goal', name: 'Goal Savings', color: '#0EA5E9', goal: savingsGoal.goal },
       { key: 'emergency' as const, id: 'savings-emergency', name: 'Emergency Fund', color: '#14B8A6', goal: savingsGoal.emergency },
     ];
     return entries.map(e => {
       const annualGoal = e.goal.annual > 0 ? e.goal.annual : e.goal.monthly * 12;
-      const ytdContrib = ytdSavingsByCat[e.id] ?? 0;
-      const expectedToDate = annualGoal * (monthIndex / 12);
-      const pct = annualGoal > 0 ? Math.max(0, Math.min(100, (ytdContrib / annualGoal) * 100)) : 0;
-      const onTrack = annualGoal > 0 && ytdContrib >= expectedToDate;
-      return { ...e, annualGoal, ytdContrib, pct, onTrack, monthIndex };
+      // Anchor pace at the goal's creation date (or earliest savings txn for that cat, else today).
+      let createdAt = e.goal.createdAt;
+      if (!createdAt) {
+        let earliest: string | null = null;
+        for (const t of transactions) {
+          if (t.type !== 'expense' || t.categoryId !== e.id) continue;
+          if (earliest === null || t.date < earliest) earliest = t.date;
+        }
+        createdAt = earliest ?? todayStrLocal;
+      }
+      // Sum savings contributions from createdAt forward (not the whole calendar year).
+      let contrib = 0;
+      for (const t of transactions) {
+        if (t.type !== 'expense' || t.categoryId !== e.id) continue;
+        if (t.date < createdAt) continue;
+        contrib += t.amount;
+      }
+      const totalMonths = Math.max(1, monthsBetween(createdAt, targetDateStr));
+      const monthsElapsed = Math.max(0, Math.min(totalMonths, monthsBetween(createdAt, todayStrLocal)));
+      const expectedToDate = annualGoal * (monthsElapsed / totalMonths);
+      const pct = annualGoal > 0 ? Math.max(0, Math.min(100, (contrib / annualGoal) * 100)) : 0;
+      const onTrack = annualGoal > 0 && contrib >= expectedToDate;
+      return { ...e, annualGoal, ytdContrib: contrib, pct, onTrack, monthIndex: monthsElapsed, totalMonths };
     });
   }, [savingsGoal, transactions, today]);
   const visibleSavingsGoals = useMemo(() => savingsGoalsProgress.filter(g => g.annualGoal > 0), [savingsGoalsProgress]);
@@ -477,12 +513,14 @@ export default function Analysis() {
   // ─── Trends Chart B: Savings rate trend ────────────────────────────────
   const savingsRateSeries = useMemo(() => {
     return last6Months.map(month => {
-      const income = getMonthTotal(transactions, month, 'income');
-      const expenses = getMonthTotal(transactions, month, 'expense');
-      const rate = income > 0 ? Math.max(-100, Math.min(100, ((income - expenses) / income) * 100)) : 0;
+      const summary = getMonthSummary(month);
+      if (!summary.hasData || summary.totalIncome <= 0) {
+        return { month: monthLabel(month), raw: month, rate: null as number | null };
+      }
+      const rate = Math.max(-100, Math.min(100, ((summary.totalIncome - summary.totalExpenses) / summary.totalIncome) * 100));
       return { month: monthLabel(month), raw: month, rate: Number(rate.toFixed(1)) };
     });
-  }, [last6Months, transactions]);
+  }, [last6Months, getMonthSummary]);
 
   // ─── Trends Chart C: Weekday heatmap (selected month) ──────────────────
   const weekdayHeatmap = useMemo(() => {
@@ -526,9 +564,26 @@ export default function Analysis() {
 
     if (dayToDayBudget <= 0) return { points: [], dayToDayBudget: 0, crossoverDay: null as number | null };
 
+    // Bug 7: exclude transactions that match an active RecurringExpense rule
+    // (same category, amount within ₹1 tolerance, this month). These are fixed
+    // commitments and should not count against discretionary day-to-day burn.
+    const activeRecurringForMonth = recurringExpenses.filter(r => r.active);
+    const recurringMatches = new Set<string>();
+    for (const t of monthlyTransactions) {
+      if (t.type !== 'expense') continue;
+      for (const r of activeRecurringForMonth) {
+        if (t.categoryId !== r.categoryId) continue;
+        if (Math.abs(t.amount - r.amount) > 1) continue;
+        recurringMatches.add(t.id);
+        break;
+      }
+    }
+
     const dayToDayTxByDay: Record<number, number> = {};
     monthlyTransactions
       .filter(t => t.type === 'expense' && !commitmentCategoryIds.has(t.categoryId))
+      .filter(t => !SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number]))
+      .filter(t => !recurringMatches.has(t.id))
       .forEach(t => {
         const day = parseInt(t.date.slice(-2), 10);
         dayToDayTxByDay[day] = (dayToDayTxByDay[day] || 0) + t.amount;
@@ -557,7 +612,7 @@ export default function Analysis() {
       }
     }
     return { points, dayToDayBudget, crossoverDay };
-  }, [budgets, selectedMonth, monthlyTransactions, commitmentCategoryIds, currentMonthKey, today, daysInSelectedMonth]);
+  }, [budgets, selectedMonth, monthlyTransactions, commitmentCategoryIds, recurringExpenses, currentMonthKey, today, daysInSelectedMonth]);
 
   // ─── Month picker options ──────────────────────────────────────────────
   const monthPickerOptions = useMemo(() => {
@@ -757,30 +812,81 @@ export default function Analysis() {
             <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-total-spent">
               <p className="text-xs text-muted-foreground mb-1">Total Spent</p>
               <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(monthlyExpenses)}</p>
-              <p className={cn('text-xs mt-2 flex items-center gap-1 font-semibold', spentChangePct <= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
-                {spentChangePct <= 0 ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
-                {Math.abs(spentChangePct).toFixed(1)}% {spentChangePct >= 0 ? 'increased' : 'decreased'} vs last month
-              </p>
+              {spentChange.pct === null ? (
+                <p className="text-xs mt-2 flex items-center gap-1 font-semibold text-muted-foreground">
+                  <span aria-label={spentChange.label}>—</span>
+                  <UITooltip>
+                    <UITooltipTrigger asChild>
+                      <button type="button" className="inline-flex items-center text-muted-foreground hover:text-foreground" aria-label="Why no percentage change">
+                        <Info size={11} />
+                      </button>
+                    </UITooltipTrigger>
+                    <UITooltipContent>{spentChange.label}</UITooltipContent>
+                  </UITooltip>
+                </p>
+              ) : (
+                <p className={cn('text-xs mt-2 flex items-center gap-1 font-semibold', spentChange.pct <= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+                  {spentChange.pct <= 0 ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
+                  {Math.abs(spentChange.pct).toFixed(1)}% {spentChange.pct >= 0 ? 'increased' : 'decreased'} vs last month
+                </p>
+              )}
             </div>
 
             <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-total-income">
               <p className="text-xs text-muted-foreground mb-1">Total Income</p>
               <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(monthlyIncome)}</p>
-              <p className={cn('text-xs mt-2 flex items-center gap-1 font-semibold', incomeChangePct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
-                {incomeChangePct >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                {Math.abs(incomeChangePct).toFixed(1)}% {incomeChangePct >= 0 ? 'increased' : 'decreased'} vs last month
-              </p>
+              {incomeChange.pct === null ? (
+                <p className="text-xs mt-2 flex items-center gap-1 font-semibold text-muted-foreground">
+                  <span aria-label={incomeChange.label}>—</span>
+                  <UITooltip>
+                    <UITooltipTrigger asChild>
+                      <button type="button" className="inline-flex items-center text-muted-foreground hover:text-foreground" aria-label="Why no percentage change">
+                        <Info size={11} />
+                      </button>
+                    </UITooltipTrigger>
+                    <UITooltipContent>{incomeChange.label}</UITooltipContent>
+                  </UITooltip>
+                </p>
+              ) : (
+                <p className={cn('text-xs mt-2 flex items-center gap-1 font-semibold', incomeChange.pct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+                  {incomeChange.pct >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                  {Math.abs(incomeChange.pct).toFixed(1)}% {incomeChange.pct >= 0 ? 'increased' : 'decreased'} vs last month
+                </p>
+              )}
             </div>
 
             <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-savings">
               <p className="text-xs text-muted-foreground mb-1">Savings</p>
-              <p className={cn('text-xl font-bold', monthlySavings >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')} style={{ fontFamily: 'var(--font-display)' }}>
-                {formatINR(monthlySavings)}
-              </p>
-              <p className={cn('text-xs mt-2 flex items-center gap-1 font-semibold', savingsChangePct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
-                {savingsChangePct >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                {Math.abs(savingsChangePct).toFixed(1)}% {savingsChangePct >= 0 ? 'increased' : 'decreased'} vs last month
-              </p>
+              {hideSavingsKpi ? (
+                <>
+                  <p className="text-xl font-bold text-muted-foreground" style={{ fontFamily: 'var(--font-display)' }}>—</p>
+                  <p className="text-xs mt-2 text-muted-foreground">Add income to see savings</p>
+                </>
+              ) : (
+                <>
+                  <p className={cn('text-xl font-bold', monthlySavings >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')} style={{ fontFamily: 'var(--font-display)' }}>
+                    {formatINR(monthlySavings)}
+                  </p>
+                  {savingsChange.pct === null ? (
+                    <p className="text-xs mt-2 flex items-center gap-1 font-semibold text-muted-foreground">
+                      <span aria-label={savingsChange.label}>—</span>
+                      <UITooltip>
+                        <UITooltipTrigger asChild>
+                          <button type="button" className="inline-flex items-center text-muted-foreground hover:text-foreground" aria-label="Why no percentage change">
+                            <Info size={11} />
+                          </button>
+                        </UITooltipTrigger>
+                        <UITooltipContent>{savingsChange.label}</UITooltipContent>
+                      </UITooltip>
+                    </p>
+                  ) : (
+                    <p className={cn('text-xs mt-2 flex items-center gap-1 font-semibold', savingsChange.pct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+                      {savingsChange.pct >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                      {Math.abs(savingsChange.pct).toFixed(1)}% {savingsChange.pct >= 0 ? 'increased' : 'decreased'} vs last month
+                    </p>
+                  )}
+                </>
+              )}
             </div>
 
             <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-transaction-count">
@@ -789,6 +895,12 @@ export default function Analysis() {
               <p className="text-xs mt-2 text-muted-foreground">Avg spend/day: <span className="font-semibold text-foreground">{formatINR(avgSpendPerDay)}</span></p>
             </div>
           </div>
+
+          {hideSavingsKpi && (
+            <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl px-4 py-2.5 text-xs text-muted-foreground" data-testid="add-income-hint">
+              Add this month's income for accurate figures.
+            </div>
+          )}
 
           {biggestExpense && (
             <button
@@ -927,10 +1039,14 @@ export default function Analysis() {
               <span className="text-xs text-muted-foreground">Current: <span className="font-semibold text-foreground">{formatINR(monthlyExpenses)}</span></span>
             </div>
 
-            {spendingTrendData.every(d => d.spent === 0) ? (
+            {spendingTrendData.length === 0 ? (
               <div className="h-44 flex items-center justify-center text-sm text-muted-foreground">No spending data to display</div>
             ) : (
-              <ResponsiveContainer width="100%" height={190}>
+              <>
+                {trendIsPartial && trendFirstRecordedMonth && (
+                  <p className="text-[11px] text-muted-foreground mb-2">Showing data from {formatMonthYear(trendFirstRecordedMonth)}</p>
+                )}
+                <ResponsiveContainer width="100%" height={190}>
                 <BarChart data={spendingTrendData} barSize={28} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
                   <XAxis dataKey="month" axisLine={false} tickLine={false} interval={0} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} />
                   <YAxis axisLine={false} tickLine={false} domain={[0, barChartYMax]} tickFormatter={formatShortINR} tick={{ fontSize: 10, fill: 'hsl(215, 16%, 47%)' }} width={44} />
@@ -942,6 +1058,7 @@ export default function Analysis() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              </>
             )}
           </div>
 
@@ -1016,6 +1133,81 @@ export default function Analysis() {
         </TabsContent>
 
         <TabsContent value="planning" className="space-y-4 mt-0">
+          {monthStatus === 'past' && (
+            <div className="bg-card border border-border rounded-2xl p-5" data-testid="month-ended-summary">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-9 h-9 rounded-xl bg-muted text-muted-foreground flex items-center justify-center flex-shrink-0">
+                  <CalendarClock size={17} />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Month ended</p>
+                  <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatMonthYear(selectedMonth)} summary</h2>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="rounded-xl bg-muted/50 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">Income</p>
+                  <p className="text-sm font-bold text-foreground">{formatINR(currentSummary.totalIncome)}</p>
+                </div>
+                <div className="rounded-xl bg-muted/50 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">Expenses</p>
+                  <p className="text-sm font-bold text-foreground">{formatINR(currentSummary.totalExpenses)}</p>
+                </div>
+                <div className="rounded-xl bg-muted/50 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">To savings</p>
+                  <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatINR(currentSummary.totalSavings)}</p>
+                </div>
+                <div className="rounded-xl bg-muted/50 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">Net flow</p>
+                  <p className={cn('text-sm font-bold', currentSummary.netFlow >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>{formatINR(currentSummary.netFlow)}</p>
+                </div>
+              </div>
+              {monthlyBudgetTotal > 0 && (
+                <p className="text-xs text-muted-foreground mt-3">
+                  Budget outcome:{' '}
+                  <span className={cn('font-semibold', isBudgetExceeded ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400')}>
+                    {isBudgetExceeded ? `Over by ${formatINR(monthlyDayToDay - monthlyBudgetTotal)}` : `Under by ${formatINR(monthlyBudgetTotal - monthlyDayToDay)}`}
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
+
+          {monthStatus === 'future' && (
+            <div className="bg-card border border-border rounded-2xl p-5" data-testid="planned-budgets-card">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center flex-shrink-0">
+                  <Target size={17} />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Planned</p>
+                  <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Budgets planned for {formatMonthYear(selectedMonth)}</h2>
+                </div>
+              </div>
+              {budgets.filter(b => b.month === selectedMonth).length === 0 ? (
+                <p className="text-sm text-muted-foreground py-3">No budgets planned yet for this month. <Link href="/budgets" className="text-accent font-semibold hover:underline">Set budgets</Link>.</p>
+              ) : (
+                <div className="space-y-2">
+                  {budgets.filter(b => b.month === selectedMonth).map(b => {
+                    const cat = categories.find(c => c.id === b.categoryId);
+                    return (
+                      <div key={b.id} className="flex items-center justify-between rounded-xl border border-border px-3 py-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${cat?.color || '#94A3B8'}22` }}>
+                            <CategoryIcon icon={cat?.icon || 'DollarSign'} color={cat?.color || '#94A3B8'} size={14} />
+                          </div>
+                          <span className="text-sm font-medium text-foreground truncate">{cat?.name || 'Unknown'}</span>
+                        </div>
+                        <span className="text-sm font-bold text-foreground">{formatINR(b.limit)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {monthStatus === 'current' && (<>
           {currentMonthDaysLeft <= 2 && selectedMonth === currentMonthKey && (
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4" data-testid="month-ending-soon">
               <div className="flex items-start gap-3">
@@ -1179,6 +1371,7 @@ export default function Analysis() {
               </>
             )}
           </div>
+          </>)}
 
           {visibleSavingsGoals.length > 0 && (
             <div className="bg-card border border-border rounded-2xl p-5" data-testid="savings-goal-card">
@@ -1222,7 +1415,7 @@ export default function Analysis() {
                   </div>
                 ))}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-3 text-center">Year-to-date through month {visibleSavingsGoals[0]?.monthIndex} of 12. <Link href="/settings" className="text-accent font-semibold hover:underline inline-flex items-center gap-0.5">Adjust goals <ArrowRight size={10} /></Link></p>
+              <p className="text-[11px] text-muted-foreground mt-3 text-center">Through month {visibleSavingsGoals[0]?.monthIndex} of {visibleSavingsGoals[0]?.totalMonths} since goal start. <Link href="/settings" className="text-accent font-semibold hover:underline inline-flex items-center gap-0.5">Adjust goals <ArrowRight size={10} /></Link></p>
             </div>
           )}
         </TabsContent>
@@ -1234,10 +1427,13 @@ export default function Analysis() {
               <span className="text-xs text-muted-foreground">{formatMonthYear(selectedMonth)}</span>
             </div>
 
-            {spendingTrendData.every(d => d.spent === 0 && d.income === 0) ? (
+            {spendingTrendData.length === 0 ? (
               <div className="h-44 flex items-center justify-center text-sm text-muted-foreground">No trend data to display</div>
             ) : (
               <>
+                {trendIsPartial && trendFirstRecordedMonth && (
+                  <p className="text-[11px] text-muted-foreground mb-2">Showing data from {formatMonthYear(trendFirstRecordedMonth)}</p>
+                )}
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={spendingTrendData} barSize={18} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
                     <XAxis dataKey="month" axisLine={false} tickLine={false} interval={0} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} />
@@ -1267,16 +1463,16 @@ export default function Analysis() {
               <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Monthly savings rate</h2>
               <span className="text-xs text-muted-foreground">Last 6 months</span>
             </div>
-            {savingsRateSeries.every(d => d.rate === 0) ? (
+            {savingsRateSeries.every(d => d.rate === null) ? (
               <div className="h-44 flex items-center justify-center text-sm text-muted-foreground">No income data for the selected window</div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={savingsRateSeries} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
                   <XAxis dataKey="month" axisLine={false} tickLine={false} interval={0} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} />
                   <YAxis axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10, fill: 'hsl(215, 16%, 47%)' }} width={44} />
-                  <Tooltip formatter={(value: number) => [`${value}%`, 'Savings rate']} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: '12px' }} />
+                  <Tooltip formatter={(value) => [value == null ? 'No transactions recorded' : `${value}%`, 'Savings rate']} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: '12px' }} />
                   <ReferenceLine y={20} stroke="#94A3B8" strokeDasharray="4 4" label={{ value: 'Recommended 20%', fontSize: 10, fill: '#94A3B8', position: 'insideTopRight' }} />
-                  <Line type="monotone" dataKey="rate" stroke="#14B8A6" strokeWidth={2.5} dot={{ r: 4, fill: '#14B8A6' }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="rate" stroke="#14B8A6" strokeWidth={2.5} dot={{ r: 4, fill: '#14B8A6' }} activeDot={{ r: 6 }} connectNulls={false} />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -1334,10 +1530,11 @@ export default function Analysis() {
 
           {/* ─── Chart D: Budget burn-down ─── */}
           <div className="bg-card border border-border rounded-2xl p-5" data-testid="budget-burndown">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-1">
               <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Budget usage this month</h2>
               <span className="text-xs text-muted-foreground">Day-to-day only</span>
             </div>
+            <p className="text-[11px] text-muted-foreground mb-3">Discretionary spend only — commitments excluded</p>
             {burndownData.dayToDayBudget === 0 ? (
               <div className="h-32 flex items-center justify-center text-sm text-muted-foreground text-center px-4">
                 No day-to-day budget set for {formatMonthYear(selectedMonth)}.{' '}

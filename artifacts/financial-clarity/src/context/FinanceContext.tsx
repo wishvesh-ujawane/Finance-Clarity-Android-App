@@ -1,8 +1,26 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Transaction, Category, Budget, RecurringExpense, SavingsGoal, SAVINGS_CATEGORY_IDS } from '@/lib/types';
-import { currentMonth } from '@/lib/finance-utils';
+import { currentMonth, localDateStr } from '@/lib/finance-utils';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
+
+/**
+ * Canonical per-month summary. Single source of truth for screen-level totals.
+ * - totalExpenses excludes savings-category transactions.
+ * - totalSavings is the sum of expense-typed transactions in savings categories.
+ * - netFlow = totalIncome - totalExpenses - totalSavings.
+ * - savingsRate = totalSavings / totalIncome * 100, or 0 when income is 0.
+ * - hasData = true when any transaction exists in the month.
+ */
+export interface MonthSummary {
+  totalIncome: number;
+  totalExpenses: number;
+  totalSavings: number;
+  netFlow: number;
+  savingsRate: number;
+  transactionCount: number;
+  hasData: boolean;
+}
 
 const SAVINGS_DEFAULTS: Category[] = [
   { id: 'savings-goal', name: 'Goal Savings', icon: 'PiggyBank', color: '#0EA5E9', type: 'savings' },
@@ -85,6 +103,8 @@ interface FinanceContextType {
   getBalance: (month?: string) => number;
   getCarryForward: (month: string) => number;
   getSpentForCategory: (categoryId: string, month: string) => number;
+  /** Canonical per-month summary — use this from all screens. */
+  getMonthSummary: (month?: string) => MonthSummary;
   /** Re-reads all entities from localStorage. Used after a Drive restore. */
   reloadFromStorage: () => void;
   /** Monotonic timestamp bumped on every mutation; consumed by auto-backup. */
@@ -243,9 +263,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   );
   const [savingsGoal, setSavingsGoalState] = useState<SavingsGoal>(() => {
     const empty: SavingsGoal = { goal: { monthly: 0, annual: 0 }, emergency: { monthly: 0, annual: 0 } };
-    const validEntry = (v: unknown): v is { monthly: number; annual: number } =>
+    const validEntry = (v: unknown): v is { monthly: number; annual: number; createdAt?: string } =>
       isObject(v) && typeof v.monthly === 'number' && Number.isFinite(v.monthly)
-      && typeof v.annual === 'number' && Number.isFinite(v.annual);
+      && typeof v.annual === 'number' && Number.isFinite(v.annual)
+      && (v.createdAt === undefined || typeof v.createdAt === 'string');
+    const pickEntry = (v: unknown) => {
+      if (!validEntry(v)) return { monthly: 0, annual: 0 };
+      const out: { monthly: number; annual: number; createdAt?: string } = { monthly: v.monthly, annual: v.annual };
+      if (v.createdAt) out.createdAt = v.createdAt;
+      return out;
+    };
     try {
       const raw = localStorage.getItem(getStorageKey('savings-goal'));
       if (!raw) return empty;
@@ -254,13 +281,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       // New shape
       if (validEntry(parsed.goal) || validEntry(parsed.emergency)) {
         return {
-          goal: validEntry(parsed.goal) ? { monthly: parsed.goal.monthly, annual: parsed.goal.annual } : { monthly: 0, annual: 0 },
-          emergency: validEntry(parsed.emergency) ? { monthly: parsed.emergency.monthly, annual: parsed.emergency.annual } : { monthly: 0, annual: 0 },
+          goal: pickEntry(parsed.goal),
+          emergency: pickEntry(parsed.emergency),
         };
       }
       // Legacy shape { monthly, annual } -> migrate into `goal`.
       if (validEntry(parsed)) {
-        return { goal: { monthly: parsed.monthly, annual: parsed.annual }, emergency: { monthly: 0, annual: 0 } };
+        return { goal: pickEntry(parsed), emergency: { monthly: 0, annual: 0 } };
       }
       return empty;
     } catch {
@@ -280,6 +307,27 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem(getStorageKey('savings-goal'), JSON.stringify(savingsGoal)); } catch { /* ignore */ }
     setLastChangedAt(Date.now());
   }, [savingsGoal]);
+
+  // One-time backfill: for legacy SavingsGoal entries with a target but no createdAt,
+  // anchor pace at the earliest savings transaction in that category (else today).
+  useEffect(() => {
+    const today = localDateStr(new Date());
+    const needsBackfill = (e: SavingsGoal['goal']) => (e.monthly > 0 || e.annual > 0) && !e.createdAt;
+    if (!needsBackfill(savingsGoal.goal) && !needsBackfill(savingsGoal.emergency)) return;
+    const earliestFor = (catId: string): string => {
+      let earliest: string | null = null;
+      for (const t of transactions) {
+        if (t.type !== 'expense' || t.categoryId !== catId) continue;
+        if (earliest === null || t.date < earliest) earliest = t.date;
+      }
+      return earliest ?? today;
+    };
+    setSavingsGoalState(prev => ({
+      goal: needsBackfill(prev.goal) ? { ...prev.goal, createdAt: earliestFor('savings-goal') } : prev.goal,
+      emergency: needsBackfill(prev.emergency) ? { ...prev.emergency, createdAt: earliestFor('savings-emergency') } : prev.emergency,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const addTransaction = useCallback((t: Omit<Transaction, 'id'>) => {
     setTransactions(prev => [{ ...t, id: createId() }, ...prev]);
@@ -408,7 +456,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setSavingsGoal = useCallback((goal: SavingsGoal) => {
-    setSavingsGoalState(goal);
+    // Stamp createdAt on newly-active entries so pace can be anchored from creation.
+    const today = localDateStr(new Date());
+    const stamp = (next: SavingsGoal['goal'], prev: SavingsGoal['goal']): SavingsGoal['goal'] => {
+      const hasTarget = next.monthly > 0 || next.annual > 0;
+      const prevHadTarget = prev.monthly > 0 || prev.annual > 0;
+      if (hasTarget && !next.createdAt) {
+        // First time this entry has a target — anchor pace from today (unless prev already had one).
+        return { ...next, createdAt: prev.createdAt ?? (prevHadTarget ? prev.createdAt : today) ?? today };
+      }
+      return next;
+    };
+    setSavingsGoalState(prev => ({
+      goal: stamp(goal.goal, prev.goal),
+      emergency: stamp(goal.emergency, prev.emergency),
+    }));
   }, []);
 
   const reloadFromStorage = useCallback(() => {
@@ -431,16 +493,23 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setSavingsGoalState(empty);
       } else {
         const parsed = JSON.parse(raw) as unknown;
-        const validEntry = (v: unknown): v is { monthly: number; annual: number } =>
+        const validEntry = (v: unknown): v is { monthly: number; annual: number; createdAt?: string } =>
           isObject(v) && typeof v.monthly === 'number' && Number.isFinite(v.monthly)
-          && typeof v.annual === 'number' && Number.isFinite(v.annual);
+          && typeof v.annual === 'number' && Number.isFinite(v.annual)
+          && (v.createdAt === undefined || typeof v.createdAt === 'string');
+        const pickEntry = (v: unknown) => {
+          if (!validEntry(v)) return { monthly: 0, annual: 0 };
+          const out: { monthly: number; annual: number; createdAt?: string } = { monthly: v.monthly, annual: v.annual };
+          if (v.createdAt) out.createdAt = v.createdAt;
+          return out;
+        };
         if (isObject(parsed) && (validEntry(parsed.goal) || validEntry(parsed.emergency))) {
           setSavingsGoalState({
-            goal: validEntry(parsed.goal) ? { monthly: parsed.goal.monthly, annual: parsed.goal.annual } : { monthly: 0, annual: 0 },
-            emergency: validEntry(parsed.emergency) ? { monthly: parsed.emergency.monthly, annual: parsed.emergency.annual } : { monthly: 0, annual: 0 },
+            goal: pickEntry(parsed.goal),
+            emergency: pickEntry(parsed.emergency),
           });
         } else if (isObject(parsed) && validEntry(parsed)) {
-          setSavingsGoalState({ goal: { monthly: parsed.monthly, annual: parsed.annual }, emergency: { monthly: 0, annual: 0 } });
+          setSavingsGoalState({ goal: pickEntry(parsed), emergency: { monthly: 0, annual: 0 } });
         } else {
           setSavingsGoalState(empty);
         }
@@ -552,6 +621,32 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       .reduce((sum, t) => sum + t.amount, 0);
   }, [transactions]);
 
+  const getMonthSummary = useCallback((month?: string): MonthSummary => {
+    const monthTxns = getTransactionsForMonth(month);
+    let totalIncome = 0;
+    let totalExpenses = 0;
+    let totalSavings = 0;
+    for (const t of monthTxns) {
+      if (t.type === 'income') {
+        totalIncome += t.amount;
+      } else if (t.type === 'expense') {
+        if (SAVINGS_CATEGORY_ID_SET.has(t.categoryId)) totalSavings += t.amount;
+        else totalExpenses += t.amount;
+      }
+    }
+    const netFlow = totalIncome - totalExpenses - totalSavings;
+    const savingsRate = totalIncome > 0 ? (totalSavings / totalIncome) * 100 : 0;
+    return {
+      totalIncome,
+      totalExpenses,
+      totalSavings,
+      netFlow,
+      savingsRate,
+      transactionCount: monthTxns.length,
+      hasData: monthTxns.length > 0,
+    };
+  }, [getTransactionsForMonth]);
+
   return (
     <FinanceContext.Provider value={{
       transactions, categories, budgets,
@@ -565,6 +660,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       isSheetOpen, editingTransaction,
       openSheet, openEditSheet, closeSheet,
       getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getSpentForCategory,
+      getMonthSummary,
       reloadFromStorage, lastChangedAt,
     }}>
       {children}
