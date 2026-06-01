@@ -173,7 +173,7 @@ export default function Budgets() {
                 disabled={currentMonthBudgets.length === 0}
                 className="px-3 py-2 rounded-xl border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-40"
               >
-                Transfer
+                Transfer Budget to Next Month
               </button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -209,9 +209,35 @@ export default function Budgets() {
         <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mb-4">{transferMessage}</p>
       )}
 
+      {/* Summary */}
+      {budgetsWithData.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="bg-card border border-border rounded-2xl p-4">
+            <p className="text-xs text-muted-foreground mb-1">{formatMonthLabel(selectedMonth).split(' ')[0]} Month Budget</p>
+            <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(totalCombinedBudget)}</p>
+            {totalSavingsBudget > 0 ? (
+              <p className="text-[11px] text-muted-foreground mt-1 font-medium" data-testid="savings-budget-sub">
+                {formatINR(totalBudget)} + {formatINR(totalSavingsBudget)} (savings)
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground mt-1 font-medium">{formatINR(totalBudget)}</p>
+            )}
+          </div>
+          <div className="bg-card border border-border rounded-2xl p-4">
+            <p className="text-xs text-muted-foreground mb-1">Spent on budgeted</p>
+            <p className={cn('text-xl font-bold', totalSpent > totalBudget ? 'text-red-500' : 'text-foreground')} style={{ fontFamily: 'var(--font-display)' }}>
+              {formatINR(totalSpent)}
+            </p>
+            <p className={cn('text-xs mt-1 font-medium', totalSpent > totalBudget ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400')}>
+              {totalSpent > totalBudget ? `${formatINR(totalSpent - totalBudget)} over` : `${formatINR(totalBudget - totalSpent)} remaining`}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Surplus strip (mirrors Dashboard hero-budget-bar) */}
       <div
-        className="rounded-2xl bg-[hsl(222,65%,13%)] text-white px-5 py-4 mb-3"
+        className="rounded-2xl bg-[hsl(222,65%,13%)] text-white px-5 py-4 mb-5"
         data-testid="budget-surplus-bar"
       >
         <div className="flex items-center justify-between mb-1.5">
@@ -229,33 +255,6 @@ export default function Budgets() {
           />
         </div>
       </div>
-
-      {/* Summary */}
-      {budgetsWithData.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          <div className="bg-card border border-border rounded-2xl p-4">
-            <p className="text-xs text-muted-foreground mb-1">Total Budget</p>
-            <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(totalCombinedBudget)}</p>
-            {totalSavingsBudget > 0 ? (
-              <p className="text-[11px] text-muted-foreground mt-1 font-medium" data-testid="savings-budget-sub">
-                {formatINR(totalBudget)} + {formatINR(totalSavingsBudget)} (savings)
-              </p>
-            ) : (
-              <p className="text-[11px] text-muted-foreground mt-1 font-medium">{formatINR(totalBudget)}</p>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">{formatMonthLabel(selectedMonth)}</p>
-          </div>
-          <div className="bg-card border border-border rounded-2xl p-4">
-            <p className="text-xs text-muted-foreground mb-1">Spent on budgeted</p>
-            <p className={cn('text-xl font-bold', totalSpent > totalBudget ? 'text-red-500' : 'text-foreground')} style={{ fontFamily: 'var(--font-display)' }}>
-              {formatINR(totalSpent)}
-            </p>
-            <p className={cn('text-xs mt-1 font-medium', totalSpent > totalBudget ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400')}>
-              {totalSpent > totalBudget ? `${formatINR(totalSpent - totalBudget)} over` : `${formatINR(totalBudget - totalSpent)} remaining`}
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Add Budget Sheet */}
       <Sheet open={showAddBudget} onOpenChange={setShowAddBudget}>
