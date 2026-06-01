@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Download, FileText } from 'lucide-react';
+import { Calendar, Download, FileText, Search, X } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
@@ -50,6 +50,7 @@ export default function Transactions() {
   });
   const [customTo, setCustomTo] = useState(() => localDateStr(new Date()));
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [exportError, setExportError] = useState('');
 
   const { from: effectiveFrom, to: effectiveTo } = useMemo(
@@ -57,15 +58,31 @@ export default function Transactions() {
     [preset, customFrom, customTo]
   );
 
+  const categoryById = useMemo(
+    () => new Map(categories.map(c => [c.id, c])),
+    [categories]
+  );
+
   const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return transactions
       .filter(t => {
         if (t.date < effectiveFrom || t.date > effectiveTo) return false;
         if (filterType !== 'all' && t.type !== filterType) return false;
+        if (q) {
+          const cat = categoryById.get(t.categoryId);
+          const haystack = [
+            cat?.name || '',
+            t.note || '',
+            String(t.amount),
+            t.amount.toFixed(2),
+          ].join(' ').toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
         return true;
       })
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [transactions, effectiveFrom, effectiveTo, filterType]);
+  }, [transactions, effectiveFrom, effectiveTo, filterType, searchQuery, categoryById]);
 
   const grouped = useMemo(() => {
     const map: Record<string, typeof filtered> = {};
@@ -79,7 +96,7 @@ export default function Transactions() {
   const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const totalExpenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
 
-  const getCategoryById = (id: string) => categories.find(c => c.id === id);
+  const getCategoryById = (id: string) => categoryById.get(id);
 
   const downloadCSV = useCallback(async () => {
     setExportError('');
@@ -113,6 +130,30 @@ export default function Transactions() {
         </button>
       </div>
       {exportError && <p className="text-xs font-medium text-red-500 mb-3">{exportError}</p>}
+
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <input
+          type="text"
+          data-testid="transactions-search"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search by category, note, or amount"
+          className="w-full pl-9 pr-9 py-2.5 text-sm bg-card border border-border rounded-xl outline-none focus:ring-2 focus:ring-accent text-foreground placeholder:text-muted-foreground"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            data-testid="transactions-search-clear"
+            onClick={() => setSearchQuery('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center"
+            aria-label="Clear search"
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
 
       {/* Range Filters */}
       <div className="bg-card border border-border rounded-2xl p-4 mb-4 space-y-3">

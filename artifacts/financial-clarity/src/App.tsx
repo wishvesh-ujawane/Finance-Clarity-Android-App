@@ -18,6 +18,8 @@ import Settings from '@/pages/Settings';
 import Security from '@/pages/Security';
 import RecurringExpenses from '@/pages/RecurringExpenses';
 import Categories from '@/pages/Categories';
+import BackupRestore from '@/pages/BackupRestore';
+import SavingsGoals from '@/pages/SavingsGoals';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -45,6 +47,8 @@ function AppLayout() {
           <Route path="/settings/security" component={Security} />
           <Route path="/settings/recurring" component={RecurringExpenses} />
           <Route path="/settings/categories" component={Categories} />
+          <Route path="/settings/backup" component={BackupRestore} />
+          <Route path="/settings/savings" component={SavingsGoals} />
           <Route path="/settings" component={Settings} />
           <Route component={NotFound} />
         </Switch>
