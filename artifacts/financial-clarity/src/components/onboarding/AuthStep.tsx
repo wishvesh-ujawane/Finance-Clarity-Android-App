@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Cloud, AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { GoogleDriveIcon } from '@/components/icons/GoogleDriveIcon';
 import { useBackup } from '@/context/BackupContext';
 import type { RemoteBackupInfo } from '@/context/BackupContext';
 
@@ -43,8 +44,8 @@ export function AuthStep({ onSignedIn, onSkip }: AuthStepProps) {
   return (
     <div className="flex h-full w-full flex-col">
       <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-        <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-3xl bg-primary/10">
-          <Cloud className="h-12 w-12 text-primary" strokeWidth={1.8} />
+        <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-3xl bg-white/10 ring-1 ring-white/15">
+          <GoogleDriveIcon className="h-12 w-12" />
         </div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Optional
