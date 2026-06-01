@@ -18,7 +18,7 @@ export default function Budgets() {
   const {
     budgets, categories, transactions,
     addBudget, updateBudget, deleteBudget, transferBudgetsToMonth,
-    getSpentForCategory, selectedMonth,
+    getSpentForCategory, getCarryForward, getTotalIncome, selectedMonth,
   } = useFinance();
 
   const [showAddBudget, setShowAddBudget] = useState(false);
@@ -108,6 +108,26 @@ export default function Budgets() {
   const totalBudget = budgetsWithData.reduce((s, b) => s + b.limit, 0);
   const totalSpent = budgetsWithData.reduce((s, b) => s + b.spent, 0);
   const totalSavingsBudget = savingsBudgetsWithData.reduce((s, b) => s + b.limit, 0);
+  const totalCombinedBudget = totalBudget + totalSavingsBudget;
+
+  const surplusInfo = useMemo(() => {
+    const carryForward = getCarryForward(selectedMonth);
+    const monthIncome = getTotalIncome(selectedMonth);
+    const available = carryForward + monthIncome;
+    const totalAllocated = currentMonthBudgets.reduce((s, b) => s + b.limit, 0);
+    const surplus = available - totalAllocated;
+    const allocatedPct = available > 0
+      ? (totalAllocated / available) * 100
+      : (totalAllocated > 0 ? 100 : 0);
+    return { available, totalAllocated, surplus, allocatedPct };
+  }, [getCarryForward, getTotalIncome, selectedMonth, currentMonthBudgets]);
+
+  const surplusBarColor =
+    surplusInfo.allocatedPct >= 100 ? 'bg-red-400'
+    : surplusInfo.allocatedPct >= 75 ? 'bg-amber-400'
+    : 'bg-emerald-400';
+  const isOverAllocated = surplusInfo.surplus < 0;
+
   const { toast } = useToast();
 
   const openAddBudget = () => {
@@ -153,7 +173,7 @@ export default function Budgets() {
                 disabled={currentMonthBudgets.length === 0}
                 className="px-3 py-2 rounded-xl border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-40"
               >
-                Transfer
+                Transfer Budget to Next Month
               </button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -191,15 +211,16 @@ export default function Budgets() {
 
       {/* Summary */}
       {budgetsWithData.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-card border border-border rounded-2xl p-4">
-            <p className="text-xs text-muted-foreground mb-1">Total Budget</p>
-            <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(totalBudget)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{formatMonthLabel(selectedMonth)}</p>
-            {totalSavingsBudget > 0 && (
-              <p className="text-[11px] text-sky-600 dark:text-sky-400 mt-1 font-medium" data-testid="savings-budget-sub">
-                + Savings {formatINR(totalSavingsBudget)}
+            <p className="text-xs text-muted-foreground mb-1">{formatMonthLabel(selectedMonth).split(' ')[0]} Month Budget</p>
+            <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(totalCombinedBudget)}</p>
+            {totalSavingsBudget > 0 ? (
+              <p className="text-[11px] text-muted-foreground mt-1 font-medium" data-testid="savings-budget-sub">
+                {formatINR(totalBudget)} + {formatINR(totalSavingsBudget)} (savings)
               </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground mt-1 font-medium">{formatINR(totalBudget)}</p>
             )}
           </div>
           <div className="bg-card border border-border rounded-2xl p-4">
@@ -213,6 +234,27 @@ export default function Budgets() {
           </div>
         </div>
       )}
+
+      {/* Surplus strip (mirrors Dashboard hero-budget-bar) */}
+      <div
+        className="rounded-2xl bg-[hsl(222,65%,13%)] text-white px-5 py-4 mb-5"
+        data-testid="budget-surplus-bar"
+      >
+        <div className="flex items-center justify-between mb-1.5">
+          <span className={cn('text-[11px]', isOverAllocated ? 'text-red-200' : 'text-white/60')}>
+            {isOverAllocated
+              ? `Surplus · −${formatINR(Math.abs(surplusInfo.surplus))} (over-allocated)`
+              : `Surplus · ${formatINR(surplusInfo.surplus)} of ${formatINR(surplusInfo.available)}`}
+          </span>
+          <span className="text-[11px] font-semibold text-white/80">{Math.round(surplusInfo.allocatedPct)}%</span>
+        </div>
+        <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+          <div
+            className={cn('h-full rounded-full transition-all', surplusBarColor)}
+            style={{ width: `${Math.min(surplusInfo.allocatedPct, 100)}%` }}
+          />
+        </div>
+      </div>
 
       {/* Add Budget Sheet */}
       <Sheet open={showAddBudget} onOpenChange={setShowAddBudget}>

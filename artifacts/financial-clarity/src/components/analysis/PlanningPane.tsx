@@ -22,6 +22,8 @@ export default function PlanningPane({ shared }: Props) {
     elapsedDays,
     monthlyIncome,
     monthlyExpenses,
+    monthlyExpensesToDate,
+    monthlyIncomeToDate,
     monthlyBudgetTotal,
     monthlyDayToDay,
     currentSummary,
@@ -72,6 +74,13 @@ export default function PlanningPane({ shared }: Props) {
       .slice(0, 8);
   }, [recurringExpenses, categories, today]);
 
+  const knownFutureExpenses = useMemo(() => {
+    if (selectedMonth !== currentMonthKey) return 0;
+    return transactions
+      .filter(t => t.type === 'expense' && t.date.startsWith(currentMonthKey) && t.date > todayStr)
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [transactions, selectedMonth, currentMonthKey, todayStr]);
+
   const projectedBalance = useMemo(() => {
     if (selectedMonth !== currentMonthKey) return null;
     const last3 = [1, 2, 3].map(o => shiftMonth(currentMonthKey, -o));
@@ -79,10 +88,12 @@ export default function PlanningPane({ shared }: Props) {
     const expectedIncome = incomes.length > 0
       ? incomes.reduce((s, v) => s + v, 0) / incomes.length
       : monthlyIncome;
-    const projectedRemainingSpend = (monthlyExpenses / Math.max(1, elapsedDays)) * daysLeftInMonth;
-    const value = inHandBalance + Math.max(0, expectedIncome - monthlyIncome) - projectedRemainingSpend;
-    return { value, expectedIncome, projectedRemainingSpend };
-  }, [selectedMonth, currentMonthKey, transactions, monthlyIncome, monthlyExpenses, elapsedDays, daysLeftInMonth, inHandBalance]);
+    const expectedRemainingIncome = Math.max(0, expectedIncome - monthlyIncomeToDate);
+    const burnPerDay = monthlyExpensesToDate / Math.max(1, elapsedDays);
+    const projectedRemainingSpend = burnPerDay * daysLeftInMonth;
+    const value = inHandBalance + expectedRemainingIncome - projectedRemainingSpend - knownFutureExpenses;
+    return { value, expectedIncome, projectedRemainingSpend, knownFutureExpenses };
+  }, [selectedMonth, currentMonthKey, transactions, monthlyIncome, monthlyIncomeToDate, monthlyExpensesToDate, elapsedDays, daysLeftInMonth, inHandBalance, knownFutureExpenses]);
 
   const nextMonth = useMemo(() => addMonths(selectedMonth, 1), [selectedMonth]);
   const budgetSuggestions = useMemo(() => {
@@ -248,7 +259,6 @@ export default function PlanningPane({ shared }: Props) {
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
               <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Daily Safe to Spend</p>
-              <h2 className="text-sm font-bold text-foreground mt-1" style={{ fontFamily: 'var(--font-display)' }}>Today</h2>
             </div>
             <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
               <WalletCards size={17} />
@@ -269,7 +279,6 @@ export default function PlanningPane({ shared }: Props) {
                 <CalendarClock size={17} />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Future Visibility</p>
                 <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Upcoming Recurring Payments</h2>
               </div>
             </div>
@@ -334,7 +343,8 @@ export default function PlanningPane({ shared }: Props) {
           </p>
           <p className="text-xs text-muted-foreground mt-2">
             At your current pace, you'll end the month with {formatINR(projectedBalance.value)}.
-            Based on avg income {formatINR(projectedBalance.expectedIncome)} and projected remaining spend {formatINR(projectedBalance.projectedRemainingSpend)}.
+            Based on avg income {formatINR(projectedBalance.expectedIncome)} and projected remaining spend {formatINR(projectedBalance.projectedRemainingSpend)}
+            {projectedBalance.knownFutureExpenses > 0 && <> plus scheduled bills {formatINR(projectedBalance.knownFutureExpenses)}</>}.
           </p>
         </div>
       )}
@@ -345,7 +355,6 @@ export default function PlanningPane({ shared }: Props) {
             <Sparkles size={17} />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Next month</p>
             <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Budget suggestions for {formatMonthYear(nextMonth)}</h2>
           </div>
         </div>
@@ -396,7 +405,6 @@ export default function PlanningPane({ shared }: Props) {
               <Target size={17} />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Goal Progress</p>
               <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Savings goals</h2>
             </div>
           </div>

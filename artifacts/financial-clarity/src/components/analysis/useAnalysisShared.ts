@@ -75,6 +75,13 @@ export function useAnalysisShared() {
     [transactions, selectedMonth, todayStr]
   );
 
+  const monthlyIncomeToDate = useMemo(
+    () => transactions
+      .filter(t => t.type === 'income' && t.date.startsWith(selectedMonth) && t.date <= todayStr)
+      .reduce((sum, t) => sum + t.amount, 0),
+    [transactions, selectedMonth, todayStr]
+  );
+
   const monthlyCommitmentsToDate = useMemo(
     () => transactions
       .filter(t => t.type === 'expense' && t.date.startsWith(selectedMonth) && t.date <= todayStr && commitmentCategoryIds.has(t.categoryId))
@@ -128,6 +135,7 @@ export function useAnalysisShared() {
     monthlyCommitments,
     monthlyDayToDay,
     monthlyExpensesToDate,
+    monthlyIncomeToDate,
     monthlyCommitmentsToDate,
     monthlyDayToDayToDate,
     monthlyTransactions,
