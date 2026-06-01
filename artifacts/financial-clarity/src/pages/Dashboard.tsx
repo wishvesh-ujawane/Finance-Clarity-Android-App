@@ -29,7 +29,7 @@ const TOP_SLICE_COUNT = 6;
 export default function Dashboard() {
   const {
     transactions, categories, budgets, selectedMonth, setSelectedMonth,
-    getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getSpentForCategory,
+    getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getSpentForCategory,
     openEditSheet,
   } = useFinance();
 
@@ -37,18 +37,18 @@ export default function Dashboard() {
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [legendExpanded, setLegendExpanded] = useState(false);
 
+  // Pocket cash through today — month-agnostic, identical on every month tab.
+  const netBalance = getNetBalanceToDate();
+  // Per-month figures (these DO change with the month picker).
   const balance = getBalance(selectedMonth);
   const income = getTotalIncome(selectedMonth);
   const expenses = getTotalExpenses(selectedMonth);
   const savings = getTotalSavings(selectedMonth);
   const carryForward = getCarryForward(selectedMonth);
-  const netBalance = carryForward + balance;
-  const savingsRate = income > 0 ? (savings / income) * 100 : 0;
+  const savingsRate = carryForward > 0 ? (savings / carryForward) * 100 : 0;
 
   const todayKey = localDateStr(new Date());
   const isCurrentMonth = selectedMonth === todayKey.slice(0, 7);
-  // Bug 6 / Bug 8: suppress savings figures when the current month has no income yet.
-  const hideSavingsForZeroIncome = isCurrentMonth && income === 0;
 
   const monthTransactions = useMemo(
     () => transactions.filter(t => t.date.startsWith(selectedMonth)),
@@ -56,10 +56,11 @@ export default function Dashboard() {
   );
 
   // Today's spend + avg per day (current month: through today; past months: through last day of month)
+  // Excludes savings-category transactions — those are transfers, not spend.
   const { todaySpend, avgPerDay } = useMemo(() => {
     const today = isCurrentMonth
       ? monthTransactions
-          .filter(t => t.type === 'expense' && t.date === todayKey)
+          .filter(t => t.type === 'expense' && !SAVINGS_CATEGORY_ID_SET.has(t.categoryId) && t.date === todayKey)
           .reduce((s, t) => s + t.amount, 0)
       : 0;
     const [yStr, mStr] = selectedMonth.split('-').map(Number);
@@ -182,6 +183,7 @@ export default function Dashboard() {
           >
             {formatAmount(netBalance)}
           </p>
+          <p className="text-[11px] text-white/50 mb-2 leading-tight">Total cash through today — same on every month</p>
 
           {/* Today's spend + avg/day */}
           <p className="text-[12px] text-white/65 mb-2 leading-tight">
@@ -225,29 +227,20 @@ export default function Dashboard() {
                 <p className="text-[10px] text-white/50">To savings</p>
                 <UITooltip>
                   <UITooltipTrigger asChild>
-                    <button type="button" className="inline-flex items-center text-white/40 hover:text-white/70" aria-label="What is To savings?">
-                      <Info size={10} />
+                    <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-white/40 hover:text-white/70" aria-label="What is To savings?">
+                      <Info size={14} />
                     </button>
                   </UITooltipTrigger>
                   <UITooltipContent>Transferred to your savings goals this month.</UITooltipContent>
                 </UITooltip>
               </div>
-              {hideSavingsForZeroIncome ? (
-                <>
-                  <p className="text-sm font-bold text-white/60 truncate" data-testid="savings-amount">—</p>
-                  <p className="text-[10px] mt-0.5 truncate text-white/50">Add income to see savings</p>
-                </>
+              <p className="text-sm font-bold text-sky-400 truncate" data-testid="savings-amount">{formatAmount(savings)}</p>
+              {carryForward > 0 ? (
+                <p className={cn('text-[10px] mt-0.5 truncate', savingsRate >= 0 ? 'text-emerald-400/80' : 'text-red-400/80')}>
+                  {savingsRate.toFixed(1)}% of carry-forward
+                </p>
               ) : (
-                <>
-                  <p className="text-sm font-bold text-sky-400 truncate" data-testid="savings-amount">{formatAmount(savings)}</p>
-                  {income > 0 ? (
-                    <p className={cn('text-[10px] mt-0.5 truncate', savingsRate >= 0 ? 'text-emerald-400/80' : 'text-red-400/80')}>
-                      {savingsRate.toFixed(1)}% rate
-                    </p>
-                  ) : (
-                    <p className="text-[10px] mt-0.5 truncate text-white/50">— rate</p>
-                  )}
-                </>
+                <p className="text-[10px] mt-0.5 truncate text-white/50">— rate</p>
               )}
             </div>
             <div className={cn('transition-colors', balance < 0 && 'bg-[rgba(226,75,74,0.15)] rounded-lg px-2 py-1 -mx-2 -my-1')}>
@@ -257,14 +250,14 @@ export default function Dashboard() {
                   : balance < 0
                     ? <ArrowDown size={10} className="text-red-400" />
                     : <ArrowUpDown size={10} className="text-white/50" />}
-                <p className="text-[10px] text-white/50">Cash surplus / deficit</p>
+                <p className="text-[10px] text-white/50">This month's cash flow</p>
                 <UITooltip>
                   <UITooltipTrigger asChild>
-                    <button type="button" className="inline-flex items-center text-white/40 hover:text-white/70" aria-label="What is Cash surplus / deficit?">
-                      <Info size={10} />
+                    <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-white/40 hover:text-white/70" aria-label="What is this month's cash flow?">
+                      <Info size={14} />
                     </button>
                   </UITooltipTrigger>
-                  <UITooltipContent>Income minus expenses. Does not include savings transfers.</UITooltipContent>
+                  <UITooltipContent>Income received this month minus expenses and savings. May be negative early in the month before salary arrives.</UITooltipContent>
                 </UITooltip>
               </div>
               <p className={cn('text-sm font-bold truncate', balance > 0 ? 'text-emerald-400' : balance < 0 ? 'text-red-400' : 'text-white')}>
@@ -272,17 +265,45 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
+        </motion.div>
 
-          {hideSavingsForZeroIncome && (
-            <p className="text-[10px] text-white/50 mt-3" data-testid="add-income-hint">Add this month's income for accurate figures.</p>
-          )}
+        {/* Net balance this month — small companion card */}
+        <motion.div variants={item} className="rounded-2xl bg-card border border-border p-4" data-testid="month-net-balance-card">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Net balance this month</p>
+                <UITooltip>
+                  <UITooltipTrigger asChild>
+                    <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="What is Net balance this month?">
+                      <Info size={14} />
+                    </button>
+                  </UITooltipTrigger>
+                  <UITooltipContent>Income received this month minus expenses and savings. May be 0 if salary hasn't arrived yet.</UITooltipContent>
+                </UITooltip>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">for {formatMonthLabel(selectedMonth)}</p>
+            </div>
+            <p
+              className={cn(
+                'text-xl font-bold tabular-nums',
+                balance > 0 ? 'text-emerald-500' : balance < 0 ? 'text-red-500' : 'text-muted-foreground'
+              )}
+              style={{ fontFamily: 'var(--font-display)' }}
+              data-testid="month-net-balance-amount"
+            >
+              {formatAmount(balance)}
+            </p>
+          </div>
+        </motion.div>
 
-          {/* Budget progress (only when budgets exist for this month) */}
-          {budgetTotals.limit > 0 && (
+        {/* Budget progress (only when budgets exist for this month) */}
+        {budgetTotals.limit > 0 && (
+          <motion.div variants={item} className="rounded-2xl bg-[hsl(222,65%,13%)] text-white px-5 py-4 relative overflow-hidden" data-testid="balance-card-footer">
             <button
               type="button"
               onClick={() => setLocation('/budgets')}
-              className="mt-4 w-full text-left group"
+              className="w-full text-left group"
               data-testid="hero-budget-bar"
             >
               <div className="flex items-center justify-between mb-1.5">
@@ -298,8 +319,8 @@ export default function Dashboard() {
                 />
               </div>
             </button>
-          )}
-        </motion.div>
+          </motion.div>
+        )}
 
         {/* Budget Alert Strip (only if any chip) */}
         {budgetAlerts.length > 0 && (

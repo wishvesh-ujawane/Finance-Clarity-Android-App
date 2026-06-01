@@ -102,7 +102,7 @@ export default function Categories() {
                     placeholder="Name"
                   />
                   <div className="flex gap-1.5">
-                    {(['expense', 'income'] as const).map(t => (
+                    {(['expense', 'commitment', 'income'] as const).map(t => (
                       <button
                         key={t}
                         onClick={() => setEditCatType(t)}
@@ -115,6 +115,9 @@ export default function Categories() {
                       </button>
                     ))}
                   </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    <span className="font-semibold text-foreground">Commitment</span> = fixed monthly bill (rent, EMI, SIP, subscriptions). Commitments are excluded from discretionary spend on Analysis.
+                  </p>
                   <div className="flex flex-wrap gap-1.5">
                     {COLOR_SWATCHES.map(c => (
                       <button key={c} onClick={() => setEditCatColor(c)} className="w-6 h-6 rounded-full relative" style={{ backgroundColor: c }}>
@@ -208,7 +211,7 @@ export default function Categories() {
                     placeholder="Category name"
                   />
                   <div className="flex gap-1.5">
-                    {(['expense', 'income'] as const).map(t => (
+                    {(['expense', 'commitment', 'income'] as const).map(t => (
                       <button
                         key={t}
                         onClick={() => setNewCatType(t)}
@@ -221,6 +224,9 @@ export default function Categories() {
                       </button>
                     ))}
                   </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    <span className="font-semibold text-foreground">Commitment</span> = fixed monthly bill (rent, EMI, SIP, subscriptions). Commitments are excluded from discretionary spend on Analysis.
+                  </p>
                   <div className="flex flex-wrap gap-1.5">
                     {COLOR_SWATCHES.map(c => (
                       <button key={c} onClick={() => setNewCatColor(c)} className="w-6 h-6 rounded-full relative" style={{ backgroundColor: c }}>

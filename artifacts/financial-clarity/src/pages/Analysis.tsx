@@ -1,11 +1,12 @@
-import { useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'wouter';
+import { motion, type PanInfo } from 'framer-motion';
 import { AlertCircle, AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, CalendarClock, ChevronDown, Info, Share2, Sparkles, Target, TrendingUp, WalletCards } from 'lucide-react';
 import { Bar, BarChart, Cell, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip as UITooltip, TooltipTrigger as UITooltipTrigger, TooltipContent as UITooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { addMonths, formatINR, formatShortINR, formatMonthYear, localDateStr, getMonthStatus, getMonthOverMonthChange, monthsBetween, type MoMChange } from '@/lib/finance-utils';
@@ -119,6 +120,7 @@ export default function Analysis() {
     savingsGoal,
     addBudget,
     getMonthSummary,
+    getCarryForward,
   } = useFinance();
   const [allCategoriesOpen, setAllCategoriesOpen] = useState(false);
   const [selectedPieSlice, setSelectedPieSlice] = useState<string | null>(null);
@@ -128,6 +130,27 @@ export default function Analysis() {
   const [suggestionsApplied, setSuggestionsApplied] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const overviewRef = useRef<HTMLDivElement>(null);
+
+  // Swipeable tab pager state (Overview / Planning / Trends).
+  const TABS = useMemo(() => ['overview', 'planning', 'trends'] as const, []);
+  type TabKey = typeof TABS[number];
+  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const activeIndex = TABS.indexOf(activeTab);
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const [paneWidth, setPaneWidth] = useState(0);
+  useLayoutEffect(() => {
+    const update = () => {
+      if (sliderRef.current) setPaneWidth(sliderRef.current.clientWidth);
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+  const onPaneDragEnd = (_: unknown, info: PanInfo) => {
+    const threshold = Math.max(50, paneWidth * 0.18);
+    if (info.offset.x < -threshold && activeIndex < TABS.length - 1) setActiveTab(TABS[activeIndex + 1]);
+    else if (info.offset.x > threshold && activeIndex > 0) setActiveTab(TABS[activeIndex - 1]);
+  };
 
   const today = useMemo(() => new Date(), []);
   const todayStr = useMemo(() => localDateStr(today), [today]);
@@ -153,8 +176,12 @@ export default function Analysis() {
   const incomeChange: MoMChange = getMonthOverMonthChange(monthlyIncome, previousIncome, momOpts);
   const savingsChange: MoMChange = getMonthOverMonthChange(monthlySavings, previousSavings, momOpts);
 
-  // Bug 6: when current month has no income recorded yet, don't surface a misleading negative "Savings" figure.
-  const hideSavingsKpi = isCurrentMonthInProgress && currentSummary.totalIncome === 0;
+  // Carry-forward-based savings rate: "how much of what I had at the start of the month
+  // did I move into savings?" Salary lands at month-end so income-based rate is misleading.
+  const carryForwardAtMonthStart = useMemo(() => getCarryForward(selectedMonth), [getCarryForward, selectedMonth]);
+  const savingsRatePct = carryForwardAtMonthStart > 0
+    ? (monthlySavings / carryForwardAtMonthStart) * 100
+    : null;
 
   const daysInSelectedMonth = useMemo(() => {
     const [year, monthNum] = selectedMonth.split('-').map(Number);
@@ -703,14 +730,26 @@ export default function Analysis() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabKey)} className="space-y-4">
         <TabsList className="w-full grid grid-cols-3 h-10">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="planning">Planning</TabsTrigger>
           <TabsTrigger value="trends">Trends</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4 mt-0">
+        <div ref={sliderRef} className="overflow-hidden touch-pan-y">
+          <motion.div
+            className="flex"
+            drag="x"
+            dragDirectionLock
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.15}
+            animate={{ x: -activeIndex * paneWidth }}
+            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+            onDragEnd={onPaneDragEnd}
+            style={{ width: paneWidth ? paneWidth * 3 : '100%' }}
+          >
+            <div className="space-y-4 align-top" style={{ width: paneWidth || '100%', flexShrink: 0 }} role="tabpanel" aria-hidden={activeTab !== 'overview'}>
           <div ref={overviewRef} className="space-y-4">
           {isBudgetExceeded && (
             <Link
@@ -747,16 +786,16 @@ export default function Analysis() {
                     type="button"
                     onClick={() => setBudgetTooltipOpen(v => !v)}
                     onBlur={() => setTimeout(() => setBudgetTooltipOpen(false), 150)}
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    aria-label="What counts as day-to-day spend?"
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    aria-label="What counts as discretionary spend?"
                   >
-                    <Info size={14} />
+                    <Info size={16} />
                   </button>
                   {budgetTooltipOpen && (
                     <div className="absolute z-10 top-full left-0 mt-1 w-64 p-3 rounded-xl bg-popover border border-border shadow-lg text-xs text-foreground">
-                      <p className="font-semibold mb-1">Day-to-day vs Commitments</p>
+                      <p className="font-semibold mb-1">Discretionary vs Commitments</p>
                       <p className="text-muted-foreground leading-relaxed">
-                        Budget Health tracks day-to-day spending only. Categories marked as <span className="font-semibold text-foreground">commitments</span> (rent, EMIs, SIPs, subscriptions) are excluded — they are fixed obligations.
+                        Budget Health tracks discretionary day-to-day spending. Categories marked as <span className="font-semibold text-foreground">commitments</span> (rent, EMIs, SIPs, subscriptions) are excluded — they are fixed obligations. You can mark categories as commitments in <span className="font-semibold text-foreground">Categories</span>.
                       </p>
                     </div>
                   )}
@@ -776,15 +815,45 @@ export default function Analysis() {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
               <div className="rounded-xl bg-muted/50 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Day-to-day Budget</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-[11px] text-muted-foreground">Discretionary Budget</p>
+                  <UITooltip>
+                    <UITooltipTrigger asChild>
+                      <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="What is Discretionary Budget?">
+                        <Info size={14} />
+                      </button>
+                    </UITooltipTrigger>
+                    <UITooltipContent>Sum of all budgets for this month, excluding commitment categories.</UITooltipContent>
+                  </UITooltip>
+                </div>
                 <p className="text-sm font-bold text-foreground">{formatINR(monthlyBudgetTotal)}</p>
               </div>
               <div className="rounded-xl bg-muted/50 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Day-to-day Spend</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-[11px] text-muted-foreground">Discretionary Spend</p>
+                  <UITooltip>
+                    <UITooltipTrigger asChild>
+                      <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="What is Discretionary Spend?">
+                        <Info size={14} />
+                      </button>
+                    </UITooltipTrigger>
+                    <UITooltipContent>Total expenses this month minus commitments and savings transfers.</UITooltipContent>
+                  </UITooltip>
+                </div>
                 <p className={cn('text-sm font-bold', isBudgetExceeded ? 'text-red-500' : 'text-foreground')}>{formatINR(monthlyDayToDay)}</p>
               </div>
               <div className="rounded-xl bg-muted/50 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Commitments</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-[11px] text-muted-foreground">Commitments</p>
+                  <UITooltip>
+                    <UITooltipTrigger asChild>
+                      <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="What are Commitments?">
+                        <Info size={14} />
+                      </button>
+                    </UITooltipTrigger>
+                    <UITooltipContent>Fixed monthly bills (rent, EMI, SIPs, subscriptions). Mark a category as Commitment in Categories.</UITooltipContent>
+                  </UITooltip>
+                </div>
                 <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{formatINR(monthlyCommitments)}</p>
               </div>
               <div className="rounded-xl bg-muted/50 px-3 py-2">
@@ -801,7 +870,7 @@ export default function Analysis() {
             </div>
 
             <div className="flex items-center justify-between text-sm">
-              <p className="text-muted-foreground">Remaining day-to-day budget</p>
+              <p className="text-muted-foreground">Remaining discretionary budget</p>
               <p className={cn('font-bold', remainingBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
                 {formatINR(remainingBudget)}
               </p>
@@ -810,15 +879,25 @@ export default function Analysis() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-total-spent">
-              <p className="text-xs text-muted-foreground mb-1">Total Spent</p>
+              <div className="flex items-center gap-1 mb-1">
+                <p className="text-xs text-muted-foreground">Total Spent</p>
+                <UITooltip>
+                  <UITooltipTrigger asChild>
+                    <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="What is Total Spent?">
+                      <Info size={14} />
+                    </button>
+                  </UITooltipTrigger>
+                  <UITooltipContent>All expense transactions this month, excluding savings transfers. Includes both commitments and discretionary spend.</UITooltipContent>
+                </UITooltip>
+              </div>
               <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(monthlyExpenses)}</p>
               {spentChange.pct === null ? (
                 <p className="text-xs mt-2 flex items-center gap-1 font-semibold text-muted-foreground">
                   <span aria-label={spentChange.label}>—</span>
                   <UITooltip>
                     <UITooltipTrigger asChild>
-                      <button type="button" className="inline-flex items-center text-muted-foreground hover:text-foreground" aria-label="Why no percentage change">
-                        <Info size={11} />
+                      <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="Why no percentage change">
+                        <Info size={14} />
                       </button>
                     </UITooltipTrigger>
                     <UITooltipContent>{spentChange.label}</UITooltipContent>
@@ -840,8 +919,8 @@ export default function Analysis() {
                   <span aria-label={incomeChange.label}>—</span>
                   <UITooltip>
                     <UITooltipTrigger asChild>
-                      <button type="button" className="inline-flex items-center text-muted-foreground hover:text-foreground" aria-label="Why no percentage change">
-                        <Info size={11} />
+                      <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="Why no percentage change">
+                        <Info size={14} />
                       </button>
                     </UITooltipTrigger>
                     <UITooltipContent>{incomeChange.label}</UITooltipContent>
@@ -856,36 +935,26 @@ export default function Analysis() {
             </div>
 
             <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-savings">
-              <p className="text-xs text-muted-foreground mb-1">Savings</p>
-              {hideSavingsKpi ? (
-                <>
-                  <p className="text-xl font-bold text-muted-foreground" style={{ fontFamily: 'var(--font-display)' }}>—</p>
-                  <p className="text-xs mt-2 text-muted-foreground">Add income to see savings</p>
-                </>
+              <div className="flex items-center gap-1 mb-1">
+                <p className="text-xs text-muted-foreground">Savings</p>
+                <UITooltip>
+                  <UITooltipTrigger asChild>
+                    <button type="button" className="w-6 h-6 -m-1 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="What is Savings?">
+                      <Info size={14} />
+                    </button>
+                  </UITooltipTrigger>
+                  <UITooltipContent>Amount you moved into savings (Goal + Emergency) this month. The rate compares this to the cash you had at the start of the month.</UITooltipContent>
+                </UITooltip>
+              </div>
+              <p className={cn('text-xl font-bold', monthlySavings >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')} style={{ fontFamily: 'var(--font-display)' }}>
+                {formatINR(monthlySavings)}
+              </p>
+              {savingsRatePct === null ? (
+                <p className="text-xs mt-2 text-muted-foreground">— rate (no carry-forward)</p>
               ) : (
-                <>
-                  <p className={cn('text-xl font-bold', monthlySavings >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')} style={{ fontFamily: 'var(--font-display)' }}>
-                    {formatINR(monthlySavings)}
-                  </p>
-                  {savingsChange.pct === null ? (
-                    <p className="text-xs mt-2 flex items-center gap-1 font-semibold text-muted-foreground">
-                      <span aria-label={savingsChange.label}>—</span>
-                      <UITooltip>
-                        <UITooltipTrigger asChild>
-                          <button type="button" className="inline-flex items-center text-muted-foreground hover:text-foreground" aria-label="Why no percentage change">
-                            <Info size={11} />
-                          </button>
-                        </UITooltipTrigger>
-                        <UITooltipContent>{savingsChange.label}</UITooltipContent>
-                      </UITooltip>
-                    </p>
-                  ) : (
-                    <p className={cn('text-xs mt-2 flex items-center gap-1 font-semibold', savingsChange.pct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
-                      {savingsChange.pct >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                      {Math.abs(savingsChange.pct).toFixed(1)}% {savingsChange.pct >= 0 ? 'increased' : 'decreased'} vs last month
-                    </p>
-                  )}
-                </>
+                <p className={cn('text-xs mt-2 font-semibold', savingsRatePct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+                  {savingsRatePct.toFixed(1)}% of carry-forward
+                </p>
               )}
             </div>
 
@@ -896,9 +965,9 @@ export default function Analysis() {
             </div>
           </div>
 
-          {hideSavingsKpi && (
-            <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl px-4 py-2.5 text-xs text-muted-foreground" data-testid="add-income-hint">
-              Add this month's income for accurate figures.
+          {savingsRatePct === null && currentSummary.totalSavings > 0 && (
+            <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl px-4 py-2.5 text-xs text-muted-foreground" data-testid="savings-rate-hint">
+              No carry-forward from previous months — the savings rate is shown once you have pocket cash to compare against.
             </div>
           )}
 
@@ -1130,9 +1199,9 @@ export default function Analysis() {
             </div>
           </div>
           </div>
-        </TabsContent>
+            </div>
 
-        <TabsContent value="planning" className="space-y-4 mt-0">
+            <div className="space-y-4 align-top" style={{ width: paneWidth || '100%', flexShrink: 0 }} role="tabpanel" aria-hidden={activeTab !== 'planning'}>
           {monthStatus === 'past' && (
             <div className="bg-card border border-border rounded-2xl p-5" data-testid="month-ended-summary">
               <div className="flex items-center gap-3 mb-3">
@@ -1418,9 +1487,9 @@ export default function Analysis() {
               <p className="text-[11px] text-muted-foreground mt-3 text-center">Through month {visibleSavingsGoals[0]?.monthIndex} of {visibleSavingsGoals[0]?.totalMonths} since goal start. <Link href="/settings" className="text-accent font-semibold hover:underline inline-flex items-center gap-0.5">Adjust goals <ArrowRight size={10} /></Link></p>
             </div>
           )}
-        </TabsContent>
+            </div>
 
-        <TabsContent value="trends" className="space-y-4 mt-0">
+            <div className="space-y-4 align-top" style={{ width: paneWidth || '100%', flexShrink: 0 }} role="tabpanel" aria-hidden={activeTab !== 'trends'}>
           <div className="bg-card border border-border rounded-2xl p-5" data-testid="income-expense-trend">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Income vs Spend - Last 6 Months</h2>
@@ -1578,7 +1647,9 @@ export default function Analysis() {
               </>
             )}
           </div>
-        </TabsContent>
+            </div>
+          </motion.div>
+        </div>
       </Tabs>
 
       {/* ─── Month picker bottom sheet ─── */}

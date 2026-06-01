@@ -102,6 +102,11 @@ interface FinanceContextType {
   getTotalSavings: (month?: string) => number;
   getBalance: (month?: string) => number;
   getCarryForward: (month: string) => number;
+  /** Total cash in pocket through today — month-agnostic. Sum of all
+   * income minus all expenses (savings transfers included as outflow)
+   * for transactions with date <= today. Future-dated transactions are
+   * excluded so planned/recurring future txns don't change pocket cash. */
+  getNetBalanceToDate: () => number;
   getSpentForCategory: (categoryId: string, month: string) => number;
   /** Canonical per-month summary — use this from all screens. */
   getMonthSummary: (month?: string) => MonthSummary;
@@ -522,8 +527,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   // Recurring materializer: for each active recurring expense, generate one
   // transaction per month from startMonth..currentMonth that hasn't been generated yet.
+  // For the CURRENT month, we wait until today's date reaches the rule's dayOfMonth
+  // before stamping. Future months are never materialized here.
   useEffect(() => {
     const cur = currentMonth();
+    const todayDay = new Date().getDate();
     const pending: { recurringId: string; lastMonth: string; newTx: Omit<Transaction, 'id'>[] }[] = [];
 
     recurringExpenses.forEach(r => {
@@ -538,6 +546,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const monthsToGenerate: string[] = [];
       let m = startFrom;
       while (m <= cur) {
+        // Current month: only materialize once today has reached the rule's day-of-month.
+        if (m === cur && todayDay < r.dayOfMonth) break;
         monthsToGenerate.push(m);
         m = addOneMonth(m);
       }
@@ -615,6 +625,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return income - expenses;
   }, [transactions]);
 
+  // Total pocket cash through today, ignoring the selected month.
+  // Future-dated transactions are excluded so projections don't move the number.
+  const getNetBalanceToDate = useCallback(() => {
+    const todayStr = localDateStr(new Date());
+    let income = 0;
+    let outflow = 0;
+    for (const t of transactions) {
+      if (t.date > todayStr) continue;
+      if (t.type === 'income') income += t.amount;
+      else if (t.type === 'expense') outflow += t.amount; // savings count as outflow
+    }
+    return income - outflow;
+  }, [transactions]);
+
   const getSpentForCategory = useCallback((categoryId: string, month: string) => {
     return transactions
       .filter(t => t.type === 'expense' && t.categoryId === categoryId && t.date.startsWith(month))
@@ -659,7 +683,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       selectedMonth, setSelectedMonth,
       isSheetOpen, editingTransaction,
       openSheet, openEditSheet, closeSheet,
-      getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getSpentForCategory,
+      getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getSpentForCategory,
       getMonthSummary,
       reloadFromStorage, lastChangedAt,
     }}>
