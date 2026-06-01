@@ -1,4 +1,4 @@
-import { Instagram, Mail } from 'lucide-react';
+import { Mail } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -6,11 +6,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 
-const INSTAGRAM_URL = 'https://www.instagram.com/fiscalfocus';
-const SUPPORT_EMAIL = 'supportbytetobrain@gmail.com';
+const WHATSAPP_PHONE = '918830828911';
+const WHATSAPP_MESSAGE = 'Hey Wishvesh, I want to give you one feedback on the fiscal focus application like the message .';
+const SUPPORT_EMAIL = 'bytetobrain95@gmail.com';
 const EMAIL_SUBJECT = 'Fiscal Focus App Feedback';
-const EMAIL_BODY = 'Hey, I want to give you one feedback on the fiscalfocus application.';
+const EMAIL_BODY = 'Hey Wishvesh, I want to give you one feedback on the fiscal focus application like the message .';
 
 interface FeedbackSheetProps {
   open: boolean;
@@ -18,8 +20,9 @@ interface FeedbackSheetProps {
 }
 
 export function FeedbackSheet({ open, onOpenChange }: FeedbackSheetProps) {
-  const handleInstagram = () => {
-    window.open(INSTAGRAM_URL, '_blank', 'noopener,noreferrer');
+  const handleWhatsApp = () => {
+    const url = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
     onOpenChange(false);
   };
 
@@ -35,23 +38,23 @@ export function FeedbackSheet({ open, onOpenChange }: FeedbackSheetProps) {
         <SheetHeader className="text-left">
           <SheetTitle className="text-base">Send Feedback</SheetTitle>
           <SheetDescription className="text-xs">
-            Reach out via Instagram or email — we read every message.
+            Reach out on WhatsApp or email — we read every message.
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-4 grid grid-cols-2 gap-3">
           <button
             type="button"
-            data-testid="feedback-instagram"
-            onClick={handleInstagram}
+            data-testid="feedback-whatsapp"
+            onClick={handleWhatsApp}
             className="flex flex-col items-center justify-center gap-2 py-5 rounded-xl border border-border bg-card hover:bg-muted/50 transition-colors"
           >
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-pink-500 to-orange-400 text-white flex items-center justify-center">
-              <Instagram size={20} />
+            <div className="w-11 h-11 rounded-xl bg-[#25D366] text-white flex items-center justify-center">
+              <WhatsAppIcon size={20} />
             </div>
             <div className="text-center">
-              <p className="text-sm font-semibold text-foreground">Instagram</p>
-              <p className="text-[11px] text-muted-foreground">@fiscalfocus</p>
+              <p className="text-sm font-semibold text-foreground">WhatsApp</p>
+              <p className="text-[11px] text-muted-foreground">+91 88308 28911</p>
             </div>
           </button>
 

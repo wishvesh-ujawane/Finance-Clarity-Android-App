@@ -155,7 +155,7 @@ export default function Settings() {
           </div>
           <div className="flex-1">
             <p className="text-sm font-bold text-foreground">Send Feedback</p>
-            <p className="text-xs text-muted-foreground">Message us on Instagram or send an email.</p>
+            <p className="text-xs text-muted-foreground">Message us on WhatsApp or send an email.</p>
           </div>
           <ChevronRight size={16} className="text-muted-foreground" />
         </button>
