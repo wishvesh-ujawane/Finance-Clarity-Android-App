@@ -7,6 +7,7 @@ import {
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
+import { ConnectDriveBanner } from '@/components/ConnectDriveBanner';
 import { cn } from '@/lib/utils';
 import {
   addMonths, formatAmount, formatDateLabel, formatMonthLabel, localDateStr,
@@ -145,6 +146,7 @@ export default function Dashboard() {
 
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-8">
+      <ConnectDriveBanner />
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

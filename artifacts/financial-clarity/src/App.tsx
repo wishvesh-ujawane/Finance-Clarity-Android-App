@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Switch, Route, Router as WouterRouter } from 'wouter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
@@ -9,7 +10,8 @@ import { Navigation } from '@/components/Navigation';
 import { FAB } from '@/components/FAB';
 import { TransactionSheet } from '@/components/TransactionSheet';
 import { LockScreen } from '@/components/LockScreen';
-import { FirstLaunchRestoreModal } from '@/components/FirstLaunchRestoreModal';
+import { OnboardingFlow } from '@/components/onboarding/OnboardingFlow';
+import { isOnboardingComplete } from '@/lib/onboarding';
 import Dashboard from '@/pages/Dashboard';
 import Budgets from '@/pages/Budgets';
 import Analysis from '@/pages/Analysis';
@@ -32,9 +34,12 @@ function normalizeRouterBase(baseUrl: string) {
 
 function AppLayout() {
   const { isReady, isLocked } = useSecurity();
+  const [needsOnboarding, setNeedsOnboarding] = useState<boolean>(() => !isOnboardingComplete());
+
   if (!isReady) {
     return <div className="min-h-screen bg-background" />;
   }
+  const showOnboarding = !isLocked && needsOnboarding;
   return (
     <div className="flex min-h-screen bg-background">
       <Navigation />
@@ -53,10 +58,12 @@ function AppLayout() {
           <Route component={NotFound} />
         </Switch>
       </main>
-      {!isLocked && <FAB />}
+      {!isLocked && !showOnboarding && <FAB />}
       <TransactionSheet />
       <LockScreen />
-      {!isLocked && <FirstLaunchRestoreModal />}
+      {showOnboarding && (
+        <OnboardingFlow onComplete={() => setNeedsOnboarding(false)} />
+      )}
     </div>
   );
 }
