@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, Download, FileText, Search, X } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
+import { useFabAction } from '@/context/FabContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { formatDateLabel, formatINR, localDateStr } from '@/lib/finance-utils';
@@ -48,7 +49,9 @@ function formatPeriodLabel(preset: RangePreset, from: string, to: string): strin
 }
 
 export default function Transactions() {
-  const { transactions, categories, openEditSheet } = useFinance();
+  const { transactions, categories, openEditSheet, openSheet } = useFinance();
+
+  useFabAction(openSheet, 'Add transaction', 'fab-add-transaction');
 
   const [preset, setPreset] = useState<RangePreset>('current');
   const [customFrom, setCustomFrom] = useState(() => {

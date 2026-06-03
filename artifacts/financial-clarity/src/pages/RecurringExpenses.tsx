@@ -7,6 +7,7 @@ import {
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useFinance } from '@/context/FinanceContext';
+import { useFabAction } from '@/context/FabContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { currentMonth, formatINR } from '@/lib/finance-utils';
@@ -101,6 +102,8 @@ export default function RecurringExpenses() {
     setShowForm(true);
   };
 
+  useFabAction(beginAdd, 'Add recurring expense', 'fab-add-recurring');
+
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-8">
       <div className="flex items-center gap-2 mb-6">
@@ -123,16 +126,6 @@ export default function RecurringExpenses() {
       <p className="text-sm text-muted-foreground mb-4">
         Active recurring items automatically add a transaction every month on the chosen day.
       </p>
-
-      {!showForm && (
-        <button
-          onClick={beginAdd}
-          data-testid="recurring-add"
-          className="w-full mb-4 py-3 rounded-2xl border-2 border-dashed border-border text-sm font-medium text-muted-foreground hover:border-accent/40 hover:text-accent transition-colors flex items-center justify-center gap-1.5"
-        >
-          <Plus size={14} /> Add Recurring Expense
-        </button>
-      )}
 
       {showForm && (
         <div className="bg-card border border-border rounded-2xl p-5 space-y-4 mb-4">

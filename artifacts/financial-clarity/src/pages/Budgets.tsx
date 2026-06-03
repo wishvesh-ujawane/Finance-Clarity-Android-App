@@ -8,6 +8,7 @@ import {
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useFinance } from '@/context/FinanceContext';
+import { useFabAction } from '@/context/FabContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
@@ -141,6 +142,8 @@ export default function Budgets() {
     setShowAddBudget(true);
   };
 
+  useFabAction(openAddBudget, 'Add budget', 'fab-add-budget');
+
   // Handle ?highlight=<categoryId> deep-link from Dashboard alert chips
   useEffect(() => {
     const params = new URLSearchParams(search);
@@ -165,44 +168,34 @@ export default function Budgets() {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Monthly</p>
           <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Budgets</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button
-                data-testid="transfer-budget-button"
-                disabled={currentMonthBudgets.length === 0}
-                className="px-3 py-2 rounded-xl border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-40"
-              >
-                Transfer Budget to Next Month
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Transfer Budgets?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Transfer all budgets from {formatMonthLabel(selectedMonth)} to {formatMonthLabel(targetMonth)}. Existing budgets in {formatMonthLabel(targetMonth)} for the same categories will be updated.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleTransferBudgets}>
-                  Transfer
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          <button
-            data-testid="add-budget-button"
-            onClick={openAddBudget}
-            className={cn(
-              'flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent text-white text-sm font-semibold transition-colors',
-              unbudgetedCategories.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent/90'
-            )}
-          >
-            <Plus size={15} />
-            Add
-          </button>
-        </div>
+      </div>
+
+      <div className="mb-4">
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button
+              data-testid="transfer-budget-button"
+              disabled={currentMonthBudgets.length === 0}
+              className="w-full px-4 py-2.5 rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-40"
+            >
+              Transfer Budget to Next Month
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Transfer Budgets?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Transfer all budgets from {formatMonthLabel(selectedMonth)} to {formatMonthLabel(targetMonth)}. Existing budgets in {formatMonthLabel(targetMonth)} for the same categories will be updated.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleTransferBudgets}>
+                Transfer
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {transferMessage && (

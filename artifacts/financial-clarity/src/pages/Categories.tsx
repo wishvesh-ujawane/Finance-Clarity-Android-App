@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Check, Plus, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Check, Trash2, X } from 'lucide-react';
 import { useLocation } from 'wouter';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -8,6 +8,7 @@ import {
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useFinance } from '@/context/FinanceContext';
+import { useFabAction } from '@/context/FabContext';
 import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 
@@ -68,6 +69,8 @@ export default function Categories() {
     setNewCatType('expense');
     setShowAddCat(false);
   };
+
+  useFabAction(() => setShowAddCat(true), 'Add category', 'fab-add-category');
 
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-8">
@@ -256,14 +259,6 @@ export default function Categories() {
               </motion.div>
             )}
           </AnimatePresence>
-
-          <button
-            data-testid="add-category-btn"
-            onClick={() => setShowAddCat(v => !v)}
-            className="w-full py-2.5 rounded-xl border-2 border-dashed border-border text-sm font-medium text-muted-foreground hover:border-accent/40 hover:text-accent transition-colors flex items-center justify-center gap-1.5"
-          >
-            <Plus size={14} /> Add Category
-          </button>
         </div>
       </div>
     </div>

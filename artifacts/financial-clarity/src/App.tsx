@@ -6,6 +6,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { FinanceProvider } from '@/context/FinanceContext';
 import { SecurityProvider, useSecurity } from '@/context/SecurityContext';
 import { BackupProvider } from '@/context/BackupContext';
+import { FabProvider } from '@/context/FabContext';
 import { Navigation } from '@/components/Navigation';
 import { FAB } from '@/components/FAB';
 import { TransactionSheet } from '@/components/TransactionSheet';
@@ -76,12 +77,14 @@ function App() {
       <FinanceProvider>
         <SecurityProvider>
           <BackupProvider>
-            <TooltipProvider>
-              <WouterRouter base={routerBase}>
-                <AppLayout />
-              </WouterRouter>
-              <Toaster />
-            </TooltipProvider>
+            <FabProvider>
+              <TooltipProvider>
+                <WouterRouter base={routerBase}>
+                  <AppLayout />
+                </WouterRouter>
+                <Toaster />
+              </TooltipProvider>
+            </FabProvider>
           </BackupProvider>
         </SecurityProvider>
       </FinanceProvider>
