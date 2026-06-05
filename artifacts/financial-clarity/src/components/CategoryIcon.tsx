@@ -3,7 +3,11 @@ import {
   Briefcase, Laptop, TrendingUp, Coffee, Music, Film,
   ShoppingBag, Zap, Globe, Gift, Plane, Book, Star,
   CreditCard, Pizza, Shirt, Dumbbell, Baby, DollarSign,
-  Wallet, PiggyBank, Building2, type LucideProps
+  Wallet, PiggyBank, Building2,
+  Bus, Train, Fuel, Tv, Gamepad2, Wifi, Phone, Stethoscope,
+  Pill, GraduationCap, PawPrint, Bike, Hammer, Sparkles,
+  Banknote, Receipt, Landmark, HandCoins, Wrench, Camera,
+  type LucideProps,
 } from 'lucide-react';
 import { ElementType } from 'react';
 
@@ -13,6 +17,9 @@ export const ICON_OPTIONS = [
   'ShoppingBag', 'Zap', 'Globe', 'Gift', 'Plane', 'Book', 'Star',
   'CreditCard', 'Pizza', 'Shirt', 'Dumbbell', 'Baby', 'DollarSign',
   'Wallet', 'PiggyBank', 'Building2',
+  'Bus', 'Train', 'Fuel', 'Tv', 'Gamepad2', 'Wifi', 'Phone', 'Stethoscope',
+  'Pill', 'GraduationCap', 'PawPrint', 'Bike', 'Hammer', 'Sparkles',
+  'Banknote', 'Receipt', 'Landmark', 'HandCoins', 'Wrench', 'Camera',
 ];
 
 const ICON_MAP: Record<string, ElementType<LucideProps>> = {
@@ -21,6 +28,9 @@ const ICON_MAP: Record<string, ElementType<LucideProps>> = {
   ShoppingBag, Zap, Globe, Gift, Plane, Book, Star,
   CreditCard, Pizza, Shirt, Dumbbell, Baby, DollarSign,
   Wallet, PiggyBank, Building2,
+  Bus, Train, Fuel, Tv, Gamepad2, Wifi, Phone, Stethoscope,
+  Pill, GraduationCap, PawPrint, Bike, Hammer, Sparkles,
+  Banknote, Receipt, Landmark, HandCoins, Wrench, Camera,
 };
 
 interface CategoryIconProps {
