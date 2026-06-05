@@ -225,7 +225,7 @@ export default function Categories() {
                             </div>
                             <div>
                               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Icon</p>
-                              <div className="grid grid-cols-6 gap-2 max-h-48 overflow-y-auto pr-1">
+                              <div className="grid grid-cols-7 gap-1.5 max-h-48 overflow-y-auto pr-1">
                                 {ICON_OPTIONS.map(ico => (
                                   <button
                                     key={ico}
@@ -238,7 +238,7 @@ export default function Categories() {
                                     )}
                                     aria-label={`Pick icon ${ico}`}
                                   >
-                                    <CategoryIcon icon={ico} size={16} />
+                                    <CategoryIcon icon={ico} size={14} />
                                   </button>
                                 ))}
                               </div>
@@ -290,14 +290,14 @@ export default function Categories() {
                           exit={{ opacity: 0, y: -4 }}
                           transition={{ duration: 0.18, ease: 'easeOut' }}
                           whileTap={{ scale: 0.98 }}
-                          className="w-full group flex items-center gap-3.5 px-3 py-3 rounded-xl hover:bg-muted/60 transition-colors text-left"
+                          className="w-full group flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/60 transition-colors text-left"
                           data-testid={`category-item-${cat.id}`}
                         >
                           <div
-                            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                            className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
                             style={{ backgroundColor: cat.color + '22' }}
                           >
-                            <CategoryIcon icon={cat.icon} color={cat.color} size={18} />
+                            <CategoryIcon icon={cat.icon} color={cat.color} size={16} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[15px] font-semibold text-foreground truncate">{cat.name}</p>
@@ -400,7 +400,7 @@ export default function Categories() {
                   <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
                     Icon
                   </label>
-                  <div className="grid grid-cols-6 gap-2 max-h-56 overflow-y-auto pr-1">
+                  <div className="grid grid-cols-7 gap-1.5 max-h-56 overflow-y-auto pr-1">
                     {ICON_OPTIONS.map(ico => (
                       <button
                         key={ico}
@@ -413,7 +413,7 @@ export default function Categories() {
                         )}
                         aria-label={`Pick icon ${ico}`}
                       >
-                        <CategoryIcon icon={ico} size={18} />
+                        <CategoryIcon icon={ico} size={14} />
                       </button>
                     ))}
                   </div>
