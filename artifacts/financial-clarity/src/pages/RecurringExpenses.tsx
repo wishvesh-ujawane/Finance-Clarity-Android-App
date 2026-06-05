@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'wouter';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Plus, Trash2, Check, X, Power } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -102,7 +103,9 @@ export default function RecurringExpenses() {
     setShowForm(true);
   };
 
-  useFabAction(beginAdd, 'Add recurring expense', 'fab-add-recurring');
+  useFabAction(beginAdd, 'Add recurring expense', 'fab-add-recurring', {
+    className: 'bg-orange-500 hover:bg-orange-600 text-white',
+  });
 
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-8">
@@ -127,104 +130,127 @@ export default function RecurringExpenses() {
         Active recurring items automatically add a transaction every month on the chosen day.
       </p>
 
-      {showForm && (
-        <div className="bg-card border border-border rounded-2xl p-5 space-y-4 mb-4">
-          <p className="text-sm font-bold text-foreground">{editingId ? 'Edit' : 'New'} Recurring Expense</p>
+      <AnimatePresence initial={false}>
+        {showForm && (
+          <motion.section
+            key="recurring-form"
+            initial={{ opacity: 0, height: 0, y: -8 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -8 }}
+            transition={{ type: 'spring', stiffness: 280, damping: 30, mass: 0.85 }}
+            style={{ overflow: 'hidden' }}
+            className="mb-4"
+          >
+            <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+              <p className="text-sm font-bold text-foreground">{editingId ? 'Edit' : 'New'} Recurring Expense</p>
 
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Description</label>
-            <input
-              data-testid="recurring-description"
-              value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="e.g. Rent, Netflix, SIP"
-              className="w-full px-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
-            />
-          </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Description</label>
+                <input
+                  data-testid="recurring-description"
+                  value={form.description}
+                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="e.g. Rent, Netflix, SIP"
+                  className="w-full px-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
+                />
+              </div>
 
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Amount</label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₹</span>
-              <input
-                data-testid="recurring-amount"
-                type="number"
-                value={form.amount}
-                onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                placeholder="0"
-                className="w-full pl-8 pr-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
-              />
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Amount</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₹</span>
+                  <input
+                    data-testid="recurring-amount"
+                    type="number"
+                    value={form.amount}
+                    onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                    placeholder="0"
+                    className="w-full pl-8 pr-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Category</label>
+                <select
+                  data-testid="recurring-category"
+                  value={form.categoryId}
+                  onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}
+                  className="w-full px-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
+                >
+                  <option value="">Select a category</option>
+                  {eligibleCategories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Day of month</label>
+                  <input
+                    data-testid="recurring-day"
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={form.dayOfMonth}
+                    onChange={e => setForm(f => ({ ...f, dayOfMonth: e.target.value }))}
+                    className="w-full px-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Start month</label>
+                  <input
+                    data-testid="recurring-start"
+                    type="month"
+                    value={form.startMonth}
+                    onChange={e => setForm(f => ({ ...f, startMonth: e.target.value }))}
+                    className="w-full px-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
+                  />
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-foreground select-none cursor-pointer">
+                <input
+                  type="checkbox"
+                  data-testid="recurring-active"
+                  checked={form.active}
+                  onChange={e => setForm(f => ({ ...f, active: e.target.checked }))}
+                  className="w-4 h-4 rounded accent-current"
+                />
+                Active — auto-create transactions each month
+              </label>
+
+              <div className="flex gap-2">
+                <button onClick={resetForm} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
+                <button
+                  data-testid="recurring-save"
+                  onClick={handleSave}
+                  disabled={!form.description.trim() || !form.amount || parseFloat(form.amount) <= 0 || !form.categoryId}
+                  className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-50"
+                >
+                  {editingId ? 'Update' : 'Save'}
+                </button>
+              </div>
             </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Category</label>
-            <select
-              data-testid="recurring-category"
-              value={form.categoryId}
-              onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}
-              className="w-full px-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
-            >
-              <option value="">Select a category</option>
-              {eligibleCategories.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Day of month</label>
-              <input
-                data-testid="recurring-day"
-                type="number"
-                min={1}
-                max={31}
-                value={form.dayOfMonth}
-                onChange={e => setForm(f => ({ ...f, dayOfMonth: e.target.value }))}
-                className="w-full px-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Start month</label>
-              <input
-                data-testid="recurring-start"
-                type="month"
-                value={form.startMonth}
-                onChange={e => setForm(f => ({ ...f, startMonth: e.target.value }))}
-                className="w-full px-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
-              />
-            </div>
-          </div>
-
-          <label className="flex items-center gap-2 text-sm text-foreground select-none cursor-pointer">
-            <input
-              type="checkbox"
-              data-testid="recurring-active"
-              checked={form.active}
-              onChange={e => setForm(f => ({ ...f, active: e.target.checked }))}
-              className="w-4 h-4 rounded accent-current"
-            />
-            Active — auto-create transactions each month
-          </label>
-
-          <div className="flex gap-2">
-            <button onClick={resetForm} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
-            <button
-              data-testid="recurring-save"
-              onClick={handleSave}
-              disabled={!form.description.trim() || !form.amount || parseFloat(form.amount) <= 0 || !form.categoryId}
-              className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-50"
-            >
-              {editingId ? 'Update' : 'Save'}
-            </button>
-          </div>
-        </div>
-      )}
+          </motion.section>
+        )}
+      </AnimatePresence>
 
       {recurringExpenses.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4"><Plus size={24} /></div>
+          <motion.button
+            type="button"
+            data-testid="empty-add-recurring"
+            onClick={beginAdd}
+            aria-label="Add your first recurring expense"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.92, rotate: 90 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 22 }}
+            className="w-16 h-16 rounded-2xl bg-muted hover:bg-muted/80 flex items-center justify-center mb-4 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Plus size={24} />
+          </motion.button>
           <p className="text-sm font-semibold mb-1">No recurring expenses yet</p>
           <p className="text-xs text-center max-w-xs">Add rent, subscriptions, EMIs, SIPs or any monthly fixed expense to track them automatically.</p>
         </div>

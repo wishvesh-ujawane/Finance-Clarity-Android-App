@@ -1,4 +1,5 @@
-import { useEffect, useState, type ComponentType, type SVGProps } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type SVGProps } from 'react';
+import { animate, motion, useMotionValue, type PanInfo } from 'framer-motion';
 import { Wallet, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GoogleDriveIcon } from '@/components/icons/GoogleDriveIcon';
@@ -60,10 +61,33 @@ export function IntroCarousel({ onComplete, onSkip }: IntroCarouselProps) {
   const [index, setIndex] = useState(0);
   const slide = SLIDES[index];
   const isLast = index === SLIDES.length - 1;
-  const { Icon } = slide;
 
-  // Basic swipe support; lightweight for this single-use UI.
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  // Pixel-based drag track shared with the Analysis pane slider — single
+  // coordinate space for drag and animation so the swipe always feels direct.
+  const trackContainerRef = useRef<HTMLDivElement>(null);
+  const [slideWidth, setSlideWidth] = useState(0);
+  const x = useMotionValue(0);
+  const isDraggingRef = useRef(false);
+
+  useLayoutEffect(() => {
+    const update = () => {
+      if (trackContainerRef.current) setSlideWidth(trackContainerRef.current.clientWidth);
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
+  useEffect(() => {
+    if (isDraggingRef.current || slideWidth === 0) return;
+    const controls = animate(x, -index * slideWidth, {
+      type: 'spring',
+      stiffness: 300,
+      damping: 32,
+      mass: 0.9,
+    });
+    return () => controls.stop();
+  }, [index, slideWidth, x]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -80,18 +104,33 @@ export function IntroCarousel({ onComplete, onSkip }: IntroCarouselProps) {
   };
   const back = () => setIndex(i => Math.max(i - 1, 0));
 
+  const onSlideDragEnd = (_: unknown, info: PanInfo) => {
+    isDraggingRef.current = false;
+    const offset = info.offset.x;
+    const velocity = info.velocity.x;
+    const offsetThreshold = slideWidth * 0.25;
+    const velocityThreshold = 500;
+
+    let dir = 0;
+    if (velocity < -velocityThreshold || offset < -offsetThreshold) dir = 1;
+    else if (velocity > velocityThreshold || offset > offsetThreshold) dir = -1;
+
+    const target = Math.max(0, Math.min(SLIDES.length - 1, index + dir));
+    if (target !== index) {
+      setIndex(target);
+    } else {
+      animate(x, -index * slideWidth, {
+        type: 'spring',
+        stiffness: 300,
+        damping: 32,
+        mass: 0.9,
+      });
+    }
+  };
+
   return (
     <div
-      key={index}
       className="relative flex h-full w-full flex-col overflow-hidden bg-[hsl(222,65%,13%)] text-white"
-      onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
-      onTouchEnd={(e) => {
-        if (touchStartX == null) return;
-        const dx = e.changedTouches[0].clientX - touchStartX;
-        if (dx < -50) next();
-        else if (dx > 50) back();
-        setTouchStartX(null);
-      }}
     >
       {/* Full-screen decorative background — same language as the Dashboard hero */}
       <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white/[0.04]" />
@@ -126,32 +165,61 @@ export function IntroCarousel({ onComplete, onSkip }: IntroCarouselProps) {
         </Button>
       </div>
 
-      {/* Centered content */}
-      <div className="relative flex flex-1 flex-col items-center justify-center px-6 text-center">
-        <div
-          className={cn(
-            'mb-8 flex h-24 w-24 items-center justify-center rounded-3xl shadow-lg shadow-black/30',
-            slide.iconBg,
-          )}
+      {/* Swipeable centered content */}
+      <div
+        ref={trackContainerRef}
+        className="relative flex-1 overflow-hidden touch-pan-y"
+      >
+        <motion.div
+          className="flex h-full"
+          style={{ x, width: slideWidth ? slideWidth * SLIDES.length : undefined }}
+          drag={slideWidth > 0 ? 'x' : false}
+          dragDirectionLock
+          dragMomentum={false}
+          dragElastic={0.08}
+          dragConstraints={{ left: -(SLIDES.length - 1) * slideWidth, right: 0 }}
+          onDragStart={() => { isDraggingRef.current = true; }}
+          onDragEnd={onSlideDragEnd}
         >
-          <Icon
-            className={cn('h-12 w-12', !slide.iconNative && slide.iconColor)}
-            {...(!slide.iconNative ? { strokeWidth: 1.8 } : {})}
-          />
-        </div>
+          {SLIDES.map((s, i) => {
+            const SlideIcon = s.Icon;
+            const isActive = i === index;
+            return (
+              <div
+                key={i}
+                className="flex flex-col items-center justify-center px-6 text-center flex-shrink-0 h-full"
+                style={{ width: slideWidth || undefined }}
+                role="tabpanel"
+                aria-hidden={!isActive}
+              >
+                <div
+                  className={cn(
+                    'mb-8 flex h-24 w-24 items-center justify-center rounded-3xl shadow-lg shadow-black/30',
+                    s.iconBg,
+                  )}
+                >
+                  <SlideIcon
+                    className={cn('h-12 w-12', !s.iconNative && s.iconColor)}
+                    {...(!s.iconNative ? { strokeWidth: 1.8 } : {})}
+                  />
+                </div>
 
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">
-          {slide.eyebrow}
-        </p>
-        <h2
-          className="mb-4 max-w-md text-3xl font-bold leading-tight sm:text-4xl"
-          style={{ fontFamily: 'var(--font-display)' }}
-        >
-          {slide.title}
-        </h2>
-        <p className="max-w-md text-sm leading-relaxed text-white/75 sm:text-base">
-          {slide.body}
-        </p>
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">
+                  {s.eyebrow}
+                </p>
+                <h2
+                  className="mb-4 max-w-md text-3xl font-bold leading-tight sm:text-4xl"
+                  style={{ fontFamily: 'var(--font-display)' }}
+                >
+                  {s.title}
+                </h2>
+                <p className="max-w-md text-sm leading-relaxed text-white/75 sm:text-base">
+                  {s.body}
+                </p>
+              </div>
+            );
+          })}
+        </motion.div>
       </div>
 
       {/* Footer: dots + Back / Next */}

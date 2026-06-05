@@ -1,5 +1,5 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { motion, type PanInfo } from 'framer-motion';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { animate, motion, useMotionValue, type PanInfo } from 'framer-motion';
 import { ChevronDown, Share2 } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -26,6 +26,9 @@ export default function Analysis() {
   const activeIndex = TABS.indexOf(activeTab);
   const sliderRef = useRef<HTMLDivElement>(null);
   const [paneWidth, setPaneWidth] = useState(0);
+  const x = useMotionValue(0);
+  const isDraggingRef = useRef(false);
+
   useLayoutEffect(() => {
     const update = () => {
       if (sliderRef.current) setPaneWidth(sliderRef.current.clientWidth);
@@ -34,10 +37,42 @@ export default function Analysis() {
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
   }, []);
+
+  // Programmatic snap on tab change / width change (skipped while dragging).
+  useEffect(() => {
+    if (isDraggingRef.current || paneWidth === 0) return;
+    const target = -activeIndex * paneWidth;
+    const controls = animate(x, target, {
+      type: 'spring',
+      stiffness: 260,
+      damping: 30,
+      mass: 0.9,
+    });
+    return () => controls.stop();
+  }, [activeIndex, paneWidth, x]);
+
   const onPaneDragEnd = (_: unknown, info: PanInfo) => {
-    const threshold = Math.max(50, paneWidth * 0.18);
-    if (info.offset.x < -threshold && activeIndex < TABS.length - 1) setActiveTab(TABS[activeIndex + 1]);
-    else if (info.offset.x > threshold && activeIndex > 0) setActiveTab(TABS[activeIndex - 1]);
+    isDraggingRef.current = false;
+    const offset = info.offset.x;
+    const velocity = info.velocity.x;
+    const offsetThreshold = paneWidth * 0.25;
+    const velocityThreshold = 500;
+
+    let dir = 0;
+    if (velocity < -velocityThreshold || offset < -offsetThreshold) dir = 1;
+    else if (velocity > velocityThreshold || offset > offsetThreshold) dir = -1;
+
+    const next = Math.max(0, Math.min(TABS.length - 1, activeIndex + dir));
+    if (next !== activeIndex) {
+      setActiveTab(TABS[next]);
+    } else {
+      animate(x, -activeIndex * paneWidth, {
+        type: 'spring',
+        stiffness: 260,
+        damping: 30,
+        mass: 0.9,
+      });
+    }
   };
 
   const currentMonthKey = useMemo(() => getMonthKey(new Date()), []);
@@ -137,24 +172,40 @@ export default function Analysis() {
 
         <div ref={sliderRef} className="overflow-hidden touch-pan-y">
           <motion.div
-            className="flex w-[300%]"
-            drag="x"
+            className="flex"
+            style={{ x, width: paneWidth ? paneWidth * TABS.length : undefined }}
+            drag={paneWidth > 0 ? 'x' : false}
             dragDirectionLock
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={0.15}
-            animate={{ x: `${-activeIndex * (100 / 3)}%` }}
-            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+            dragMomentum={false}
+            dragElastic={0.08}
+            dragConstraints={{ left: -(TABS.length - 1) * paneWidth, right: 0 }}
+            onDragStart={() => { isDraggingRef.current = true; }}
             onDragEnd={onPaneDragEnd}
           >
-            <div className="space-y-4 align-top w-1/3 flex-shrink-0" role="tabpanel" aria-hidden={activeTab !== 'overview'}>
+            <div
+              className="space-y-4 align-top flex-shrink-0"
+              style={{ width: paneWidth || undefined }}
+              role="tabpanel"
+              aria-hidden={activeTab !== 'overview'}
+            >
               <OverviewPane ref={overviewRef} shared={shared} />
             </div>
 
-            <div className="space-y-4 align-top w-1/3 flex-shrink-0" role="tabpanel" aria-hidden={activeTab !== 'planning'}>
+            <div
+              className="space-y-4 align-top flex-shrink-0"
+              style={{ width: paneWidth || undefined }}
+              role="tabpanel"
+              aria-hidden={activeTab !== 'planning'}
+            >
               <PlanningPane shared={shared} />
             </div>
 
-            <div className="space-y-4 align-top w-1/3 flex-shrink-0" role="tabpanel" aria-hidden={activeTab !== 'trends'}>
+            <div
+              className="space-y-4 align-top flex-shrink-0"
+              style={{ width: paneWidth || undefined }}
+              role="tabpanel"
+              aria-hidden={activeTab !== 'trends'}
+            >
               <TrendsPane shared={shared} />
             </div>
           </motion.div>
