@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback, type ReactElement } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode, type ReactElement } from 'react';
 
 export interface FabActionOptions {
   /** Tailwind classes appended/overriding the FAB button's default classes. */
@@ -37,8 +37,12 @@ export function useFabContext() {
 
 /**
  * Register a FAB action for the current screen. Automatically clears
- * the action when the component unmounts. Re-registers when `onClick`,
- * `label`, or style options change.
+ * the action when the component unmounts.
+ *
+ * The `onClick` reference is held in a ref so callers can pass an
+ * inline arrow function on every render without re-registering the FAB.
+ * The registration effect only fires when the visible identity of the
+ * action changes (`label`, `testId`, `className`, or `icon`).
  *
  * `options.className` overrides the FAB's default background/text classes
  * (e.g. `'bg-orange-500 hover:bg-orange-600 text-white'`).
@@ -51,11 +55,20 @@ export function useFabAction(
   options?: FabActionOptions,
 ) {
   const { setFabAction } = useFabContext();
-  const stableClick = useCallback(onClick, [onClick]);
+  const onClickRef = useRef(onClick);
+  onClickRef.current = onClick;
+
   const className = options?.className;
   const icon = options?.icon;
+
   useEffect(() => {
-    setFabAction({ onClick: stableClick, label, testId, className, icon });
+    setFabAction({
+      onClick: () => onClickRef.current(),
+      label,
+      testId,
+      className,
+      icon,
+    });
     return () => setFabAction(null);
-  }, [setFabAction, stableClick, label, testId, className, icon]);
+  }, [setFabAction, label, testId, className, icon]);
 }
