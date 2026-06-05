@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearch } from 'wouter';
 import { motion } from 'framer-motion';
-import { Plus, Trash2, Check, X, AlertTriangle, PiggyBank, Pencil } from 'lucide-react';
+import { Plus, Trash2, Check, X, AlertTriangle, PiggyBank, Pencil, ArrowRightLeft } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -163,22 +163,22 @@ export default function Budgets() {
 
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <div className="min-w-0">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Monthly</p>
           <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Budgets</h1>
         </div>
-      </div>
-
-      <div className="mb-4">
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <button
+              type="button"
               data-testid="transfer-budget-button"
               disabled={currentMonthBudgets.length === 0}
-              className="w-full px-4 py-2.5 rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:hover:bg-card"
+              aria-label={`Transfer budget to ${formatMonthLabel(targetMonth)}`}
             >
-              Transfer Budget to Next Month
+              <ArrowRightLeft size={12} className="text-muted-foreground" />
+              <span>Transfer to {formatMonthLabel(targetMonth).split(' ')[0]}</span>
             </button>
           </AlertDialogTrigger>
           <AlertDialogContent>
@@ -256,7 +256,13 @@ export default function Budgets() {
             <SheetTitle>New Budget</SheetTitle>
             <SheetDescription>Set a monthly limit for {formatMonthLabel(selectedMonth)}.</SheetDescription>
           </SheetHeader>
-          <div className="space-y-4 mt-4 flex-1 overflow-y-auto">
+          <motion.div
+            key={showAddBudget ? 'open' : 'closed'}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut', delay: 0.05 }}
+            className="space-y-4 mt-4 flex-1 overflow-y-auto"
+          >
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Category</label>
               <select
@@ -283,7 +289,7 @@ export default function Budgets() {
                 />
               </div>
             </div>
-          </div>
+          </motion.div>
           <div className="flex gap-2 pt-4 border-t border-border">
             <button onClick={() => setShowAddBudget(false)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
             <button data-testid="budget-save" onClick={handleAddBudget} disabled={!newCatId || !newLimit || parseFloat(newLimit) <= 0} className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-50">Save Budget</button>
@@ -294,9 +300,20 @@ export default function Budgets() {
       {/* Budget List */}
       {budgetsWithData.length === 0 && savingsBudgetsWithData.length === 0 && !showAddBudget && (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4"><Plus size={24} /></div>
+          <motion.button
+            type="button"
+            data-testid="empty-add-budget"
+            onClick={openAddBudget}
+            aria-label="Add your first budget"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.92, rotate: 90 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 22 }}
+            className="w-16 h-16 rounded-2xl bg-muted hover:bg-muted/80 flex items-center justify-center mb-4 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Plus size={24} />
+          </motion.button>
           <p className="text-sm font-semibold mb-1">No budgets set</p>
-          <p className="text-xs text-center max-w-xs">Set monthly spending limits for your categories to track your progress</p>
+          <p className="text-xs text-center max-w-xs">Tap the + above (or the floating button) to set monthly spending limits for your categories</p>
         </div>
       )}
 
@@ -435,16 +452,14 @@ export default function Budgets() {
                   tabIndex={editingBudgetId === b.id ? undefined : 0}
                   onClick={() => {
                     if (editingBudgetId !== b.id) {
-                      setEditingBudgetId(b.id);
-                      setEditLimit(String(b.limit));
+                      openCategoryTransactions(b.categoryId);
                     }
                   }}
                   onKeyDown={e => {
                     if (editingBudgetId === b.id) return;
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      setEditingBudgetId(b.id);
-                      setEditLimit(String(b.limit));
+                      openCategoryTransactions(b.categoryId);
                     }
                   }}
                   className={cn('bg-card border rounded-2xl p-5 transition-colors', isMet ? 'border-emerald-200 dark:border-emerald-900' : 'border-border')}
@@ -462,6 +477,21 @@ export default function Budgets() {
                         </p>
                       </div>
                     </div>
+                    {editingBudgetId !== b.id && (
+                      <button
+                        type="button"
+                        data-testid={`edit-savings-budget-${b.id}`}
+                        onClick={e => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setEditingBudgetId(b.id);
+                          setEditLimit(String(b.limit));
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+                      >
+                        <Pencil size={12} /> Edit
+                      </button>
+                    )}
                   </div>
 
                   <div className="relative h-2 bg-muted rounded-full overflow-hidden mb-2">
