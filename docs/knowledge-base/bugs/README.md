@@ -9,4 +9,4 @@ File naming: `YYYYMMDD-<short-slug>.md` (date the bug was observed).
 
 ## Index
 
-_No bugs logged yet. Entries will appear here as they are filed._
+- [20260628-budgets-analysis-divergence.md](./20260628-budgets-analysis-divergence.md) — Budgets and Analysis showed different headline budget figures for the same month. Fixed in `bb1afa7`.

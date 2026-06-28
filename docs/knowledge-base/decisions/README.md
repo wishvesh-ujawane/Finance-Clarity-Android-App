@@ -14,3 +14,4 @@ Rules:
 ## Index
 
 - [0001-knowledge-base-bootstrap.md](./0001-knowledge-base-bootstrap.md) — Introduce the App Oracle subagent and the committed knowledge base.
+- [0002-canonical-budget-summary.md](./0002-canonical-budget-summary.md) — Pin `BudgetSummary` / `getBudgetSummary` as the single source for headline budget math across Budgets and Analysis.

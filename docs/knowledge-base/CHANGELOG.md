@@ -6,6 +6,12 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-06-28 — bugs/20260628-budgets-analysis-divergence.md — Recorded headline-budget divergence between Budgets and Analysis screens; fixed in `bb1afa7`.
+2026-06-28 — decisions/0002-canonical-budget-summary.md — ADR-0002 accepted: `BudgetSummary` / `getBudgetSummary` are the single source for headline budget math.
+2026-06-28 — features/budgets.md — Added "Math" section pinning headline / over-under definitions and the savings-shown-separately rule.
+2026-06-28 — features/analysis.md — Added "Budget Health card" section under Overview and documented full-month vs to-date Commitments distinction.
+2026-06-28 — glossary.md — Added: Commitment, Day-to-day spend, Monthly budget total, Savings budget, Spent on budgeted.
+2026-06-28 — features/recurring-expenses.md — Added note clarifying that materialised recurring transactions are ordinary expense transactions and that commitment-counting follows category type.
 2026-06-28 — meta/bootstrap — Knowledge base scaffolded and App Oracle agent created (see [decisions/0001-knowledge-base-bootstrap.md](./decisions/0001-knowledge-base-bootstrap.md)).
 2026-06-28 — architecture/workspace.md — Initial workspace overview seeded from `replit.md` and `pnpm-workspace.yaml`.
 2026-06-28 — architecture/financial-clarity.md — Initial Financial Clarity architecture seeded from existing exploration notes.

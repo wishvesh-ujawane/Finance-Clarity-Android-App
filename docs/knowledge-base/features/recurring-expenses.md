@@ -9,6 +9,9 @@ related:
   - ./transactions.md
   - ./settings.md
   - ./fab.md
+  - ./budgets.md
+  - ./analysis.md
+  - ../decisions/0002-canonical-budget-summary.md
 source-of-truth-files:
   - artifacts/financial-clarity/src/pages/RecurringExpenses.tsx
   - artifacts/financial-clarity/src/context/FinanceContext.tsx
@@ -48,3 +51,24 @@ Pause-or-Resume / Edit / Delete (with confirmation) buttons.
 - [transactions.md](./transactions.md) — each active recurring item creates a
   transaction on its scheduled day.
 - [categories.md](./categories.md) — required for category select.
+
+## Materialised recurring transactions are ordinary expenses
+
+Once a recurring item materialises for a given month it becomes a normal
+`Transaction` row on
+[FinanceContext](../../../artifacts/financial-clarity/src/context/FinanceContext.tsx)
+with `type === 'expense'`. It has no flag marking it as "recurring-derived",
+so all downstream math treats it exactly like a hand-entered expense:
+
+- It counts toward `BudgetSummary.spentOnBudgeted` when its category has a
+  budget for the month (see [budgets.md → Math](./budgets.md#math) and
+  [ADR-0002](../decisions/0002-canonical-budget-summary.md)).
+- It counts toward `BudgetSummary.commitmentsFullMonth` **iff** its category
+  has `type === 'commitment'` — the recurring/non-recurring distinction is
+  irrelevant; only category type matters.
+- It is included in full-month totals immediately upon materialisation, even
+  if its `date` is later in the month. To-date variants
+  (`monthlyExpensesToDate`, `monthlyCommitmentsToDate` in
+  [useAnalysisShared](../../../artifacts/financial-clarity/src/components/analysis/useAnalysisShared.ts))
+  filter by `date <= today` and therefore exclude future-dated recurring
+  rows until their day arrives.
