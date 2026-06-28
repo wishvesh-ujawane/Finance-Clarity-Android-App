@@ -10,7 +10,7 @@ import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
  */
 export function useAnalysisShared() {
   const finance = useFinance();
-  const { transactions, categories, budgets, selectedMonth, getMonthSummary } = finance;
+  const { transactions, categories, budgets, selectedMonth, getMonthSummary, getBudgetSummary } = finance;
 
   const today = useMemo(() => new Date(), []);
   const todayStr = useMemo(() => localDateStr(today), [today]);
@@ -89,8 +89,6 @@ export function useAnalysisShared() {
     [transactions, selectedMonth, todayStr, commitmentCategoryIds]
   );
 
-  const monthlyDayToDayToDate = monthlyExpensesToDate - monthlyCommitmentsToDate;
-
   const monthlyTransactions = useMemo(
     () => transactions.filter(t => t.date.startsWith(selectedMonth)),
     [transactions, selectedMonth]
@@ -112,6 +110,8 @@ export function useAnalysisShared() {
       })
       .sort((a, b) => b.amount - a.amount);
   }, [transactions, selectedMonth, categories, monthlyExpenses]);
+
+  const budgetSummary = useMemo(() => getBudgetSummary(selectedMonth), [getBudgetSummary, selectedMonth]);
 
   return {
     finance,
@@ -137,9 +137,9 @@ export function useAnalysisShared() {
     monthlyExpensesToDate,
     monthlyIncomeToDate,
     monthlyCommitmentsToDate,
-    monthlyDayToDayToDate,
     monthlyTransactions,
     allCategorySpending,
+    budgetSummary,
   };
 }
 

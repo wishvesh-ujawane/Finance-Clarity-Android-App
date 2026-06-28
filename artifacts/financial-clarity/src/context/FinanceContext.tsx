@@ -22,6 +22,21 @@ export interface MonthSummary {
   hasData: boolean;
 }
 
+/**
+ * Budget-specific summary for a month. Consolidates spending vs budget math
+ * across both spending and savings budgets. Used by Budgets screen and Analysis panes.
+ */
+export interface BudgetSummary {
+  month: string;
+  spendingBudget: number;
+  savingsBudget: number;
+  combinedBudget: number;
+  spentOnBudgeted: number;
+  commitmentsFullMonth: number;
+  pctOfSpendingBudget: number;
+  overUnder: number;
+}
+
 const SAVINGS_DEFAULTS: Category[] = [
   { id: 'savings-goal', name: 'Goal Savings', icon: 'PiggyBank', color: '#0EA5E9', type: 'savings' },
   { id: 'savings-emergency', name: 'Emergency Fund', icon: 'ShieldCheck', color: '#14B8A6', type: 'savings' },
@@ -110,6 +125,8 @@ interface FinanceContextType {
   getSpentForCategory: (categoryId: string, month: string) => number;
   /** Canonical per-month summary — use this from all screens. */
   getMonthSummary: (month?: string) => MonthSummary;
+  /** Budget-specific summary for a month. Selector for Budgets screen and Analysis panes. */
+  getBudgetSummary: (month?: string) => BudgetSummary;
   /** Re-reads all entities from localStorage. Used after a Drive restore. */
   reloadFromStorage: () => void;
   /** Monotonic timestamp bumped on every mutation; consumed by auto-backup. */
@@ -671,6 +688,45 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     };
   }, [getTransactionsForMonth]);
 
+  const getBudgetSummary = useCallback((month?: string): BudgetSummary => {
+    const m = month || selectedMonth;
+    const monthBudgets = budgets.filter(b => b.month === m);
+    const commitmentCatIds = new Set(categories.filter(c => c.type === 'commitment').map(c => c.id));
+    const savingsCatIds = new Set(categories.filter(c => c.type === 'savings').map(c => c.id));
+
+    let spendingBudget = 0;
+    let savingsBudget = 0;
+    for (const b of monthBudgets) {
+      if (savingsCatIds.has(b.categoryId)) savingsBudget += b.limit;
+      else spendingBudget += b.limit;
+    }
+    const combinedBudget = spendingBudget + savingsBudget;
+
+    const monthTxns = transactions.filter(t => t.date.startsWith(m));
+    const budgetedCatIds = new Set(monthBudgets.map(b => b.categoryId));
+    let spentOnBudgeted = 0;
+    let commitmentsFullMonth = 0;
+    for (const t of monthTxns) {
+      if (t.type !== 'expense') continue;
+      if (budgetedCatIds.has(t.categoryId)) spentOnBudgeted += t.amount;
+      if (commitmentCatIds.has(t.categoryId)) commitmentsFullMonth += t.amount;
+    }
+
+    const pctOfSpendingBudget = spendingBudget > 0 ? (spentOnBudgeted / spendingBudget) * 100 : 0;
+    const overUnder = spendingBudget - spentOnBudgeted;
+
+    return {
+      month: m,
+      spendingBudget,
+      savingsBudget,
+      combinedBudget,
+      spentOnBudgeted,
+      commitmentsFullMonth,
+      pctOfSpendingBudget,
+      overUnder,
+    };
+  }, [selectedMonth, budgets, categories, transactions]);
+
   return (
     <FinanceContext.Provider value={{
       transactions, categories, budgets,
@@ -684,7 +740,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       isSheetOpen, editingTransaction,
       openSheet, openEditSheet, closeSheet,
       getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getSpentForCategory,
-      getMonthSummary,
+      getMonthSummary, getBudgetSummary,
       reloadFromStorage, lastChangedAt,
     }}>
       {children}

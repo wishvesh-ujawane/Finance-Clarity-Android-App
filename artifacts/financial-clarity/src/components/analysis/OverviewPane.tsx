@@ -38,10 +38,10 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
     monthlyDayToDay,
     monthlyExpensesToDate,
     monthlyCommitmentsToDate,
-    monthlyDayToDayToDate,
     daysLeftInMonth,
     elapsedDays,
     allCategorySpending,
+    budgetSummary,
   } = shared;
 
   const [allCategoriesOpen, setAllCategoriesOpen] = useState(false);
@@ -53,10 +53,8 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
   const spentChange: MoMChange = getMonthOverMonthChange(monthlyExpenses, previousExpenses, momOpts);
   const savingsChange: MoMChange = getMonthOverMonthChange(monthlySavings, previousSavings, momOpts);
 
-  const remainingBudget = monthlyBudgetTotal - monthlyDayToDayToDate;
-  const spentPct = monthlyBudgetTotal > 0 ? (monthlyDayToDayToDate / monthlyBudgetTotal) * 100 : 0;
-  const budgetPill = getBudgetPill(spentPct);
-  const isBudgetExceeded = monthlyBudgetTotal > 0 && monthlyDayToDayToDate > monthlyBudgetTotal;
+  const budgetPill = getBudgetPill(budgetSummary.pctOfSpendingBudget);
+  const isBudgetExceeded = budgetSummary.overUnder < 0;
 
   const avgSpendPerDay = monthlyExpensesToDate / Math.max(1, elapsedDays);
   const top5Categories = allCategorySpending.slice(0, 5);
@@ -118,14 +116,14 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
     if (isBudgetExceeded) {
       items.push({
         id: 'budget-exceeded',
-        text: `You have exceeded your day-to-day budget by ${formatINR(monthlyDayToDayToDate - monthlyBudgetTotal)}.`,
+        text: `You have exceeded your day-to-day budget by ${formatINR(Math.abs(budgetSummary.overUnder))}.`,
         severity: 'danger',
         href: '/budgets',
       });
-    } else if (monthlyBudgetTotal > 0 && spentPct >= 80) {
+    } else if (budgetSummary.spendingBudget > 0 && budgetSummary.pctOfSpendingBudget >= 80) {
       items.push({
         id: 'budget-watch',
-        text: `You've used ${spentPct.toFixed(0)}% of your day-to-day budget — pace your remaining spend.`,
+        text: `You've used ${budgetSummary.pctOfSpendingBudget.toFixed(0)}% of your day-to-day budget — pace your remaining spend.`,
         severity: 'warning',
         href: '/budgets',
       });
@@ -169,9 +167,9 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
     return items;
   }, [
     isBudgetExceeded,
-    monthlyDayToDayToDate,
-    monthlyBudgetTotal,
-    spentPct,
+    budgetSummary.overUnder,
+    budgetSummary.spendingBudget,
+    budgetSummary.pctOfSpendingBudget,
     previousExpenses,
     spentChange,
     topCategory,
@@ -198,7 +196,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Budget exceeded</p>
                 <h2 className="text-base font-bold text-foreground mt-0.5" style={{ fontFamily: 'var(--font-display)' }}>
-                  Day-to-day spend is over by {formatINR(monthlyDayToDayToDate - monthlyBudgetTotal)}
+                  Day-to-day spend is over by {formatINR(Math.abs(budgetSummary.overUnder))}
                 </h2>
                 <p className="text-xs text-muted-foreground mt-1">
                   Review category budgets and trim where possible. <span className="text-red-600 dark:text-red-400 font-semibold inline-flex items-center gap-0.5">Manage <ArrowRight size={11} /></span>
@@ -216,13 +214,13 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               <h2 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Budget Health</h2>
             </div>
             <div className="flex items-center gap-2">
-              {monthlyBudgetTotal > 0 && (
+              {budgetSummary.spendingBudget > 0 && (
                 <span className={cn('text-[11px] font-semibold px-2 py-1 rounded-full', budgetPill.className)}>
                   {budgetPill.label}
                 </span>
               )}
-              <span className={cn('text-sm font-semibold', monthlyBudgetTotal > 0 ? 'text-foreground' : 'text-muted-foreground')}>
-                {monthlyBudgetTotal > 0 ? `${Math.min(spentPct, 999).toFixed(1)}% spent` : 'No budget configured'}
+              <span className={cn('text-sm font-semibold', budgetSummary.spendingBudget > 0 ? 'text-foreground' : 'text-muted-foreground')}>
+                {budgetSummary.spendingBudget > 0 ? `${Math.min(budgetSummary.pctOfSpendingBudget, 999).toFixed(1)}% spent` : 'No budget configured'}
               </span>
             </div>
           </div>
@@ -230,15 +228,15 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <div className="rounded-xl bg-muted/50 px-3 py-2">
               <p className="text-[11px] text-muted-foreground">Budget</p>
-              <p className="text-sm font-bold text-foreground">{formatINR(monthlyBudgetTotal)}</p>
+              <p className="text-sm font-bold text-foreground">{formatINR(budgetSummary.spendingBudget)}</p>
             </div>
             <div className="rounded-xl bg-muted/50 px-3 py-2">
-              <p className="text-[11px] text-muted-foreground">Expenses this month</p>
-              <p className={cn('text-sm font-bold', isBudgetExceeded ? 'text-red-500' : 'text-foreground')}>{formatINR(monthlyDayToDay)}</p>
+              <p className="text-[11px] text-muted-foreground">Spent on budgeted</p>
+              <p className={cn('text-sm font-bold', isBudgetExceeded ? 'text-red-500' : 'text-foreground')}>{formatINR(budgetSummary.spentOnBudgeted)}</p>
             </div>
             <div className="rounded-xl bg-muted/50 px-3 py-2">
               <p className="text-[11px] text-muted-foreground">Commitments</p>
-              <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{formatINR(monthlyCommitments)}</p>
+              <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{formatINR(budgetSummary.commitmentsFullMonth)}</p>
             </div>
             <div className="rounded-xl bg-muted/50 px-3 py-2">
               <p className="text-[11px] text-muted-foreground">Days Left</p>
@@ -248,15 +246,15 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
 
           <div className="h-2 rounded-full overflow-hidden bg-muted mb-3">
             <div
-              className={cn('h-full rounded-full', spentPct <= 80 ? 'bg-emerald-500' : spentPct <= 100 ? 'bg-amber-500' : 'bg-red-500')}
-              style={{ width: `${Math.min(Math.max(spentPct, 0), 100)}%` }}
+              className={cn('h-full rounded-full', budgetSummary.pctOfSpendingBudget <= 80 ? 'bg-emerald-500' : budgetSummary.pctOfSpendingBudget <= 100 ? 'bg-amber-500' : 'bg-red-500')}
+              style={{ width: `${Math.min(Math.max(budgetSummary.pctOfSpendingBudget, 0), 100)}%` }}
             />
           </div>
 
           <div className="flex items-center justify-between text-sm">
             <p className="text-muted-foreground">Remaining budget</p>
-            <p className={cn('font-bold', remainingBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
-              {formatINR(remainingBudget)}
+            <p className={cn('font-bold', budgetSummary.overUnder >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+              {formatINR(Math.abs(budgetSummary.overUnder))}
             </p>
           </div>
         </div>
@@ -301,7 +299,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
           </div>
 
           <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-commitments">
-            <p className="text-xs text-muted-foreground mb-1">Commitments</p>
+            <p className="text-xs text-muted-foreground mb-1">Commitments (paid so far)</p>
             <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(monthlyCommitmentsToDate)}</p>
             <p className="text-[11px] text-muted-foreground mt-1">Paid so far this month</p>
           </div>

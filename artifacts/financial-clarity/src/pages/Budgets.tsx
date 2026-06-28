@@ -19,7 +19,7 @@ export default function Budgets() {
   const {
     budgets, categories, transactions,
     addBudget, updateBudget, deleteBudget, transferBudgetsToMonth,
-    getSpentForCategory, getCarryForward, getTotalIncome, selectedMonth,
+    getSpentForCategory, getCarryForward, getTotalIncome, selectedMonth, getBudgetSummary,
   } = useFinance();
 
   const [showAddBudget, setShowAddBudget] = useState(false);
@@ -65,6 +65,8 @@ export default function Budgets() {
     [allBudgetsWithData]
   );
 
+  const budgetSummary = useMemo(() => getBudgetSummary(selectedMonth), [getBudgetSummary, selectedMonth]);
+
   const selectedCategory = useMemo(
     () => categories.find(c => c.id === selectedCategoryId),
     [categories, selectedCategoryId]
@@ -105,11 +107,6 @@ export default function Budgets() {
     setSelectedCategoryId(categoryId);
     setIsTxnSheetOpen(true);
   };
-
-  const totalBudget = budgetsWithData.reduce((s, b) => s + b.limit, 0);
-  const totalSpent = budgetsWithData.reduce((s, b) => s + b.spent, 0);
-  const totalSavingsBudget = savingsBudgetsWithData.reduce((s, b) => s + b.limit, 0);
-  const totalCombinedBudget = totalBudget + totalSavingsBudget;
 
   const surplusInfo = useMemo(() => {
     const carryForward = getCarryForward(selectedMonth);
@@ -207,22 +204,22 @@ export default function Budgets() {
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-card border border-border rounded-2xl p-4">
             <p className="text-xs text-muted-foreground mb-1">{formatMonthLabel(selectedMonth).split(' ')[0]} Month Budget</p>
-            <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(totalCombinedBudget)}</p>
-            {totalSavingsBudget > 0 ? (
+            <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(budgetSummary.spendingBudget)}</p>
+            {budgetSummary.savingsBudget > 0 ? (
               <p className="text-[11px] text-muted-foreground mt-1 font-medium" data-testid="savings-budget-sub">
-                {formatINR(totalBudget)} + {formatINR(totalSavingsBudget)} (savings)
+                + {formatINR(budgetSummary.savingsBudget)} savings
               </p>
             ) : (
-              <p className="text-[11px] text-muted-foreground mt-1 font-medium">{formatINR(totalBudget)}</p>
+              <p className="text-[11px] text-muted-foreground mt-1 font-medium">&nbsp;</p>
             )}
           </div>
           <div className="bg-card border border-border rounded-2xl p-4">
             <p className="text-xs text-muted-foreground mb-1">Spent on budgeted</p>
-            <p className={cn('text-xl font-bold', totalSpent > totalBudget ? 'text-red-500' : 'text-foreground')} style={{ fontFamily: 'var(--font-display)' }}>
-              {formatINR(totalSpent)}
+            <p className={cn('text-xl font-bold', budgetSummary.overUnder < 0 ? 'text-red-500' : 'text-foreground')} style={{ fontFamily: 'var(--font-display)' }}>
+              {formatINR(budgetSummary.spentOnBudgeted)}
             </p>
-            <p className={cn('text-xs mt-1 font-medium', totalSpent > totalBudget ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400')}>
-              {totalSpent > totalBudget ? `${formatINR(totalSpent - totalBudget)} over` : `${formatINR(totalBudget - totalSpent)} remaining`}
+            <p className={cn('text-xs mt-1 font-medium', budgetSummary.overUnder < 0 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400')}>
+              {budgetSummary.overUnder > 0 ? `${formatINR(budgetSummary.overUnder)} remaining` : budgetSummary.overUnder < 0 ? `${formatINR(Math.abs(budgetSummary.overUnder))} over` : 'On budget'}
             </p>
           </div>
         </div>
