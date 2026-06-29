@@ -88,6 +88,52 @@ Rules:
   the Oracle for it to record, use this block and the Oracle will turn
   it into the right KB entry.
 
+## Asking the user — clickable artifacts
+
+Every agent in this workspace presents its questions to the user as
+**clickable artifacts** via the `vscode_askQuestions` tool — approval
+gates, mid-plan clarifications, plan-revision feedback, dev-server
+start, per-feature checklist intake. The user clicks an option
+instead of typing a token.
+
+Conventions every agent honors:
+
+- **Free-text input alongside the buttons is allowed** (default UI
+  behavior) — no agent sets `allowFreeformInput: false`. The
+  free-text field is where the user pastes URLs, console errors,
+  value mismatches, branch names, and commit-message revisions.
+- **Typed approval tokens remain a documented fallback.** If the user
+  types `yes` / `approved` / `go` / `proceed` / `ship it` /
+  `commit approved` instead of clicking, the agent accepts it.
+- **`force-push approved` is *not* clickable by design.** It is the
+  one safety token that must always be typed, exactly as written,
+  to authorize any history-rewriting git operation
+  (`git push --force`, `git push --force-with-lease`,
+  `git reset --hard` on a pushed branch, `git rebase` of pushed
+  commits, `git branch -D` on an unmerged branch). No clickable
+  option may stand in for it.
+
+Canonical recurring option sets (each agent's own file repeats the
+ones it uses):
+
+| Gate | Options |
+|------|---------|
+| Plan approval | `Approved — proceed` / `Approved — implement`, `Revise the plan`, `Cancel` |
+| Commit gate (Orchestrator) | `Commit with this message`, `Edit the commit message`, `Skip commit` |
+| Push gate (Orchestrator) | `Push to origin/<branch>`, `Push to a different remote`, `Don't push yet` |
+| Dirty working tree (Orchestrator) | `Commit the dirty files first`, `Stash and continue`, `Discard changes (destructive)`, `Abort` |
+| Dev-server start (Auditor) | `Start the dev server in a background terminal`, `Already running — I'll paste the URL`, `Skip manual walkthrough` |
+| Per-feature checklist (Auditor) | `All good for <feature>`, `Found issues — pasting now`, `Skip this feature` |
+| Reproduction clarification (Auditor) | `Yes — it reproduces every time`, `Sometimes — race condition`, `Only once — couldn't reproduce` |
+| Per-command destructive op (Backend Engineer) | `Run <command>`, `Skip and pick a different approach`, `Abort the plan` |
+| New dependency (Finance App Builder) | `Approve <pkg>@<version>`, `Choose a different version`, `Drop the dependency` |
+| Handoff intake gap-fill (Oracle, user-invoked only) | one `Add: <field>` per missing field, plus `Proceed anyway (record what I have)` and `Reject the intake` |
+
+Each agent's own file (`app-orchestrator.agent.md`,
+`finance-app-builder.agent.md`, `backend-engineer.agent.md`,
+`app-auditor.agent.md`, `app-oracle.agent.md`) repeats the option
+sets it owns so the behavior stays deterministic across invocations.
+
 ## Trivial carve-out
 
 For these tasks, the Oracle consultation step may be skipped (every

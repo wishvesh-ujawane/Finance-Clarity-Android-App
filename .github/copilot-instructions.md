@@ -38,6 +38,15 @@ every specialist may invoke the **Oracle**. This keeps git shepherding and
 approval gates centralized; see
 [agents/README.md](./agents/README.md#who-calls-whom).
 
+**Clickable artifacts for every prompt:** Every agent presents its
+questions to the user as clickable options via the
+`vscode_askQuestions` tool — approval gates, mid-plan clarifications,
+plan-revision feedback, dev-server start, per-feature checklist
+intake. Typed approval tokens (`yes`, `approved`, `go`, `proceed`,
+`ship it`) remain a documented fallback; `force-push approved` is the
+one safety token that must always be typed. See
+[agents/README.md](./agents/README.md#asking-the-user--clickable-artifacts).
+
 ## Consult the App Oracle first
 
 This workspace has a dedicated knowledge-keeper subagent — the **App Oracle**
