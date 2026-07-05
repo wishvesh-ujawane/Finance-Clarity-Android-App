@@ -75,6 +75,9 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   }
 
   return (
+    // SAFETY: Config object is app-controlled (developer-defined in source code),
+    // never user input. Keys and colors are static or from theme definitions.
+    // No XSS risk as no user-supplied values enter this path.
     <style
       dangerouslySetInnerHTML={{
         __html: Object.entries(THEMES)

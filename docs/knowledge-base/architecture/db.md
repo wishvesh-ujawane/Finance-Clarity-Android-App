@@ -2,11 +2,12 @@
 id: architecture-db
 title: Drizzle ORM + Postgres (`@workspace/db`)
 date: 2026-06-28
-updated: 2026-06-28
-status: current
+updated: 2026-07-05
+status: placeholder
 scope: [db]
 related:
   - ./api-server.md
+  - ./financial-clarity.md
 source-of-truth-files:
   - lib/db/package.json
   - lib/db/tsconfig.json
@@ -17,7 +18,16 @@ source-of-truth-files:
 
 # Drizzle ORM + Postgres (`@workspace/db`)
 
-## Purpose
+## Status: Placeholder for future backend
+
+**This package is scaffolded but not yet implemented.** The Financial Clarity
+app is currently a **localStorage-only** app with Google Drive backup via
+Capacitor. There is no database or backend server in production.
+
+This package will hold the PostgreSQL data layer when a backend is added in
+the future.
+
+## Purpose (future)
 PostgreSQL data layer for the API server. Schema declared in TypeScript via
 Drizzle ORM; `drizzle-zod` produces matching Zod schemas where useful.
 

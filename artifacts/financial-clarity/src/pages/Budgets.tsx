@@ -14,6 +14,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { addMonths, formatDateLabel, formatINR, formatMonthLabel } from '@/lib/finance-utils';
+import { parseCurrencyInput } from '@/lib/currency-utils';
 
 export default function Budgets() {
   const {
@@ -78,8 +79,9 @@ export default function Budgets() {
   }, [transactions, selectedCategoryId, selectedMonth]);
 
   const handleAddBudget = () => {
-    if (!newCatId || !newLimit || parseFloat(newLimit) <= 0) return;
-    addBudget({ categoryId: newCatId, limit: parseFloat(newLimit), month: selectedMonth });
+    const limitValue = parseCurrencyInput(newLimit);
+    if (!newCatId || limitValue <= 0) return;
+    addBudget({ categoryId: newCatId, limit: limitValue, month: selectedMonth });
     setNewCatId('');
     setNewLimit('');
     setShowAddBudget(false);
@@ -95,8 +97,8 @@ export default function Budgets() {
   };
 
   const handleEditBudgetSave = (id: string) => {
-    const val = parseFloat(editLimit);
-    if (!val || val <= 0) return;
+    const val = parseCurrencyInput(editLimit);
+    if (val <= 0) return;
     updateBudget(id, val);
     setEditingBudgetId(null);
   };
@@ -292,7 +294,7 @@ export default function Budgets() {
           </motion.div>
           <div className="flex gap-2 pt-4 border-t border-border">
             <button onClick={() => setShowAddBudget(false)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
-            <button data-testid="budget-save" onClick={handleAddBudget} disabled={!newCatId || !newLimit || parseFloat(newLimit) <= 0} className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-50">Save Budget</button>
+            <button data-testid="budget-save" onClick={handleAddBudget} disabled={!newCatId || !newLimit || parseCurrencyInput(newLimit) <= 0} className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-50">Save Budget</button>
           </div>
         </SheetContent>
       </Sheet>
