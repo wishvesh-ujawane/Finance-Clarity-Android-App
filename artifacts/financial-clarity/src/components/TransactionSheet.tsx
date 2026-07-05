@@ -51,6 +51,7 @@ function evaluateAmountExpression(expression: string): number | null {
         numberText += source[index];
         index += 1;
       }
+      // Expression evaluator context: parseFloat is safe here as we validate isFinite
       const value = Number.parseFloat(numberText);
       if (!Number.isFinite(value)) return null;
       tokens.push(value);

@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import { ArrowLeft, PiggyBank, ShieldCheck, Target } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatINR } from '@/lib/finance-utils';
+import { parseCurrencyInput } from '@/lib/currency-utils';
 
 export default function SavingsGoals() {
   const [, setLocation] = useLocation();
@@ -17,12 +18,12 @@ export default function SavingsGoals() {
   const handleSaveGoal = () => {
     setSavingsGoal({
       goal: {
-        monthly: parseFloat(goalMonthlyInput) || 0,
-        annual: parseFloat(goalAnnualInput) || 0,
+        monthly: parseCurrencyInput(goalMonthlyInput),
+        annual: parseCurrencyInput(goalAnnualInput),
       },
       emergency: {
-        monthly: parseFloat(emergencyMonthlyInput) || 0,
-        annual: parseFloat(emergencyAnnualInput) || 0,
+        monthly: parseCurrencyInput(emergencyMonthlyInput),
+        annual: parseCurrencyInput(emergencyAnnualInput),
       },
     });
     setGoalSavedMessage('Savings goals saved.');

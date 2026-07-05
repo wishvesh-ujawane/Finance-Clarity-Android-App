@@ -2,8 +2,8 @@
 id: api-openapi
 title: OpenAPI source + Orval codegen pipeline
 date: 2026-06-28
-updated: 2026-06-28
-status: current
+updated: 2026-07-05
+status: placeholder
 scope: [api-spec, api-client-react, api-zod, api-server]
 related:
   - ../architecture/api-spec.md
@@ -17,7 +17,13 @@ source-of-truth-files:
 
 # OpenAPI source + Orval codegen pipeline
 
-## Contract source
+## Status: Placeholder for future backend
+
+**The OpenAPI spec currently contains only a single `/healthz` endpoint.** The
+Financial Clarity app is a **localStorage-only** app with no backend server
+dependency in production. This spec will be expanded when a backend is added.
+
+## Contract source (future)
 [lib/api-spec/openapi.yaml](../../../lib/api-spec/openapi.yaml) is the **only**
 hand-edited contract artefact. Everything client- and validation-shaped is
 derived from it.

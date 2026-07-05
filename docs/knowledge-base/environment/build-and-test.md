@@ -50,6 +50,17 @@ pnpm --filter @workspace/api-spec run codegen
 # push DB schema to dev Postgres (dev only)
 pnpm --filter @workspace/db run push
 
+# run tests for financial-clarity app
+pnpm --filter @workspace/financial-clarity run test
+
+# run tests in watch mode
+pnpm --filter @workspace/financial-clarity run test -- --watch
+
+# run tests with UI
+pnpm --filter @workspace/financial-clarity run test:ui
+```
+pnpm --filter @workspace/db run push
+
 # run API server locally
 pnpm --filter @workspace/api-server run dev
 ```

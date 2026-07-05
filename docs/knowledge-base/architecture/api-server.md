@@ -2,8 +2,8 @@
 id: architecture-api-server
 title: API server (`@workspace/api-server`)
 date: 2026-06-28
-updated: 2026-06-28
-status: current
+updated: 2026-07-05
+status: placeholder
 scope: [api-server]
 related:
   - ./workspace.md
@@ -22,7 +22,13 @@ source-of-truth-files:
 
 # API server (`@workspace/api-server`)
 
-## Purpose
+## Status: Placeholder for future backend
+
+**This package is scaffolded but not yet implemented.** The Financial Clarity
+app is currently a **localStorage-only** app with no backend server
+dependency. Only a single `/healthz` route exists for infrastructure testing.
+
+## Purpose (future)
 Express 5 HTTP server. Bundled to a single CJS file via esbuild for deployment.
 Backbone for any future server-backed features; currently exposes a health
 endpoint and the router scaffold.

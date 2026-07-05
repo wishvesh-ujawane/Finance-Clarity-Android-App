@@ -12,6 +12,7 @@ import { useFabAction } from '@/context/FabContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { currentMonth, formatINR } from '@/lib/finance-utils';
+import { parseCurrencyInput } from '@/lib/currency-utils';
 
 interface FormState {
   description: string;
@@ -57,9 +58,9 @@ export default function RecurringExpenses() {
   };
 
   const handleSave = () => {
-    const amount = parseFloat(form.amount);
+    const amount = parseCurrencyInput(form.amount);
     const day = parseInt(form.dayOfMonth, 10);
-    if (!form.description.trim() || !amount || amount <= 0 || !form.categoryId || !day || day < 1 || day > 31) return;
+    if (!form.description.trim() || amount <= 0 || !form.categoryId || !day || day < 1 || day > 31) return;
 
     const payload = {
       description: form.description.trim(),
@@ -226,7 +227,7 @@ export default function RecurringExpenses() {
                 <button
                   data-testid="recurring-save"
                   onClick={handleSave}
-                  disabled={!form.description.trim() || !form.amount || parseFloat(form.amount) <= 0 || !form.categoryId}
+                  disabled={!form.description.trim() || !form.amount || parseCurrencyInput(form.amount) <= 0 || !form.categoryId}
                   className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-50"
                 >
                   {editingId ? 'Update' : 'Save'}
