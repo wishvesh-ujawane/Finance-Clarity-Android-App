@@ -56,6 +56,10 @@ Android app. Local-only persistence (localStorage); no API server dependency.
   — PIN + biometric lock state.
 - [BackupContext.tsx](../../../artifacts/financial-clarity/src/context/BackupContext.tsx)
   — backup / restore orchestration including Drive banner state.
+- [MonthEndReviewContext.tsx](../../../artifacts/financial-clarity/src/context/MonthEndReviewContext.tsx)
+  — pending-month detection + Skip / Dismiss / Complete state for the
+  Month-End Review flow. See
+  [features/month-end-review.md](../features/month-end-review.md).
 
 ## Screen layout
 Screens live under [src/pages/](../../../artifacts/financial-clarity/src/pages/):
@@ -79,6 +83,7 @@ exists in [features/](../features/).
   — backup / Drive flows.
 - [components/analysis/](../../../artifacts/financial-clarity/src/components/analysis/),
   [components/onboarding/](../../../artifacts/financial-clarity/src/components/onboarding/),
+  [components/month-end/](../../../artifacts/financial-clarity/src/components/month-end/),
   [components/icons/](../../../artifacts/financial-clarity/src/components/icons/),
   [components/ui/](../../../artifacts/financial-clarity/src/components/ui/)
   — grouped feature components.

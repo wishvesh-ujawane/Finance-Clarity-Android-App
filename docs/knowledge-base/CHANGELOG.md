@@ -6,6 +6,10 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-07-05 — features/month-end-review.md — New feature entry for the two-step Month-End Review flow (analysis + guided budget setup + home-screen banner + confetti).
+2026-07-05 — decisions/0003-month-end-review-flow.md — ADR-0003 accepted: trigger rule, impulse heuristic, 3-month budget suggestion, no new confetti dependency.
+2026-07-05 — features/dashboard.md — Documented the new `MonthEndReviewBanner` above `ConnectDriveBanner`.
+2026-07-05 — architecture/financial-clarity.md — Added `MonthEndReviewContext` and `components/month-end/` group.
 2026-07-05 — environment/build-and-test.md — Added Vitest test commands for financial-clarity app.
 2026-07-05 — api/openapi.md — Marked OpenAPI spec as placeholder; only `/healthz` endpoint exists; app is localStorage-only.
 2026-07-05 — architecture/api-server.md — Marked API server as placeholder; only health route exists; app has no backend dependency.
