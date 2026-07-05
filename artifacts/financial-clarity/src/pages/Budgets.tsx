@@ -567,7 +567,10 @@ export default function Budgets() {
                     aria-label={`Edit transaction on ${formatDateLabel(t.date, { day: 'numeric', month: 'short', year: 'numeric' })}`}
                     onClick={() => {
                       setIsTxnSheetOpen(false);
-                      openEditSheet(t);
+                      // Delay to let the Radix Sheet finish closing before the
+                      // TransactionSheet opens — avoids focus / pointer-events
+                      // conflict on Android WebView.
+                      setTimeout(() => openEditSheet(t), 200);
                     }}
                     className="w-full flex items-center justify-between gap-3 px-5 py-3.5 text-left hover:bg-muted/40 active:bg-muted/60 transition-colors"
                   >

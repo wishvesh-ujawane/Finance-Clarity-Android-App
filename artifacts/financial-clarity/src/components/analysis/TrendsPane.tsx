@@ -418,7 +418,13 @@ export default function TrendsPane({ shared }: Props) {
                   <button
                     key={t.id}
                     type="button"
-                    onClick={() => { setSelectedCalendarDay(null); openEditSheet(t); }}
+                    onClick={() => {
+                      setSelectedCalendarDay(null);
+                      // Delay to let the Radix Sheet finish closing before the
+                      // TransactionSheet opens — avoids focus / pointer-events
+                      // conflict on Android WebView.
+                      setTimeout(() => openEditSheet(t), 200);
+                    }}
                     className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
                     data-testid={`day-txn-${t.id}`}
                   >

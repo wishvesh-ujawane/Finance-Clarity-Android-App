@@ -5,7 +5,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { formatINR, formatMonthYear, getMonthOverMonthChange, type MoMChange } from '@/lib/finance-utils';
+import { formatINR, formatMonthYear, getMonthOverMonthChange, formatDateLabel, type MoMChange } from '@/lib/finance-utils';
 import { getBudgetPill, getDateRangeExpenseTotal, addDays, startOfWeekMonday } from '@/lib/analysis-utils';
 import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
 import type { AnalysisShared } from './useAnalysisShared';
@@ -103,55 +103,43 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
       .slice(0, 5);
   }, [budgets, selectedMonth, categories, transactions]);
 
-  // Day-to-day expense categories (excludes commitments and savings) for the
-  // "Expenses this month" tile drill-down. Sum matches `monthlyDayToDay`.
-  const dayToDayCategorySpending = useMemo(() => {
-    const totals = new Map<string, number>();
-    for (const t of monthlyTransactions) {
-      if (t.type !== 'expense') continue;
-      if (commitmentCategoryIds.has(t.categoryId)) continue;
-      if (SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number])) continue;
-      totals.set(t.categoryId, (totals.get(t.categoryId) ?? 0) + t.amount);
-    }
-    const total = Array.from(totals.values()).reduce((sum, v) => sum + v, 0);
-    return Array.from(totals.entries())
-      .map(([categoryId, amount]) => {
-        const category = categories.find(c => c.id === categoryId);
+  // Day-to-day expense transactions (excludes commitments and savings) for the
+  // "Expenses this month" tile drill-down, sorted newest first.
+  const dayToDayTransactions = useMemo(() => {
+    return monthlyTransactions
+      .filter(t => {
+        if (t.type !== 'expense') return false;
+        if (commitmentCategoryIds.has(t.categoryId)) return false;
+        if (SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number])) return false;
+        return true;
+      })
+      .map(t => {
+        const category = categories.find(c => c.id === t.categoryId);
         return {
-          categoryId,
-          name: category?.name || 'Unknown',
-          icon: category?.icon || 'DollarSign',
-          color: category?.color || '#94A3B8',
-          amount,
-          pct: total > 0 ? (amount / total) * 100 : 0,
+          ...t,
+          categoryName: category?.name || 'Unknown',
+          categoryIcon: category?.icon || 'DollarSign',
+          categoryColor: category?.color || '#94A3B8',
         };
       })
-      .sort((a, b) => b.amount - a.amount);
+      .sort((a, b) => b.date.localeCompare(a.date));
   }, [monthlyTransactions, categories, commitmentCategoryIds]);
 
-  // Commitment categories only for the "Commitments" tile drill-down. Sum
-  // matches `monthlyCommitments`.
-  const commitmentCategorySpending = useMemo(() => {
-    const totals = new Map<string, number>();
-    for (const t of monthlyTransactions) {
-      if (t.type !== 'expense') continue;
-      if (!commitmentCategoryIds.has(t.categoryId)) continue;
-      totals.set(t.categoryId, (totals.get(t.categoryId) ?? 0) + t.amount);
-    }
-    const total = Array.from(totals.values()).reduce((sum, v) => sum + v, 0);
-    return Array.from(totals.entries())
-      .map(([categoryId, amount]) => {
-        const category = categories.find(c => c.id === categoryId);
+  // Commitment transactions only for the "Commitments" tile drill-down,
+  // sorted newest first.
+  const commitmentTransactions = useMemo(() => {
+    return monthlyTransactions
+      .filter(t => t.type === 'expense' && commitmentCategoryIds.has(t.categoryId))
+      .map(t => {
+        const category = categories.find(c => c.id === t.categoryId);
         return {
-          categoryId,
-          name: category?.name || 'Unknown',
-          icon: category?.icon || 'DollarSign',
-          color: category?.color || '#94A3B8',
-          amount,
-          pct: total > 0 ? (amount / total) * 100 : 0,
+          ...t,
+          categoryName: category?.name || 'Unknown',
+          categoryIcon: category?.icon || 'DollarSign',
+          categoryColor: category?.color || '#94A3B8',
         };
       })
-      .sort((a, b) => b.amount - a.amount);
+      .sort((a, b) => b.date.localeCompare(a.date));
   }, [monthlyTransactions, categories, commitmentCategoryIds]);
 
   const weeklyInsight = useMemo(() => {
@@ -609,27 +597,41 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               Expenses this month
             </SheetTitle>
             <SheetDescription>
-              Day-to-day categories for {formatMonthYear(selectedMonth)} • {formatINR(monthlyDayToDay)} total
+              Day-to-day transactions for {formatMonthYear(selectedMonth)} • {formatINR(monthlyDayToDay)} total
             </SheetDescription>
           </SheetHeader>
 
-          {dayToDayCategorySpending.length === 0 ? (
+          {dayToDayTransactions.length === 0 ? (
             <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">No day-to-day spending in this month</div>
           ) : (
             <div className="divide-y divide-border rounded-xl border border-border overflow-hidden" data-testid="expense-breakdown-list">
-              {dayToDayCategorySpending.map(item => (
-                <div key={item.categoryId} className="w-full flex items-center justify-between gap-3 px-4 py-3">
-                  <div className="min-w-0 flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${item.color}22` }}>
-                      <CategoryIcon icon={item.icon} color={item.color} size={14} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.pct.toFixed(1)}% of day-to-day spend</p>
+              {dayToDayTransactions.map(tx => (
+                <button
+                  key={tx.id}
+                  type="button"
+                  data-testid={`expense-txn-${tx.id}`}
+                  aria-label={`Edit transaction: ${tx.note || tx.categoryName} on ${formatDateLabel(tx.date)}`}
+                  onClick={() => {
+                    setExpenseBreakdownOpen(false);
+                    // Delay to let the Radix Sheet finish closing before the
+                    // TransactionSheet opens — avoids focus / pointer-events
+                    // conflict on Android WebView.
+                    setTimeout(() => openEditSheet(tx), 200);
+                  }}
+                  className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 active:bg-muted/60 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-muted-foreground mb-0.5">{formatDateLabel(tx.date)}</p>
+                    <p className="text-sm font-medium text-foreground mb-1">{tx.note || 'No description'}</p>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${tx.categoryColor}22` }}>
+                        <CategoryIcon icon={tx.categoryIcon} color={tx.categoryColor} size={10} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">{tx.categoryName}</p>
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-foreground flex-shrink-0">{formatINR(item.amount)}</span>
-                </div>
+                  <span className="text-sm font-bold text-foreground flex-shrink-0">{formatINR(tx.amount)}</span>
+                </button>
               ))}
             </div>
           )}
@@ -643,27 +645,41 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               Commitments
             </SheetTitle>
             <SheetDescription>
-              Commitment categories for {formatMonthYear(selectedMonth)} • {formatINR(monthlyCommitments)} total
+              Commitment transactions for {formatMonthYear(selectedMonth)} • {formatINR(monthlyCommitments)} total
             </SheetDescription>
           </SheetHeader>
 
-          {commitmentCategorySpending.length === 0 ? (
+          {commitmentTransactions.length === 0 ? (
             <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">No commitments recorded this month</div>
           ) : (
             <div className="divide-y divide-border rounded-xl border border-border overflow-hidden" data-testid="commitments-breakdown-list">
-              {commitmentCategorySpending.map(item => (
-                <div key={item.categoryId} className="w-full flex items-center justify-between gap-3 px-4 py-3">
-                  <div className="min-w-0 flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${item.color}22` }}>
-                      <CategoryIcon icon={item.icon} color={item.color} size={14} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.pct.toFixed(1)}% of commitments</p>
+              {commitmentTransactions.map(tx => (
+                <button
+                  key={tx.id}
+                  type="button"
+                  data-testid={`commitment-txn-${tx.id}`}
+                  aria-label={`Edit transaction: ${tx.note || tx.categoryName} on ${formatDateLabel(tx.date)}`}
+                  onClick={() => {
+                    setCommitmentsBreakdownOpen(false);
+                    // Delay to let the Radix Sheet finish closing before the
+                    // TransactionSheet opens — avoids focus / pointer-events
+                    // conflict on Android WebView.
+                    setTimeout(() => openEditSheet(tx), 200);
+                  }}
+                  className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 active:bg-muted/60 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-muted-foreground mb-0.5">{formatDateLabel(tx.date)}</p>
+                    <p className="text-sm font-medium text-foreground mb-1">{tx.note || 'No description'}</p>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${tx.categoryColor}22` }}>
+                        <CategoryIcon icon={tx.categoryIcon} color={tx.categoryColor} size={10} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">{tx.categoryName}</p>
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 flex-shrink-0">{formatINR(item.amount)}</span>
-                </div>
+                  <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 flex-shrink-0">{formatINR(tx.amount)}</span>
+                </button>
               ))}
             </div>
           )}

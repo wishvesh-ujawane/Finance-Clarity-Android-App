@@ -45,6 +45,13 @@ each of `+`, `-`, `x`, `/`, `=` while the amount input has focus — the
 keypad must remain visible for the operator keys, and `=` may commit the
 expression without dismissing.
 
+**Verification note (2026-07-05):** The fix is in place in the codebase. User
+reported the keypad still dismisses on Android in feature request
+[20260705-tx-drilldowns-and-keypad-verify]. Manual testing in a fresh build
+(`pnpm run build` + `npx cap sync` + Android emulator) is required to confirm
+the fix works in production WebView. If the issue persists after a clean
+rebuild, deeper Android WebView focus-lock investigation may be needed.
+
 ## Lessons
 Any tappable control rendered next to a focused text input on mobile should
 suppress focus transfer with `event.preventDefault()` on `pointerdown` /
