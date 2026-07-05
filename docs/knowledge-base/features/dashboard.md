@@ -49,6 +49,9 @@ Reads `transactions`, `categories`, `selectedMonth`, `getTotalIncome`,
   `finance-utils.ts`.
 - [categories.md](./categories.md) — donut and recent list rely on category
   colors and icons.
+- [month-end-review.md](./month-end-review.md) — Dashboard hosts the
+  `MonthEndReviewBanner` above `ConnectDriveBanner`. Banner is visible
+  whenever a review is pending and hidden once the user completes it.
 
 ## Related changes
 _None yet._
