@@ -329,6 +329,13 @@ export function TransactionSheet() {
                       key={key}
                       type="button"
                       data-testid={`calculator-${key === '=' ? 'equals' : key}`}
+                      // Prevent the button from stealing focus from the amount input on
+                      // pointer/mouse/touch down. This keeps the on-screen keypad open
+                      // on Android WebView / mobile browsers while the user chains
+                      // operators like 250+75.
+                      onPointerDown={e => e.preventDefault()}
+                      onMouseDown={e => e.preventDefault()}
+                      onTouchStart={e => e.preventDefault()}
                       onClick={() => handleCalculatorKey(key)}
                       className={cn(
                         'h-10 rounded-xl text-sm font-bold transition-colors',

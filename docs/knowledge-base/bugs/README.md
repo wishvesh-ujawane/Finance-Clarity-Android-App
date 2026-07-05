@@ -9,4 +9,4 @@ File naming: `YYYYMMDD-<short-slug>.md` (date the bug was observed).
 
 ## Index
 
-_No bugs logged yet. Entries will appear here as they are filed._
+- [2026-07-05 — Calculator operator keys dismissed keypad in Add/Edit Transaction](./20260705-tx-keypad-dismissal.md) — fixed
