@@ -413,16 +413,37 @@ cd artifacts/financial-clarity/android
 echo "sdk.dir=C:\\Android" > local.properties
 ```
 
-### Error: "adb not found"
+### Error: "adb is not recognized as the name of a cmdlet" / "adb not found"
 
-**Fix:** Add platform-tools to PATH:
+**Cause:** Android platform-tools not installed or not in PATH.
+
+**Fix Option 1 - Install platform-tools standalone:**
 ```powershell
+# Download platform-tools directly (no Android SDK needed)
+Invoke-WebRequest -Uri "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile "$env:TEMP\platform-tools.zip"
+Expand-Archive -Path "$env:TEMP\platform-tools.zip" -DestinationPath "C:\Android" -Force
+
+# Add to PATH (permanent)
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";C:\Android\platform-tools", [EnvironmentVariableTarget]::User)
+
+# Restart PowerShell, then verify:
+adb version
+```
+
+**Fix Option 2 - Use Android SDK Manager (if you have Android SDK):**
+```powershell
+sdkmanager "platform-tools"
 $env:PATH += ";C:\Android\platform-tools"
 ```
 
-Or install:
+**Fix Option 3 - Find existing ADB installation:**
 ```powershell
-sdkmanager "platform-tools"
+# Search for adb.exe on your system
+Get-ChildItem -Path C:\ -Filter adb.exe -Recurse -ErrorAction SilentlyContinue | Select-Object FullName
+
+# Add that directory to PATH:
+# Example: if adb.exe is at C:\Users\YourName\AppData\Local\Android\Sdk\platform-tools\adb.exe
+$env:PATH += ";C:\Users\$env:USERNAME\AppData\Local\Android\Sdk\platform-tools"
 ```
 
 ### Error: "Execution failed for task ':app:mergeDebugResources'"
