@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-07-05 — requirements/20260705-feature-backlog.md — Feature brainstorm backlog captured (30+ ideas across capture, insights, planning, income, safety, delight, big-bets); includes Trends per-month category-wise spend.
 2026-07-05 — environment/build-and-test.md — Added Vitest test commands for financial-clarity app.
 2026-07-05 — api/openapi.md — Marked OpenAPI spec as placeholder; only `/healthz` endpoint exists; app is localStorage-only.
 2026-07-05 — architecture/api-server.md — Marked API server as placeholder; only health route exists; app has no backend dependency.
