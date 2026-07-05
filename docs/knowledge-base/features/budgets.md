@@ -2,7 +2,7 @@
 id: feature-budgets
 title: Budgets screen
 date: 2026-06-28
-updated: 2026-06-28
+updated: 2026-07-05
 status: current
 scope: [financial-clarity]
 related:
@@ -10,6 +10,7 @@ related:
   - ./fab.md
   - ./savings-goals.md
   - ./categories.md
+  - ./transactions.md
 source-of-truth-files:
   - artifacts/financial-clarity/src/pages/Budgets.tsx
   - artifacts/financial-clarity/src/context/FinanceContext.tsx
@@ -55,7 +56,11 @@ Reads / writes via [FinanceContext](../../../artifacts/financial-clarity/src/con
   category select + limit input + Cancel/Save.
 - **Edit-in-place** — pencil → inline `₹` input → checkmark/X/delete.
 - **Category transactions sheet** — `openCategoryTransactions(categoryId)`
-  opens a sheet listing the transactions that count toward that budget.
+  opens a bottom sheet listing the transactions that count toward that budget
+  for `selectedMonth`. **Since 2026-07-05:** each transaction row is a
+  `<button>` (`data-testid="budget-category-txn-{id}"`) that closes the
+  category sheet and calls `openEditSheet(t)` on `FinanceContext`, opening
+  the standard Edit Transaction sheet pre-filled with the tapped row.
 
 ## Edge cases & empty states
 - Empty state: plus-icon tile + "No budgets set".
