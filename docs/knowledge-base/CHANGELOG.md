@@ -6,7 +6,7 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
-2026-07-05 — features/analysis.md + bugs/20260705-tx-keypad-dismissal.md — Analysis Overview tiles now drill down to individual transactions (date, note, category, amount) sorted newest first; each row opens the edit modal on tap (with 200ms delay to avoid Radix Sheet focus/pointer-events race). Same delay applied to Budgets and Trends calendar drill-downs. Keypad bug verification note added.
+2026-07-05 — features/month-end-review.md — Added spending-breakdown donut chart to step 1 and live "Budget allocated" tracker (income-ratio bar + delta chip) to step 2. No new dependencies.
 2026-07-05 — features/month-end-review.md — New feature entry for the two-step Month-End Review flow (analysis + guided budget setup + home-screen banner + confetti).
 2026-07-05 — decisions/0003-month-end-review-flow.md — ADR-0003 accepted: trigger rule, impulse heuristic, 3-month budget suggestion, no new confetti dependency.
 2026-07-05 — features/dashboard.md — Documented the new `MonthEndReviewBanner` above `ConnectDriveBanner`.

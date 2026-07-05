@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { AlertCircle, ArrowDownRight, ArrowUpRight, PiggyBank, ShieldCheck, Sparkles } from 'lucide-react';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { formatINR, formatMonthYear, formatDateLabel } from '@/lib/finance-utils';
@@ -74,6 +75,19 @@ export function MonthEndAnalysisCard({ month }: Props) {
           <SummaryLine label="Spent" value={snap.expenses} accent="text-red-500" />
         </div>
       </div>
+
+      {/* Spending breakdown pie chart */}
+      {snap.topCategories.length > 0 && (
+        <section aria-labelledby="breakdown-heading">
+          <h3
+            id="breakdown-heading"
+            className="mb-2 text-sm font-semibold text-foreground"
+          >
+            Spending breakdown
+          </h3>
+          <SpendingPie snapExpenses={snap.expenses} topCategories={snap.topCategories} />
+        </section>
+      )}
 
       {/* Top categories */}
       <section aria-labelledby="top-cats-heading">
@@ -290,6 +304,96 @@ function EmptyRow({ message }: { message: string }) {
   return (
     <div className="rounded-xl border border-dashed border-border bg-card/50 p-4 text-center text-xs text-muted-foreground">
       {message}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+
+interface SpendingPieProps {
+  snapExpenses: number;
+  topCategories: {
+    categoryId: string;
+    categoryName: string;
+    categoryColor: string;
+    amount: number;
+  }[];
+}
+
+function SpendingPie({ snapExpenses, topCategories }: SpendingPieProps) {
+  const topSum = topCategories.reduce((s, r) => s + r.amount, 0);
+  const otherAmount = Math.max(0, snapExpenses - topSum);
+  const pieData = otherAmount > 0
+    ? [
+        ...topCategories.map(r => ({
+          name: r.categoryName,
+          value: r.amount,
+          color: r.categoryColor,
+        })),
+        { name: 'Other', value: otherAmount, color: '#94A3B8' },
+      ]
+    : topCategories.map(r => ({
+        name: r.categoryName,
+        value: r.amount,
+        color: r.categoryColor,
+      }));
+
+  return (
+    <div
+      className="relative rounded-2xl border border-border bg-card p-3"
+      data-testid="month-end-spending-pie"
+    >
+      <div className="relative mx-auto h-[180px] w-full max-w-[260px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={pieData}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              innerRadius={54}
+              outerRadius={82}
+              paddingAngle={2}
+              stroke="none"
+              isAnimationActive={false}
+            >
+              {pieData.map((entry, i) => (
+                <Cell key={i} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(v: number) => formatINR(v)}
+              contentStyle={{
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--card)',
+                fontSize: 12,
+              }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        {/* Center label */}
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Total spent
+          </p>
+          <p className="text-base font-bold text-foreground">{formatINR(snapExpenses)}</p>
+        </div>
+      </div>
+      {/* Compact legend */}
+      <ul className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1" data-testid="month-end-spending-pie-legend">
+        {pieData.map(entry => (
+          <li key={entry.name} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span
+              className="h-2.5 w-2.5 rounded-sm"
+              style={{ backgroundColor: entry.color }}
+              aria-hidden="true"
+            />
+            <span className="truncate">{entry.name}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Check, SkipForward, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, SkipForward, Sparkles, TrendingUp } from 'lucide-react';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,7 +32,7 @@ const CATEGORY_TYPE_ORDER: Record<Category['type'], number> = {
 };
 
 export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
-  const { transactions, categories, budgets, addBudget } = useFinance();
+  const { transactions, categories, budgets, addBudget, getTotalIncome } = useFinance();
   const nextMonth = useMemo(() => addMonths(reviewMonth, 1), [reviewMonth]);
 
   const steps = useMemo<Step[]>(() => {
@@ -68,6 +68,29 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
     }
     return initial;
   });
+
+  // Live-updating total of all next-month budgets. Reacts to addBudget writes.
+  const budgetedTotal = useMemo(
+    () => budgets
+      .filter(b => b.month === nextMonth)
+      .reduce((sum, b) => sum + b.limit, 0),
+    [budgets, nextMonth]
+  );
+
+  // Reference denominator for the progress bar — last month's income.
+  const referenceIncome = useMemo(() => getTotalIncome(reviewMonth), [getTotalIncome, reviewMonth]);
+
+  // Detect "just saved" deltas so we can flash a +₹X chip and pulse the bar.
+  const prevTotalRef = useRef(budgetedTotal);
+  const [delta, setDelta] = useState<number>(0);
+  useEffect(() => {
+    const diff = budgetedTotal - prevTotalRef.current;
+    prevTotalRef.current = budgetedTotal;
+    if (diff <= 0) return;
+    setDelta(diff);
+    const t = window.setTimeout(() => setDelta(0), 1400);
+    return () => window.clearTimeout(t);
+  }, [budgetedTotal]);
 
   if (total === 0) {
     return (
@@ -120,6 +143,14 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
         <p className="mt-1 text-xs text-muted-foreground">
           One category at a time. We suggest based on your last 3 months.
         </p>
+
+        {/* Live budget total tracker */}
+        <BudgetTotalTracker
+          budgetedTotal={budgetedTotal}
+          referenceIncome={referenceIncome}
+          delta={delta}
+        />
+
         <div className="mt-3 flex items-center gap-2">
           <div className="flex-1">
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -275,4 +306,96 @@ function labelForType(t: Category['type']): string {
   if (t === 'savings') return 'Savings';
   if (t === 'both') return 'Expense · Commitment';
   return 'Expense';
+}
+
+// ─────────────────────────────────────────────────────────────
+
+interface BudgetTotalTrackerProps {
+  budgetedTotal: number;
+  /** Last month's income — used as the denominator for the ratio bar. */
+  referenceIncome: number;
+  /** Positive number briefly after a save; drives the +₹X flash chip. */
+  delta: number;
+}
+
+function BudgetTotalTracker({ budgetedTotal, referenceIncome, delta }: BudgetTotalTrackerProps) {
+  const hasReference = referenceIncome > 0;
+  const ratioPct = hasReference ? (budgetedTotal / referenceIncome) * 100 : 0;
+  const clampedPct = Math.min(100, ratioPct);
+  const barColor =
+    ratioPct > 100 ? 'bg-red-500'
+    : ratioPct >= 90 ? 'bg-amber-500'
+    : 'bg-emerald-500';
+
+  return (
+    <div
+      className="mt-3 rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/5 to-accent/5 p-3"
+      data-testid="budget-total-tracker"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <TrendingUp className="h-3 w-3 text-primary" />
+            Budget allocated
+          </p>
+          <div className="mt-0.5 flex items-baseline gap-2">
+            <motion.p
+              key={budgetedTotal}
+              initial={{ scale: 0.94, opacity: 0.6 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 24 }}
+              className="text-xl font-bold text-foreground tabular-nums"
+              data-testid="budget-total-value"
+            >
+              {formatINR(budgetedTotal)}
+            </motion.p>
+            <AnimatePresence>
+              {delta > 0 && (
+                <motion.span
+                  key={`delta-${delta}-${budgetedTotal}`}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.35 }}
+                  className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400"
+                  data-testid="budget-total-delta"
+                >
+                  +{formatINR(delta)}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+        {hasReference && (
+          <div className="shrink-0 text-right">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">of income</p>
+            <p className="text-xs font-semibold text-foreground tabular-nums">
+              {formatINR(referenceIncome)}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {hasReference ? (
+        <>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
+            <motion.div
+              className={cn('h-full rounded-full', barColor)}
+              animate={{ width: `${clampedPct}%` }}
+              transition={{ type: 'spring', stiffness: 200, damping: 28 }}
+            />
+          </div>
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            {ratioPct > 100
+              ? `Over income by ${formatINR(budgetedTotal - referenceIncome)}`
+              : `${ratioPct.toFixed(0)}% of last month's income`}
+          </p>
+        </>
+      ) : (
+        <p className="mt-2 text-[10px] text-muted-foreground">
+          No income recorded last month — tracking absolute amount only.
+        </p>
+      )}
+    </div>
+  );
 }
