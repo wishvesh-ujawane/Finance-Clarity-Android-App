@@ -6,6 +6,9 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-07-05 — bugs/20260705-tx-keypad-dismissal.md — Fixed: calculator operator keys in Add/Edit Transaction no longer dismiss the on-screen keypad on Android WebView.
+2026-07-05 — features/budgets.md — Category-transactions sheet rows are now tappable and open the Edit Transaction sheet via `openEditSheet`.
+2026-07-05 — features/analysis.md — Overview Budget Health tiles are now interactive: Budget → `/budgets`, Expenses this month and Commitments open dedicated per-category breakdown sheets; the Zone 2 Commitments KPI card also opens the commitments sheet.
 2026-07-05 — environment/build-and-test.md — Added Vitest test commands for financial-clarity app.
 2026-07-05 — api/openapi.md — Marked OpenAPI spec as placeholder; only `/healthz` endpoint exists; app is localStorage-only.
 2026-07-05 — architecture/api-server.md — Marked API server as placeholder; only health route exists; app has no backend dependency.

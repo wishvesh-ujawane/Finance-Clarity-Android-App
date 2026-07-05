@@ -1,12 +1,13 @@
 import { forwardRef, useMemo, useState } from 'react';
 import { Link } from 'wouter';
-import { AlertCircle, ArrowDownRight, ArrowRight, ArrowUpRight, Sparkles } from 'lucide-react';
+import { AlertCircle, ArrowDownRight, ArrowRight, ArrowUpRight, ChevronRight, Sparkles } from 'lucide-react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { formatINR, formatMonthYear, getMonthOverMonthChange, type MoMChange } from '@/lib/finance-utils';
 import { getBudgetPill, getDateRangeExpenseTotal, addDays, startOfWeekMonday } from '@/lib/analysis-utils';
+import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
 import type { AnalysisShared } from './useAnalysisShared';
 
 interface Props {
@@ -43,8 +44,11 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
     elapsedDays,
     allCategorySpending,
   } = shared;
+  const { commitmentCategoryIds } = shared;
 
   const [allCategoriesOpen, setAllCategoriesOpen] = useState(false);
+  const [expenseBreakdownOpen, setExpenseBreakdownOpen] = useState(false);
+  const [commitmentsBreakdownOpen, setCommitmentsBreakdownOpen] = useState(false);
   const [selectedPieSlice, setSelectedPieSlice] = useState<string | null>(null);
 
   const monthlySavings = currentSummary.totalSavings;
@@ -98,6 +102,57 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
       .sort((a, b) => b.spent - a.spent)
       .slice(0, 5);
   }, [budgets, selectedMonth, categories, transactions]);
+
+  // Day-to-day expense categories (excludes commitments and savings) for the
+  // "Expenses this month" tile drill-down. Sum matches `monthlyDayToDay`.
+  const dayToDayCategorySpending = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const t of monthlyTransactions) {
+      if (t.type !== 'expense') continue;
+      if (commitmentCategoryIds.has(t.categoryId)) continue;
+      if (SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number])) continue;
+      totals.set(t.categoryId, (totals.get(t.categoryId) ?? 0) + t.amount);
+    }
+    const total = Array.from(totals.values()).reduce((sum, v) => sum + v, 0);
+    return Array.from(totals.entries())
+      .map(([categoryId, amount]) => {
+        const category = categories.find(c => c.id === categoryId);
+        return {
+          categoryId,
+          name: category?.name || 'Unknown',
+          icon: category?.icon || 'DollarSign',
+          color: category?.color || '#94A3B8',
+          amount,
+          pct: total > 0 ? (amount / total) * 100 : 0,
+        };
+      })
+      .sort((a, b) => b.amount - a.amount);
+  }, [monthlyTransactions, categories, commitmentCategoryIds]);
+
+  // Commitment categories only for the "Commitments" tile drill-down. Sum
+  // matches `monthlyCommitments`.
+  const commitmentCategorySpending = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const t of monthlyTransactions) {
+      if (t.type !== 'expense') continue;
+      if (!commitmentCategoryIds.has(t.categoryId)) continue;
+      totals.set(t.categoryId, (totals.get(t.categoryId) ?? 0) + t.amount);
+    }
+    const total = Array.from(totals.values()).reduce((sum, v) => sum + v, 0);
+    return Array.from(totals.entries())
+      .map(([categoryId, amount]) => {
+        const category = categories.find(c => c.id === categoryId);
+        return {
+          categoryId,
+          name: category?.name || 'Unknown',
+          icon: category?.icon || 'DollarSign',
+          color: category?.color || '#94A3B8',
+          amount,
+          pct: total > 0 ? (amount / total) * 100 : 0,
+        };
+      })
+      .sort((a, b) => b.amount - a.amount);
+  }, [monthlyTransactions, categories, commitmentCategoryIds]);
 
   const weeklyInsight = useMemo(() => {
     const thisWeekStart = startOfWeekMonday(today);
@@ -228,18 +283,44 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <div className="rounded-xl bg-muted/50 px-3 py-2">
-              <p className="text-[11px] text-muted-foreground">Budget</p>
-              <p className="text-sm font-bold text-foreground">{formatINR(monthlyBudgetTotal)}</p>
-            </div>
-            <div className="rounded-xl bg-muted/50 px-3 py-2">
-              <p className="text-[11px] text-muted-foreground">Expenses this month</p>
-              <p className={cn('text-sm font-bold', isBudgetExceeded ? 'text-red-500' : 'text-foreground')}>{formatINR(monthlyDayToDay)}</p>
-            </div>
-            <div className="rounded-xl bg-muted/50 px-3 py-2">
-              <p className="text-[11px] text-muted-foreground">Commitments</p>
-              <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{formatINR(monthlyCommitments)}</p>
-            </div>
+            <Link
+              href="/budgets"
+              data-testid="tile-budget"
+              aria-label="Open Budgets screen"
+              className="rounded-xl bg-muted/50 px-3 py-2 text-left hover:bg-muted/70 active:bg-muted transition-colors flex items-start justify-between gap-1"
+            >
+              <div className="min-w-0">
+                <p className="text-[11px] text-muted-foreground">Budget</p>
+                <p className="text-sm font-bold text-foreground">{formatINR(monthlyBudgetTotal)}</p>
+              </div>
+              <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
+            </Link>
+            <button
+              type="button"
+              data-testid="tile-expenses-this-month"
+              aria-label="View day-to-day expense breakdown"
+              onClick={() => setExpenseBreakdownOpen(true)}
+              className="rounded-xl bg-muted/50 px-3 py-2 text-left hover:bg-muted/70 active:bg-muted transition-colors flex items-start justify-between gap-1"
+            >
+              <div className="min-w-0">
+                <p className="text-[11px] text-muted-foreground">Expenses this month</p>
+                <p className={cn('text-sm font-bold', isBudgetExceeded ? 'text-red-500' : 'text-foreground')}>{formatINR(monthlyDayToDay)}</p>
+              </div>
+              <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
+            </button>
+            <button
+              type="button"
+              data-testid="tile-commitments"
+              aria-label="View commitment breakdown"
+              onClick={() => setCommitmentsBreakdownOpen(true)}
+              className="rounded-xl bg-muted/50 px-3 py-2 text-left hover:bg-muted/70 active:bg-muted transition-colors flex items-start justify-between gap-1"
+            >
+              <div className="min-w-0">
+                <p className="text-[11px] text-muted-foreground">Commitments</p>
+                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{formatINR(monthlyCommitments)}</p>
+              </div>
+              <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
+            </button>
             <div className="rounded-xl bg-muted/50 px-3 py-2">
               <p className="text-[11px] text-muted-foreground">Days Left</p>
               <p className="text-sm font-bold text-foreground">{daysLeftInMonth} day{daysLeftInMonth === 1 ? '' : 's'}</p>
@@ -300,11 +381,17 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             <p className="text-[11px] text-muted-foreground mt-1">Over {elapsedDays} day{elapsedDays === 1 ? '' : 's'}</p>
           </div>
 
-          <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-commitments">
+          <button
+            type="button"
+            data-testid="kpi-commitments"
+            aria-label="View commitment breakdown"
+            onClick={() => setCommitmentsBreakdownOpen(true)}
+            className="bg-card border border-border rounded-2xl p-4 text-left hover:bg-muted/40 transition-colors"
+          >
             <p className="text-xs text-muted-foreground mb-1">Commitments</p>
             <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(monthlyCommitmentsToDate)}</p>
             <p className="text-[11px] text-muted-foreground mt-1">Paid so far this month</p>
-          </div>
+          </button>
         </div>
 
         {/* Zone 3 — Where did the money go? */}
@@ -508,6 +595,74 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                     </div>
                   </div>
                   <span className="text-sm font-bold text-foreground flex-shrink-0">{formatINR(item.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={expenseBreakdownOpen} onOpenChange={setExpenseBreakdownOpen}>
+        <SheetContent side="bottom" className="max-h-[82vh] overflow-y-auto rounded-t-2xl p-5">
+          <SheetHeader className="text-left mb-4 pr-8">
+            <SheetTitle className="text-base" style={{ fontFamily: 'var(--font-display)' }}>
+              Expenses this month
+            </SheetTitle>
+            <SheetDescription>
+              Day-to-day categories for {formatMonthYear(selectedMonth)} • {formatINR(monthlyDayToDay)} total
+            </SheetDescription>
+          </SheetHeader>
+
+          {dayToDayCategorySpending.length === 0 ? (
+            <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">No day-to-day spending in this month</div>
+          ) : (
+            <div className="divide-y divide-border rounded-xl border border-border overflow-hidden" data-testid="expense-breakdown-list">
+              {dayToDayCategorySpending.map(item => (
+                <div key={item.categoryId} className="w-full flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0 flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${item.color}22` }}>
+                      <CategoryIcon icon={item.icon} color={item.color} size={14} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.pct.toFixed(1)}% of day-to-day spend</p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-foreground flex-shrink-0">{formatINR(item.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={commitmentsBreakdownOpen} onOpenChange={setCommitmentsBreakdownOpen}>
+        <SheetContent side="bottom" className="max-h-[82vh] overflow-y-auto rounded-t-2xl p-5">
+          <SheetHeader className="text-left mb-4 pr-8">
+            <SheetTitle className="text-base" style={{ fontFamily: 'var(--font-display)' }}>
+              Commitments
+            </SheetTitle>
+            <SheetDescription>
+              Commitment categories for {formatMonthYear(selectedMonth)} • {formatINR(monthlyCommitments)} total
+            </SheetDescription>
+          </SheetHeader>
+
+          {commitmentCategorySpending.length === 0 ? (
+            <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">No commitments recorded this month</div>
+          ) : (
+            <div className="divide-y divide-border rounded-xl border border-border overflow-hidden" data-testid="commitments-breakdown-list">
+              {commitmentCategorySpending.map(item => (
+                <div key={item.categoryId} className="w-full flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0 flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${item.color}22` }}>
+                      <CategoryIcon icon={item.icon} color={item.color} size={14} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.pct.toFixed(1)}% of commitments</p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 flex-shrink-0">{formatINR(item.amount)}</span>
                 </div>
               ))}
             </div>
