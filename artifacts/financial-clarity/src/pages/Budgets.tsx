@@ -21,6 +21,7 @@ export default function Budgets() {
     budgets, categories, transactions,
     addBudget, updateBudget, deleteBudget, transferBudgetsToMonth,
     getSpentForCategory, getCarryForward, getTotalIncome, selectedMonth,
+    openEditSheet,
   } = useFinance();
 
   const [showAddBudget, setShowAddBudget] = useState(false);
@@ -559,7 +560,17 @@ export default function Budgets() {
             ) : (
               <div className="divide-y divide-border">
                 {categoryTransactions.map(t => (
-                  <div key={t.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
+                  <button
+                    key={t.id}
+                    type="button"
+                    data-testid={`budget-category-txn-${t.id}`}
+                    aria-label={`Edit transaction on ${formatDateLabel(t.date, { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                    onClick={() => {
+                      setIsTxnSheetOpen(false);
+                      openEditSheet(t);
+                    }}
+                    className="w-full flex items-center justify-between gap-3 px-5 py-3.5 text-left hover:bg-muted/40 active:bg-muted/60 transition-colors"
+                  >
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground">{formatDateLabel(t.date, { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                       {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
@@ -567,7 +578,7 @@ export default function Budgets() {
                     <p className={cn('text-sm font-bold whitespace-nowrap', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
                       {t.type === 'income' ? '+' : '-'}{formatINR(t.amount)}
                     </p>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
