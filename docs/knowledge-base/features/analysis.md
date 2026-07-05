@@ -66,15 +66,29 @@ are interactive:
 | Tile | Behavior |
 |------|----------|
 | **Budget** | `<Link href="/budgets">` — navigates to the Budgets screen. `data-testid="tile-budget"`. |
-| **Expenses this month** | Opens the **Expenses this month** bottom sheet listing day-to-day expense categories (excludes commitments and savings) for `selectedMonth`, sorted by spent DESC. Sum matches `monthlyDayToDay`. `data-testid="tile-expenses-this-month"`, list `data-testid="expense-breakdown-list"`. |
-| **Commitments** | Opens the **Commitments** bottom sheet listing commitment-type categories only for `selectedMonth`, sorted by spent DESC. Sum matches `monthlyCommitments`. `data-testid="tile-commitments"`, list `data-testid="commitments-breakdown-list"`. |
+| **Expenses this month** | Opens the **Expenses this month** bottom sheet listing **individual day-to-day expense transactions** (excludes commitments and savings) for `selectedMonth`, sorted by date DESC (newest first). Each row shows: date (`formatDateLabel`), note, category icon+name, and amount. Sum matches `monthlyDayToDay`. `data-testid="tile-expenses-this-month"`, list `data-testid="expense-breakdown-list"`. |
+| **Commitments** | Opens the **Commitments** bottom sheet listing **individual commitment transactions** for `selectedMonth`, sorted by date DESC (newest first). Each row shows: date (`formatDateLabel`), note, category icon+name, and amount (indigo color). Sum matches `monthlyCommitments`. `data-testid="tile-commitments"`, list `data-testid="commitments-breakdown-list"`. |
 | **Days Left** | Passive display. |
 
 The **Commitments** KPI card in Zone 2 (`data-testid="kpi-commitments"`) is
 also a button that opens the same commitments breakdown sheet — the two
 Commitments surfaces in the Overview pane behave consistently.
 
-Both new sheets reuse the visual shape of the existing "Category Spend
-Breakdown" sheet (`allCategoriesOpen`): bottom sheet, `max-h-[82vh]`,
-`CategoryIcon` + name + `pct` on the left, `formatINR(amount)` on the right.
-No new tokens, no new spring constants.
+Both sheets display **transaction lists where each row is clickable** — tapping
+a row closes the drill-down sheet and opens the global `TransactionSheet` in
+edit mode via `openEditSheet(t)` from `FinanceContext`. A 200ms delay is
+inserted between closing the Radix Sheet and opening the edit sheet to avoid
+focus / pointer-events conflict on Android WebView (see also `Budgets.tsx`
+and `TrendsPane.tsx` which use the same pattern).
+
+Transaction rows use:
+- Date: `text-xs`, `muted-foreground`, `formatDateLabel`.
+- Note: `text-sm`, `font-medium`, `foreground`; falls back to "No description".
+- Category: small icon (10px) in colored rounded square + category name
+  (`text-xs`, `muted-foreground`).
+- Amount: `text-sm`, `font-bold`, `foreground` for expenses, `indigo-600` for
+  commitments.
+- `data-testid`: `expense-txn-{id}` / `commitment-txn-{id}` per row.
+
+Both sheets reuse the existing Sheet UI: bottom sheet, `max-h-[82vh]`,
+`rounded-t-2xl`. No new tokens, no new spring constants.
