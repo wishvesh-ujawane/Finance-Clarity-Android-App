@@ -129,3 +129,29 @@ edits source files itself and never opens pull requests.
   [environment/security-baseline.md](../docs/knowledge-base/environment/security-baseline.md).
 
 For everything else, ask the Oracle.
+
+## Feature backlog — consult before proposing new work
+
+Whenever the user asks an open-ended build question — *"what should I build
+next?"*, *"what to build?"*, *"what feature next?"*, *"any ideas?"*, or
+similar — first read the current backlog at
+[docs/knowledge-base/requirements/20260705-feature-backlog.md](../docs/knowledge-base/requirements/20260705-feature-backlog.md)
+and pull **2–4 suggestions from it** into your reply, tagged by their
+backlog id (e.g. **2.1**, **2.7**, **5.1**).
+
+Guidelines:
+
+- Prefer ideas whose `Status` is still `idea` (not `accepted`, `rejected`,
+  or `superseded`).
+- Bias toward the file's **Top-5 recommendation** unless the user's context
+  points elsewhere (a screen they're editing, a bug they just filed, a
+  theme they mentioned).
+- Include effort tag (S / M / L) and one-line rationale for each pick.
+- You may also add fresh ideas *in addition to* the backlog picks — call
+  them out as "new" so the user can decide whether to file them into the
+  backlog.
+- After the user picks one, follow the normal plan-and-wait cycle. On
+  approval, graduate the picked idea from a backlog row to its own
+  `requirement-<date>-<slug>.md` entry with acceptance criteria, and mark
+  its row in the backlog as `accepted → see <link>`.
+
