@@ -32,13 +32,20 @@ just-ended month and plan next month's budget.
 
 - **Step 1 — Look back.** "Your <Month> in numbers" hero, three KPI tiles
   (Net saved · Savings rate · Spend vs last month), Income vs Spent summary
-  strip, Top spending categories list, Impulse expenses list, and a
-  two-tile Savings split (Emergency Fund · Goal Savings).
+  strip, a **spending-breakdown donut chart** (top 5 categories + an
+  "Other" slice for the remainder, with center total-spent label and a
+  compact color-swatch legend), Top spending categories list, Impulse
+  expenses list, and a two-tile Savings split (Emergency Fund · Goal
+  Savings).
 - **Step 2 — Plan ahead.** A one-category-at-a-time walkthrough of every
   budgetable category (commitment → expense → both → savings, then A→Z).
-  Each step shows the category tile, a suggested monthly limit based on
-  the last 3 months, and a large ₹ input. Buttons: **Skip category** and
-  **Save & next** (final step becomes **Save & finish**).
+  Above the step-progress bar, a **live "Budget allocated" tracker**
+  shows the running total across all next-month budgets, an income-ratio
+  bar (emerald < 90% · amber 90–100% · red > 100% of last month's
+  income), and a briefly flashing `+₹X` chip on each save. Each step
+  shows the category tile, a suggested monthly limit based on the last 3
+  months, and a large ₹ input. Buttons: **Skip category** and **Save &
+  next** (final step becomes **Save & finish**).
 - A short confetti burst plays when the modal opens and again on
   completion. Confetti respects `prefers-reduced-motion` and renders
   nothing in that case.
@@ -161,3 +168,6 @@ See [`decisions/0003-month-end-review-flow.md`](../decisions/0003-month-end-revi
 
 ## Related changes
 - Introduced in `feature/month-end-review` on 2026-07-05.
+- Visual pass on 2026-07-05: spending-breakdown donut on step 1 and live
+  budget-allocated tracker on step 2. No new dependencies (Recharts and
+  framer-motion were already in the app).
