@@ -1,3 +1,11 @@
+/**
+ * Payment method for a transaction. Enables the SMS auto-import feature to
+ * distinguish credit-card purchases (consumption) from credit-card bill
+ * payments (transfers, must be excluded from spend totals to avoid
+ * double-counting). Legacy rows without a value are treated as consumption.
+ */
+export type PaymentMethod = 'cash' | 'bank' | 'credit-card' | 'credit-card-payment';
+
 export interface Transaction {
   id: string;
   type: 'income' | 'expense';
@@ -5,9 +13,18 @@ export interface Transaction {
   categoryId: string;
   note: string;
   date: string;
-  /** Optional payment method identifier for auto-import tracking. Phase 1: schema only. */
-  paymentMethod?: string;
+  /** Payment method for auto-import bookkeeping. Optional for backward compat. */
+  paymentMethod?: PaymentMethod;
+  /** Fingerprint of the SMS this transaction was imported from. Set only by the SMS-import flow. */
+  sourceSmsFingerprint?: string;
+  /** Merchant / payee inferred from an imported SMS (Swiggy, Uber, etc.). Optional. */
+  merchant?: string;
 }
+
+/** Valid values for `Transaction.paymentMethod`, exported for runtime validators. */
+export const PAYMENT_METHODS: readonly PaymentMethod[] = [
+  'cash', 'bank', 'credit-card', 'credit-card-payment',
+] as const;
 
 export interface Category {
   id: string;

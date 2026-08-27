@@ -118,11 +118,28 @@ export function formatDateLabel(
 }
 
 /**
- * Returns true if the transaction is a consumption expense (type='expense' AND not in savings categories).
- * This is the canonical filter for "normal expenses" across all aggregation sites.
- * Savings-category expenses are excluded from consumption totals; they flow into savings metrics instead.
+ * Returns true if the transaction is a *consumption* expense — one that
+ * should count against monthly spend, budget usage, and Analysis totals.
+ *
+ * A transaction is NOT consumption when either:
+ *   - Its `paymentMethod` is `'credit-card-payment'` (the transaction is a
+ *     transfer from a bank account to a credit card, not a purchase — the
+ *     underlying purchase is already recorded separately, so counting the
+ *     payment would double-count spend).
+ *   - It flows into a savings category (money set aside, not consumed).
+ *
+ * Legacy rows without a `paymentMethod` are treated as consumption — this
+ * preserves byte-identical behavior for all pre-SMS-import data.
  */
-export function isConsumptionExpense(tx: { type: 'income' | 'expense'; categoryId: string }): boolean {
-  // SAVINGS_CATEGORY_IDS defined in types.ts: ['savings-goal', 'savings-emergency']
-  return tx.type === 'expense' && tx.categoryId !== 'savings-goal' && tx.categoryId !== 'savings-emergency';
+export function isConsumptionExpense(
+  tx: { type: 'income' | 'expense'; categoryId: string; paymentMethod?: string },
+): boolean {
+  if (tx.type !== 'expense') return false;
+  // Card bill payments are transfers, not consumption — the underlying
+  // credit-card purchase is (or will be) recorded separately.
+  if (tx.paymentMethod === 'credit-card-payment') return false;
+  // Savings-category expenses fund savings goals; they flow into savings
+  // metrics instead of consumption totals.
+  if (tx.categoryId === 'savings-goal' || tx.categoryId === 'savings-emergency') return false;
+  return true;
 }

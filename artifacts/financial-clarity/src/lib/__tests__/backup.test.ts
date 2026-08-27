@@ -28,7 +28,9 @@ describe('Backup migration v1 → v2', () => {
             categoryId: 'groceries',
             note: 'Test',
             date: '2026-07-10',
-            paymentMethod: 'hdfc-debit-4532',
+            paymentMethod: 'credit-card',
+            merchant: 'Reliance Fresh',
+            sourceSmsFingerprint: 'sha256-abc123',
           },
         ],
         categories: [
@@ -44,7 +46,9 @@ describe('Backup migration v1 → v2', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.backup.schemaVersion).toBe(2);
-      expect(result.backup.data.transactions[0].paymentMethod).toBe('hdfc-debit-4532');
+      expect(result.backup.data.transactions[0].paymentMethod).toBe('credit-card');
+      expect(result.backup.data.transactions[0].merchant).toBe('Reliance Fresh');
+      expect(result.backup.data.transactions[0].sourceSmsFingerprint).toBe('sha256-abc123');
     }
   });
 

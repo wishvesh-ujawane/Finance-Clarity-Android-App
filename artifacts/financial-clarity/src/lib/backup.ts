@@ -60,6 +60,8 @@ function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
 }
 
+const VALID_PAYMENT_METHODS = new Set(['cash', 'bank', 'credit-card', 'credit-card-payment']);
+
 function isValidTransaction(value: unknown): value is Transaction {
   return (
     isObj(value) &&
@@ -69,7 +71,10 @@ function isValidTransaction(value: unknown): value is Transaction {
     typeof value.categoryId === 'string' && value.categoryId.length > 0 &&
     (value.note === undefined || typeof value.note === 'string') &&
     typeof value.date === 'string' && value.date.length > 0 &&
-    (value.paymentMethod === undefined || typeof value.paymentMethod === 'string')
+    (value.paymentMethod === undefined ||
+      (typeof value.paymentMethod === 'string' && VALID_PAYMENT_METHODS.has(value.paymentMethod))) &&
+    (value.sourceSmsFingerprint === undefined || typeof value.sourceSmsFingerprint === 'string') &&
+    (value.merchant === undefined || typeof value.merchant === 'string')
   );
 }
 

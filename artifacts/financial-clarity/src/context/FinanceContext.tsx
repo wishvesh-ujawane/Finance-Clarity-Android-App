@@ -140,6 +140,8 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+const VALID_PAYMENT_METHODS = new Set(['cash', 'bank', 'credit-card', 'credit-card-payment']);
+
 function isValidTransaction(value: unknown): value is Transaction {
   return (
     isObject(value) &&
@@ -153,7 +155,10 @@ function isValidTransaction(value: unknown): value is Transaction {
     (value.note === undefined || typeof value.note === 'string') &&
     typeof value.date === 'string' &&
     value.date.length > 0 &&
-    (value.paymentMethod === undefined || typeof value.paymentMethod === 'string')
+    (value.paymentMethod === undefined ||
+      (typeof value.paymentMethod === 'string' && VALID_PAYMENT_METHODS.has(value.paymentMethod))) &&
+    (value.sourceSmsFingerprint === undefined || typeof value.sourceSmsFingerprint === 'string') &&
+    (value.merchant === undefined || typeof value.merchant === 'string')
   );
 }
 
