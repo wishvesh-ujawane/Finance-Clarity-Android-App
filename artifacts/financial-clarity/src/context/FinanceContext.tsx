@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Transaction, Category, Budget, RecurringExpense, SavingsGoal, SAVINGS_CATEGORY_IDS } from '@/lib/types';
-import { currentMonth, localDateStr } from '@/lib/finance-utils';
+import { currentMonth, localDateStr, isConsumptionExpense } from '@/lib/finance-utils';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 
@@ -152,7 +152,8 @@ function isValidTransaction(value: unknown): value is Transaction {
     value.categoryId.length > 0 &&
     (value.note === undefined || typeof value.note === 'string') &&
     typeof value.date === 'string' &&
-    value.date.length > 0
+    value.date.length > 0 &&
+    (value.paymentMethod === undefined || typeof value.paymentMethod === 'string')
   );
 }
 
@@ -603,7 +604,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const getTotalExpenses = useCallback((month?: string) => {
     return getTransactionsForMonth(month)
-      .filter(t => t.type === 'expense' && !SAVINGS_CATEGORY_ID_SET.has(t.categoryId))
+      .filter(isConsumptionExpense)
       .reduce((sum, t) => sum + t.amount, 0);
   }, [getTransactionsForMonth]);
 

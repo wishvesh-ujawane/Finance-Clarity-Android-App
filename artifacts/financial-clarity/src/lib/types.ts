@@ -5,6 +5,8 @@ export interface Transaction {
   categoryId: string;
   note: string;
   date: string;
+  /** Optional payment method identifier for auto-import tracking. Phase 1: schema only. */
+  paymentMethod?: string;
 }
 
 export interface Category {

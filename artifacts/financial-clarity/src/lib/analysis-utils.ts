@@ -1,4 +1,5 @@
 import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
+import { isConsumptionExpense } from '@/lib/finance-utils';
 
 type Txn = { id: string; type: 'income' | 'expense'; amount: number; date: string; categoryId: string };
 
@@ -34,7 +35,7 @@ export function getBudgetPill(pct: number) {
 export function getMonthTotal<T extends Txn>(transactions: T[], month: string, type: 'expense' | 'income') {
   return transactions
     .filter(t => t.type === type && t.date.startsWith(month))
-    .filter(t => !(type === 'expense' && SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number])))
+    .filter(t => type === 'income' || isConsumptionExpense(t))
     .reduce((sum, t) => sum + t.amount, 0);
 }
 
@@ -48,7 +49,7 @@ export function getExpenseMapForMonth<T extends Txn>(transactions: T[], month: s
   const map: Record<string, number> = {};
   transactions
     .filter(t => t.type === 'expense' && t.date.startsWith(month))
-    .filter(t => !SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number]))
+    .filter(isConsumptionExpense)
     .forEach(t => {
       map[t.categoryId] = (map[t.categoryId] || 0) + t.amount;
     });
@@ -81,7 +82,7 @@ export function getDateRangeExpenseTotal<T extends Txn>(transactions: T[], start
   const startAt = start.getTime();
   const endAt = end.getTime();
   return transactions
-    .filter(t => t.type === 'expense' && !SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number]))
+    .filter(isConsumptionExpense)
     .filter(t => {
       const time = parseLocalDate(t.date).getTime();
       return time >= startAt && time <= endAt;

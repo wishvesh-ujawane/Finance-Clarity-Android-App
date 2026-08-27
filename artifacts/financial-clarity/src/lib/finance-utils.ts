@@ -116,3 +116,13 @@ export function formatDateLabel(
   if (dateStr === localDateStr(yesterday)) return 'Yesterday';
   return d.toLocaleDateString('en-IN', options);
 }
+
+/**
+ * Returns true if the transaction is a consumption expense (type='expense' AND not in savings categories).
+ * This is the canonical filter for "normal expenses" across all aggregation sites.
+ * Savings-category expenses are excluded from consumption totals; they flow into savings metrics instead.
+ */
+export function isConsumptionExpense(tx: { type: 'income' | 'expense'; categoryId: string }): boolean {
+  // SAVINGS_CATEGORY_IDS defined in types.ts: ['savings-goal', 'savings-emergency']
+  return tx.type === 'expense' && tx.categoryId !== 'savings-goal' && tx.categoryId !== 'savings-emergency';
+}

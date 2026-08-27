@@ -8,7 +8,7 @@ import type {
 } from './types';
 import { sha256Hex } from './backupHash';
 
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 
 export interface BackupCounts {
   transactions: number;
@@ -51,8 +51,8 @@ const APP_VERSION = '1.0.0';
 
 /** Migrations run before validation when restoring an older backup. */
 export const migrations: Record<number, (b: BackupFile) => BackupFile> = {
-  // 1 -> 2: example placeholder for future use.
-  // 1: (b) => ({ ...b, schemaVersion: 2 }),
+  // v1 -> v2: added optional Transaction.paymentMethod field; no data transform needed.
+  1: (b) => ({ ...b, schemaVersion: 2 }),
 };
 
 // ---------------- Validators ----------------
@@ -68,7 +68,8 @@ function isValidTransaction(value: unknown): value is Transaction {
     typeof value.amount === 'number' && Number.isFinite(value.amount) &&
     typeof value.categoryId === 'string' && value.categoryId.length > 0 &&
     (value.note === undefined || typeof value.note === 'string') &&
-    typeof value.date === 'string' && value.date.length > 0
+    typeof value.date === 'string' && value.date.length > 0 &&
+    (value.paymentMethod === undefined || typeof value.paymentMethod === 'string')
   );
 }
 
