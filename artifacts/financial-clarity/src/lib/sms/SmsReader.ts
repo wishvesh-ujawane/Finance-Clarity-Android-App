@@ -4,6 +4,10 @@
  * Real Capacitor plugin integration deferred to Phase 2+.
  */
 
+import { Capacitor } from '@capacitor/core';
+import { androidSmsReader } from './androidSmsReader';
+import { mockSmsReader } from './mockSmsReader';
+
 /** Raw SMS message from device inbox. */
 export interface SmsMessage {
   /** Unique message ID from device database. */
@@ -29,4 +33,15 @@ export interface SmsReader {
    * @returns Array of messages in chronological order (oldest first).
    */
   readMessages(start: number, end: number): Promise<SmsMessage[]>;
+}
+
+/**
+ * Get the appropriate SmsReader for the current platform.
+ * Returns native Android reader on Android, mock reader elsewhere.
+ */
+export function getSmsReader(): SmsReader {
+  if (Capacitor.getPlatform() === 'android') {
+    return androidSmsReader;
+  }
+  return mockSmsReader;
 }

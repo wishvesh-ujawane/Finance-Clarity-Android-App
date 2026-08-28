@@ -40,4 +40,17 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.USE_FINGERPRINT" android:maxSdkVersion="28" />
+
+    <!--
+      READ_SMS is required for the on-device SMS auto-import feature (parses bank
+      transaction SMSes into pending transactions the user must approve).
+
+      IMPORTANT: Google Play policy restricts READ_SMS to specific app categories
+      (default SMS handler, backup, parental controls, antivirus). This finance app
+      does NOT qualify. Distribution model for this build is sideload / debug APK
+      only. See /memories/session/plan.md and future ADR for the policy analysis
+      and the NotificationListenerService fallback path if Play Store distribution
+      becomes required.
+    -->
+    <uses-permission android:name="android.permission.READ_SMS" />
 </manifest>
