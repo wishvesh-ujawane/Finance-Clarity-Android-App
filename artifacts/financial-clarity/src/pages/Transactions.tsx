@@ -1,12 +1,17 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Download, FileText, Search, X } from 'lucide-react';
+import { Calendar, Download, FileText, Search, X, MessageSquareText } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { useFabAction } from '@/context/FabContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
+import { SmsOriginBadge } from '@/components/sms/SmsOriginBadge';
+import { FirstScanWizard } from '@/components/sms/FirstScanWizard';
+import { ScanProgressOverlay } from '@/components/sms/ScanProgressOverlay';
+import { SmsApprovalSheet } from '@/components/sms/SmsApprovalSheet';
 import { cn } from '@/lib/utils';
 import { formatDateLabel, formatINR, localDateStr } from '@/lib/finance-utils';
 import { buildTransactionsCsv, exportCsvFile } from '@/lib/csv';
+import { SMS_COPY } from '@/lib/sms/copy';
 
 type RangePreset = 'current' | 'last1' | 'last3' | 'custom';
 
@@ -49,7 +54,7 @@ function formatPeriodLabel(preset: RangePreset, from: string, to: string): strin
 }
 
 export default function Transactions() {
-  const { transactions, categories, openEditSheet, openSheet } = useFinance();
+  const { transactions, categories, openEditSheet, openSheet, pendingSmsCount, lastScanMs, runSmsScan } = useFinance();
 
   useFabAction(openSheet, 'Add transaction', 'fab-add-transaction');
 
@@ -64,6 +69,25 @@ export default function Transactions() {
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [exportError, setExportError] = useState('');
+
+  // SMS scan state
+  const [showFirstScanWizard, setShowFirstScanWizard] = useState(false);
+  const [showScanProgress, setShowScanProgress] = useState(false);
+  const [showApprovalSheet, setShowApprovalSheet] = useState(false);
+  const [scanProgress, setScanProgress] = useState<{
+    phase: 'reading' | 'parsing' | 'matching' | 'done';
+    sender?: string;
+    read: number;
+    parsed: number;
+    newCandidates: number;
+    autoLinked: number;
+  }>({
+    phase: 'reading',
+    read: 0,
+    parsed: 0,
+    newCandidates: 0,
+    autoLinked: 0,
+  });
 
   const { from: effectiveFrom, to: effectiveTo } = useMemo(
     () => getPresetRange(preset, customFrom, customTo),
@@ -110,6 +134,48 @@ export default function Transactions() {
 
   const getCategoryById = (id: string) => categoryById.get(id);
 
+  const handleSmsChipClick = useCallback(() => {
+    if (lastScanMs === 0) {
+      setShowFirstScanWizard(true);
+    } else if (pendingSmsCount > 0) {
+      setShowApprovalSheet(true);
+    } else {
+      // Run incremental scan
+      setShowScanProgress(true);
+      runSmsScan({
+        sinceDays: 30,
+        mode: 'incremental',
+        onProgress: (event) => setScanProgress(event),
+      }).then((result) => {
+        setShowScanProgress(false);
+        if (result.ok && result.needsReview > 0) {
+          setShowApprovalSheet(true);
+        }
+      });
+    }
+  }, [lastScanMs, pendingSmsCount, runSmsScan]);
+
+  const handleFirstScanStart = useCallback((sinceDays: number) => {
+    setShowFirstScanWizard(false);
+    setShowScanProgress(true);
+    runSmsScan({
+      sinceDays,
+      mode: 'first',
+      onProgress: (event) => setScanProgress(event),
+    }).then((result) => {
+      setShowScanProgress(false);
+      if (result.ok && result.needsReview > 0) {
+        setShowApprovalSheet(true);
+      }
+    });
+  }, [runSmsScan]);
+
+  const handleMaybeLater = useCallback(() => {
+    setShowFirstScanWizard(false);
+    // Note: user chose to defer; the chip will re-open the wizard on next tap
+    // because lastScanMs is still 0 until a real scan runs.
+  }, []);
+
   const downloadCSV = useCallback(async () => {
     setExportError('');
     const allForExport = transactions
@@ -131,17 +197,49 @@ export default function Transactions() {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">History</p>
           <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Transactions</h1>
         </div>
-        <button
-          data-testid="download-csv"
-          onClick={downloadCSV}
-          disabled={transactions.length === 0}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[hsl(222,65%,13%)] text-white text-sm font-semibold hover:bg-[hsl(222,65%,18%)] transition-colors disabled:opacity-40"
-        >
-          <Download size={14} />
-          Export CSV
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleSmsChipClick}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors',
+              pendingSmsCount > 0
+                ? 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20'
+                : 'bg-accent/10 text-accent hover:bg-accent/20'
+            )}
+          >
+            <MessageSquareText size={14} />
+            {pendingSmsCount > 0 ? SMS_COPY.chip.pending(pendingSmsCount) : SMS_COPY.chip.scanSms}
+          </button>
+          <button
+            data-testid="download-csv"
+            onClick={downloadCSV}
+            disabled={transactions.length === 0}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[hsl(222,65%,13%)] text-white text-sm font-semibold hover:bg-[hsl(222,65%,18%)] transition-colors disabled:opacity-40"
+          >
+            <Download size={14} />
+            Export CSV
+          </button>
+        </div>
       </div>
       {exportError && <p className="text-xs font-medium text-red-500 mb-3">{exportError}</p>}
+
+      {/* SMS UI overlays */}
+      <FirstScanWizard
+        open={showFirstScanWizard}
+        onClose={() => setShowFirstScanWizard(false)}
+        onScanStart={handleFirstScanStart}
+        onMaybeLater={handleMaybeLater}
+      />
+      <ScanProgressOverlay
+        open={showScanProgress}
+        progress={scanProgress}
+        onCancel={() => setShowScanProgress(false)}
+      />
+      <SmsApprovalSheet
+        open={showApprovalSheet}
+        onClose={() => setShowApprovalSheet(false)}
+      />
 
       {/* Search */}
       <div className="relative mb-4">
@@ -329,6 +427,7 @@ export default function Transactions() {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground">{cat?.name || 'Unknown'}</p>
                           {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
+                          <SmsOriginBadge transaction={t} />
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           <span className={cn('text-sm font-bold', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>

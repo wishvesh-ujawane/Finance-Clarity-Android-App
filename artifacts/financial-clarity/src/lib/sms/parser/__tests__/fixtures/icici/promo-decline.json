@@ -1,0 +1,9 @@
+{
+  "input": {
+    "id": "test-icici-promo-001",
+    "sender": "ICICIB",
+    "body": "Exclusive offer! Get 10% cashback on all dining transactions this weekend with your ICICI Credit Card. T&C apply. Reply STOP to opt-out.",
+    "timestamp": 1720416000000
+  },
+  "expected": null
+}

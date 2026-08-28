@@ -1,0 +1,16 @@
+{
+  "input": {
+    "id": "test-icici-debit-001",
+    "sender": "ICICIB",
+    "body": "Dear Customer, your A/c XX9876 has been debited with Rs 850.00 on 07-Jul-26 for a purchase at UBER INDIA via Debit Card. Available Balance: Rs 32,450.00.",
+    "timestamp": 1720329600000
+  },
+  "expected": {
+    "amount": 850,
+    "direction": "debit",
+    "merchant": "UBER INDIA",
+    "accountTail": "9876",
+    "paymentMethod": "bank",
+    "reason": "purchase"
+  }
+}

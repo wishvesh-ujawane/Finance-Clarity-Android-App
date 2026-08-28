@@ -1,0 +1,16 @@
+{
+  "input": {
+    "id": "test-icici-salary-001",
+    "sender": "ICICIB",
+    "body": "Dear Customer, Rs 65,000.00 has been credited to your A/c XX9876 on 01-Jul-26. Narration: SALARY-JUNE-2026. Current Balance: Rs 97,450.00.",
+    "timestamp": 1719811200000
+  },
+  "expected": {
+    "amount": 65000,
+    "direction": "credit",
+    "merchant": "Salary",
+    "accountTail": "9876",
+    "paymentMethod": "bank",
+    "reason": "salary"
+  }
+}

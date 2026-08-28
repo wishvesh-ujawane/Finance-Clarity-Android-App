@@ -1,0 +1,16 @@
+{
+  "input": {
+    "id": "test-icici-payment-001",
+    "sender": "ICICIB",
+    "body": "Rs 12,300.00 paid towards your ICICI Bank Credit Card ending 5623 on 10-Jul-26. Payment received. Outstanding: Rs 2,145.00.",
+    "timestamp": 1720588800000
+  },
+  "expected": {
+    "amount": 12300,
+    "direction": "debit",
+    "merchant": "Card bill payment",
+    "accountTail": "5623",
+    "paymentMethod": "credit-card-payment",
+    "reason": "card-payment"
+  }
+}

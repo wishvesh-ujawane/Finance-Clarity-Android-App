@@ -1,0 +1,16 @@
+{
+  "input": {
+    "id": "test-hdfc-cc-001",
+    "sender": "HDFCBK",
+    "body": "Your HDFC Bank Card ending 7845 has been used for a transaction of Rs 3,499.00 at FLIPKART on 06-Jul-26. Avl limit: Rs 1,25,000.00.",
+    "timestamp": 1720243200000
+  },
+  "expected": {
+    "amount": 3499,
+    "direction": "debit",
+    "merchant": "FLIPKART",
+    "accountTail": "7845",
+    "paymentMethod": "credit-card",
+    "reason": "purchase"
+  }
+}

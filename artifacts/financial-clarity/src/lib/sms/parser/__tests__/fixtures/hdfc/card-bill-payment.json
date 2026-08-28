@@ -1,0 +1,16 @@
+{
+  "input": {
+    "id": "test-hdfc-payment-001",
+    "sender": "HDFCBK",
+    "body": "Payment received towards your HDFC Bank Credit Card ending 4521 for Rs 8,500.00 on 20-Jul-26. Thank you.",
+    "timestamp": 1721462400000
+  },
+  "expected": {
+    "amount": 8500,
+    "direction": "debit",
+    "merchant": "Card bill payment",
+    "accountTail": "4521",
+    "paymentMethod": "credit-card-payment",
+    "reason": "card-payment"
+  }
+}

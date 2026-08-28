@@ -6,9 +6,10 @@ import type {
   SavingsGoal,
   Transaction,
 } from './types';
+import type { ParsedSms } from './sms/parser/types';
 import { sha256Hex } from './backupHash';
 
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 3;
 
 export interface BackupCounts {
   transactions: number;
@@ -16,12 +17,22 @@ export interface BackupCounts {
   budgets: number;
   recurringExpenses: number;
   savingsGoal: number; // 0 or 1
+  pendingSms: number;
+  dismissedSmsFingerprints: number;
+  linkedSms: number;
 }
 
 export interface BackupDeviceInfo {
   platform: string;
   model?: string;
   osVersion?: string;
+}
+
+export interface BackupSmsState {
+  pendingSms: ParsedSms[];
+  dismissedSmsFingerprints: string[];
+  linkedSms: Record<string, ParsedSms>;
+  lastScanMs: number;
 }
 
 export interface BackupFile {
@@ -36,6 +47,7 @@ export interface BackupFile {
     budgets: Budget[];
     recurringExpenses: RecurringExpense[];
     savingsGoal: SavingsGoal | null;
+    sms: BackupSmsState;
   };
 }
 
@@ -45,20 +57,50 @@ const STORAGE = {
   budgets: 'financial-clarity:budgets',
   recurring: 'financial-clarity:recurring',
   savingsGoal: 'financial-clarity:savings-goal',
+  smsPending: 'financial-clarity:sms-pending',
+  smsDismissed: 'financial-clarity:sms-dismissed',
+  smsLinked: 'financial-clarity:sms-linked',
+  smsLastScan: 'financial-clarity:sms-last-scan',
 } as const;
 
 const APP_VERSION = '1.0.0';
 
+const EMPTY_SMS_STATE: BackupSmsState = {
+  pendingSms: [],
+  dismissedSmsFingerprints: [],
+  linkedSms: {},
+  lastScanMs: 0,
+};
+
 /** Migrations run before validation when restoring an older backup. */
 export const migrations: Record<number, (b: BackupFile) => BackupFile> = {
-  // 1 -> 2: example placeholder for future use.
-  // 1: (b) => ({ ...b, schemaVersion: 2 }),
+  // v1 -> v2: added optional Transaction.paymentMethod field; no data transform needed.
+  1: (b) => ({ ...b, schemaVersion: 2 }),
+  // v2 -> v3: added SMS auto-import state (pendingSms, dismissedSmsFingerprints,
+  // linkedSms, lastScanMs). Older backups get an empty SMS block so restore
+  // is safe and idempotent.
+  2: (b) => ({
+    ...b,
+    schemaVersion: 3,
+    data: {
+      ...b.data,
+      sms: EMPTY_SMS_STATE,
+    },
+    counts: {
+      ...b.counts,
+      pendingSms: 0,
+      dismissedSmsFingerprints: 0,
+      linkedSms: 0,
+    },
+  }),
 };
 
 // ---------------- Validators ----------------
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
 }
+
+const VALID_PAYMENT_METHODS = new Set(['cash', 'bank', 'credit-card', 'credit-card-payment']);
 
 function isValidTransaction(value: unknown): value is Transaction {
   return (
@@ -68,7 +110,11 @@ function isValidTransaction(value: unknown): value is Transaction {
     typeof value.amount === 'number' && Number.isFinite(value.amount) &&
     typeof value.categoryId === 'string' && value.categoryId.length > 0 &&
     (value.note === undefined || typeof value.note === 'string') &&
-    typeof value.date === 'string' && value.date.length > 0
+    typeof value.date === 'string' && value.date.length > 0 &&
+    (value.paymentMethod === undefined ||
+      (typeof value.paymentMethod === 'string' && VALID_PAYMENT_METHODS.has(value.paymentMethod))) &&
+    (value.sourceSmsFingerprint === undefined || typeof value.sourceSmsFingerprint === 'string') &&
+    (value.merchant === undefined || typeof value.merchant === 'string')
   );
 }
 
@@ -117,6 +163,43 @@ function isValidSavingsGoal(value: unknown): value is SavingsGoal {
   return isObj(value) && validEntry(value.goal) && validEntry(value.emergency);
 }
 
+const VALID_SMS_PAYMENT_METHODS = new Set(['bank', 'credit-card', 'credit-card-payment']);
+const VALID_SMS_DIRECTIONS = new Set(['debit', 'credit']);
+const VALID_SMS_REASONS = new Set(['purchase', 'refund', 'salary', 'card-payment', 'transfer', 'unknown']);
+
+function isValidParsedSms(value: unknown): value is ParsedSms {
+  return (
+    isObj(value) &&
+    typeof value.smsId === 'string' && value.smsId.length > 0 &&
+    typeof value.fingerprint === 'string' && value.fingerprint.length > 0 &&
+    typeof value.senderId === 'string' &&
+    typeof value.amount === 'number' && Number.isFinite(value.amount) &&
+    typeof value.direction === 'string' && VALID_SMS_DIRECTIONS.has(value.direction) &&
+    (value.merchant === null || typeof value.merchant === 'string') &&
+    (value.accountTail === null || typeof value.accountTail === 'string') &&
+    typeof value.paymentMethod === 'string' && VALID_SMS_PAYMENT_METHODS.has(value.paymentMethod) &&
+    (value.txnRef === null || typeof value.txnRef === 'string') &&
+    typeof value.timestamp === 'number' && Number.isFinite(value.timestamp) &&
+    typeof value.dateISO === 'string' && value.dateISO.length > 0 &&
+    (value.suggestedCategoryId === null || typeof value.suggestedCategoryId === 'string') &&
+    typeof value.reason === 'string' && VALID_SMS_REASONS.has(value.reason) &&
+    typeof value.rawBody === 'string'
+  );
+}
+
+function isValidSmsState(value: unknown): value is BackupSmsState {
+  if (!isObj(value)) return false;
+  if (!Array.isArray(value.pendingSms) || !value.pendingSms.every(isValidParsedSms)) return false;
+  if (!Array.isArray(value.dismissedSmsFingerprints) ||
+      !value.dismissedSmsFingerprints.every(v => typeof v === 'string')) return false;
+  if (!isObj(value.linkedSms)) return false;
+  for (const v of Object.values(value.linkedSms)) {
+    if (!isValidParsedSms(v)) return false;
+  }
+  if (typeof value.lastScanMs !== 'number' || !Number.isFinite(value.lastScanMs)) return false;
+  return true;
+}
+
 // ---------------- Helpers ----------------
 function parseStored<T>(key: string, fallback: T): T {
   try {
@@ -140,6 +223,26 @@ function readSavingsGoal(): SavingsGoal | null {
   return isValidSavingsGoal(parsed) ? parsed : null;
 }
 
+function readSmsState(): BackupSmsState {
+  const pending = parseStored<unknown>(STORAGE.smsPending, []);
+  const dismissed = parseStored<unknown>(STORAGE.smsDismissed, []);
+  const linked = parseStored<unknown>(STORAGE.smsLinked, {});
+  const lastScan = parseStored<unknown>(STORAGE.smsLastScan, 0);
+
+  return {
+    pendingSms: Array.isArray(pending) ? pending.filter(isValidParsedSms) : [],
+    dismissedSmsFingerprints: Array.isArray(dismissed)
+      ? dismissed.filter((v): v is string => typeof v === 'string')
+      : [],
+    linkedSms: isObj(linked)
+      ? Object.fromEntries(
+          Object.entries(linked).filter(([, v]) => isValidParsedSms(v)),
+        ) as Record<string, ParsedSms>
+      : {},
+    lastScanMs: typeof lastScan === 'number' && Number.isFinite(lastScan) ? lastScan : 0,
+  };
+}
+
 function getDeviceInfo(): BackupDeviceInfo {
   if (typeof window === 'undefined') return { platform: 'unknown' };
   const platform = Capacitor.getPlatform();
@@ -157,6 +260,7 @@ export function buildBackup(): BackupFile {
   const budgets = readArray(STORAGE.budgets, isValidBudget);
   const recurringExpenses = readArray(STORAGE.recurring, isValidRecurring);
   const savingsGoal = readSavingsGoal();
+  const sms = readSmsState();
 
   return {
     schemaVersion: BACKUP_VERSION,
@@ -169,8 +273,11 @@ export function buildBackup(): BackupFile {
       budgets: budgets.length,
       recurringExpenses: recurringExpenses.length,
       savingsGoal: savingsGoal ? 1 : 0,
+      pendingSms: sms.pendingSms.length,
+      dismissedSmsFingerprints: sms.dismissedSmsFingerprints.length,
+      linkedSms: Object.keys(sms.linkedSms).length,
     },
-    data: { transactions, categories, budgets, recurringExpenses, savingsGoal },
+    data: { transactions, categories, budgets, recurringExpenses, savingsGoal, sms },
   };
 }
 
@@ -226,6 +333,7 @@ export function validateBackup(value: unknown): ValidationResult {
   if (!Array.isArray(data.categories)) errors.push('categories must be an array');
   if (!Array.isArray(data.budgets)) errors.push('budgets must be an array');
   if (!Array.isArray(data.recurringExpenses)) errors.push('recurringExpenses must be an array');
+  if (!isValidSmsState(data.sms)) errors.push('sms block is invalid or missing');
   if (errors.length > 0) return { ok: false, reason: 'invalid-shape', errors };
 
   // Per-record validation.
@@ -266,6 +374,10 @@ export function applyBackup(backup: BackupFile): ApplyResult {
     budgets: localStorage.getItem(STORAGE.budgets),
     recurring: localStorage.getItem(STORAGE.recurring),
     savingsGoal: localStorage.getItem(STORAGE.savingsGoal),
+    smsPending: localStorage.getItem(STORAGE.smsPending),
+    smsDismissed: localStorage.getItem(STORAGE.smsDismissed),
+    smsLinked: localStorage.getItem(STORAGE.smsLinked),
+    smsLastScan: localStorage.getItem(STORAGE.smsLastScan),
   };
 
   const writes: Array<[string, string]> = [
@@ -273,6 +385,10 @@ export function applyBackup(backup: BackupFile): ApplyResult {
     [STORAGE.categories, JSON.stringify(backup.data.categories)],
     [STORAGE.budgets, JSON.stringify(backup.data.budgets)],
     [STORAGE.recurring, JSON.stringify(backup.data.recurringExpenses)],
+    [STORAGE.smsPending, JSON.stringify(backup.data.sms.pendingSms)],
+    [STORAGE.smsDismissed, JSON.stringify(backup.data.sms.dismissedSmsFingerprints)],
+    [STORAGE.smsLinked, JSON.stringify(backup.data.sms.linkedSms)],
+    [STORAGE.smsLastScan, JSON.stringify(backup.data.sms.lastScanMs)],
   ];
 
   try {
@@ -283,17 +399,20 @@ export function applyBackup(backup: BackupFile): ApplyResult {
       localStorage.removeItem(STORAGE.savingsGoal);
     }
   } catch (err) {
-    // Roll back.
-    if (snapshot.transactions !== null && snapshot.transactions !== undefined)
-      localStorage.setItem(STORAGE.transactions, snapshot.transactions); else localStorage.removeItem(STORAGE.transactions);
-    if (snapshot.categories !== null && snapshot.categories !== undefined)
-      localStorage.setItem(STORAGE.categories, snapshot.categories); else localStorage.removeItem(STORAGE.categories);
-    if (snapshot.budgets !== null && snapshot.budgets !== undefined)
-      localStorage.setItem(STORAGE.budgets, snapshot.budgets); else localStorage.removeItem(STORAGE.budgets);
-    if (snapshot.recurring !== null && snapshot.recurring !== undefined)
-      localStorage.setItem(STORAGE.recurring, snapshot.recurring); else localStorage.removeItem(STORAGE.recurring);
-    if (snapshot.savingsGoal !== null && snapshot.savingsGoal !== undefined)
-      localStorage.setItem(STORAGE.savingsGoal, snapshot.savingsGoal); else localStorage.removeItem(STORAGE.savingsGoal);
+    // Roll back every key we snapshotted.
+    const rollback = (key: (typeof STORAGE)[keyof typeof STORAGE], prev: string | null | undefined) => {
+      if (prev !== null && prev !== undefined) localStorage.setItem(key, prev);
+      else localStorage.removeItem(key);
+    };
+    rollback(STORAGE.transactions, snapshot.transactions);
+    rollback(STORAGE.categories, snapshot.categories);
+    rollback(STORAGE.budgets, snapshot.budgets);
+    rollback(STORAGE.recurring, snapshot.recurring);
+    rollback(STORAGE.savingsGoal, snapshot.savingsGoal);
+    rollback(STORAGE.smsPending, snapshot.smsPending);
+    rollback(STORAGE.smsDismissed, snapshot.smsDismissed);
+    rollback(STORAGE.smsLinked, snapshot.smsLinked);
+    rollback(STORAGE.smsLastScan, snapshot.smsLastScan);
     throw err;
   }
 

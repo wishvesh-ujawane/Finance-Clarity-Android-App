@@ -1,0 +1,16 @@
+{
+  "input": {
+    "id": "test-bob-atm-001",
+    "sender": "BOBATM",
+    "body": "Dear Customer, INR 3,200.00 withdrawn from your BOB A/c XX5544 on 14-Jul-26 at ATM 123456, PUNE. Avl Bal: INR 41,800.00.",
+    "timestamp": 1720975800000
+  },
+  "expected": {
+    "amount": 3200,
+    "direction": "debit",
+    "merchant": "ATM Withdrawal",
+    "accountTail": "5544",
+    "paymentMethod": "bank",
+    "reason": "purchase"
+  }
+}

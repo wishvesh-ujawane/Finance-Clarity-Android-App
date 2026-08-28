@@ -1,0 +1,16 @@
+{
+  "input": {
+    "id": "test-hdfc-debit-001",
+    "sender": "HDFCBK",
+    "body": "Rs 1,250.00 debited from A/c **4532 on 05-Jul-26 at Reliance Fresh using Debit Card. Avl Bal: Rs 45,320.50. Call 18002586161 for dispute.",
+    "timestamp": 1720156800000
+  },
+  "expected": {
+    "amount": 1250,
+    "direction": "debit",
+    "merchant": "Reliance Fresh",
+    "accountTail": "4532",
+    "paymentMethod": "bank",
+    "reason": "purchase"
+  }
+}

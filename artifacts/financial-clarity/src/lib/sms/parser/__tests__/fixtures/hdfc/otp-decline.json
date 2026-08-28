@@ -1,0 +1,9 @@
+{
+  "input": {
+    "id": "test-hdfc-otp-001",
+    "sender": "HDFCBK",
+    "body": "Your OTP for login to HDFC NetBanking is 482956. Valid for 10 minutes. Do not share with anyone. -HDFC Bank",
+    "timestamp": 1720329600000
+  },
+  "expected": null
+}

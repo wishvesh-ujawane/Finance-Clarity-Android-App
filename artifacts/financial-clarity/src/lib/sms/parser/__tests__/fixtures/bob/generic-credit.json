@@ -1,0 +1,16 @@
+{
+  "input": {
+    "id": "test-bob-credit-001",
+    "sender": "BOBATM",
+    "body": "INR 5,000.00 credited to your BOB A/c XX5544 on 15-Jul-26. Ref: NEFT-N234567890. Avl Bal: INR 46,800.00.",
+    "timestamp": 1721048700000
+  },
+  "expected": {
+    "amount": 5000,
+    "direction": "credit",
+    "accountTail": "5544",
+    "paymentMethod": "bank",
+    "txnRef": "NEFT-N234567890",
+    "reason": "transfer"
+  }
+}

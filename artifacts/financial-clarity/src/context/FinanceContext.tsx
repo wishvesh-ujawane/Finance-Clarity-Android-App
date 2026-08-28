@@ -1,6 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { Transaction, Category, Budget, RecurringExpense, SavingsGoal, SAVINGS_CATEGORY_IDS } from '@/lib/types';
-import { currentMonth, localDateStr } from '@/lib/finance-utils';
+import { Transaction, Category, Budget, RecurringExpense, SavingsGoal, SAVINGS_CATEGORY_IDS, PaymentMethod } from '@/lib/types';
+import { currentMonth, localDateStr, isConsumptionExpense } from '@/lib/finance-utils';
+import type { ParsedSms } from '@/lib/sms/parser/types';
+import { parseSms } from '@/lib/sms/parser';
+import { smsFingerprint, matchesExistingBySourceRef } from '@/lib/sms/dedup';
+import { classifyMatch } from '@/lib/sms/reconcile';
+import { formatSmsDescription } from '@/lib/sms/description';
+import { getSmsReader } from '@/lib/sms/SmsReader';
+import { SmsReaderPermissionError, SmsReaderQueryError } from '@/lib/sms/androidSmsReader';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 
@@ -114,6 +121,33 @@ interface FinanceContextType {
   reloadFromStorage: () => void;
   /** Monotonic timestamp bumped on every mutation; consumed by auto-backup. */
   lastChangedAt: number;
+
+  // SMS auto-import state and methods (Phase 4)
+  pendingSms: ParsedSms[];
+  pendingSmsCount: number;
+  linkedSmsCount: number;
+  lastScanMs: number;
+  getLinkedTransactions: () => Transaction[];
+  runSmsScan: (opts: {
+    sinceDays: number;
+    mode: 'first' | 'incremental';
+    onProgress?: (event: {
+      phase: 'reading' | 'parsing' | 'matching' | 'done';
+      sender?: string;
+      read: number;
+      parsed: number;
+      newCandidates: number;
+      autoLinked: number;
+    }) => void;
+  }) => Promise<
+    | { ok: true; newCandidates: number; autoLinked: number; needsReview: number }
+    | { ok: false; reason: 'permission-denied' | 'query-failed' | 'unknown'; error?: string }
+  >;
+  approveSms: (fingerprints: string[]) => Promise<{ approved: number }>;
+  dismissSms: (fingerprints: string[]) => void;
+  linkSmsToTransaction: (fingerprint: string, existingTxnId: string) => void;
+  unlinkSmsFromTransaction: (fingerprint: string) => void;
+  dismissSmsBefore: (dateISO: string, onProgress?: (read: number) => void) => Promise<void>;
 }
 
 const FinanceContext = createContext<FinanceContextType | null>(null);
@@ -140,6 +174,8 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+const VALID_PAYMENT_METHODS = new Set(['cash', 'bank', 'credit-card', 'credit-card-payment']);
+
 function isValidTransaction(value: unknown): value is Transaction {
   return (
     isObject(value) &&
@@ -152,7 +188,11 @@ function isValidTransaction(value: unknown): value is Transaction {
     value.categoryId.length > 0 &&
     (value.note === undefined || typeof value.note === 'string') &&
     typeof value.date === 'string' &&
-    value.date.length > 0
+    value.date.length > 0 &&
+    (value.paymentMethod === undefined ||
+      (typeof value.paymentMethod === 'string' && VALID_PAYMENT_METHODS.has(value.paymentMethod))) &&
+    (value.sourceSmsFingerprint === undefined || typeof value.sourceSmsFingerprint === 'string') &&
+    (value.merchant === undefined || typeof value.merchant === 'string')
   );
 }
 
@@ -201,6 +241,27 @@ function isValidRecurring(value: unknown): value is RecurringExpense {
   );
 }
 
+function isValidParsedSms(value: unknown): value is ParsedSms {
+  return (
+    isObject(value) &&
+    typeof value.smsId === 'string' &&
+    typeof value.fingerprint === 'string' &&
+    typeof value.senderId === 'string' &&
+    typeof value.amount === 'number' &&
+    Number.isFinite(value.amount) &&
+    (value.direction === 'debit' || value.direction === 'credit') &&
+    (value.merchant === null || typeof value.merchant === 'string') &&
+    (value.accountTail === null || typeof value.accountTail === 'string') &&
+    (value.paymentMethod === 'bank' || value.paymentMethod === 'credit-card' || value.paymentMethod === 'credit-card-payment') &&
+    (value.txnRef === null || typeof value.txnRef === 'string') &&
+    typeof value.timestamp === 'number' &&
+    typeof value.dateISO === 'string' &&
+    (value.suggestedCategoryId === null || typeof value.suggestedCategoryId === 'string') &&
+    typeof value.reason === 'string' &&
+    typeof value.rawBody === 'string'
+  );
+}
+
 function loadArrayFromStorage<T>(key: string, fallback: T[], isValid: (value: unknown) => value is T): T[] {
   try {
     const raw = localStorage.getItem(getStorageKey(key));
@@ -235,6 +296,47 @@ function saveToStorage<T>(key: string, value: T): void {
     localStorage.setItem(getStorageKey(key), JSON.stringify(value));
   } catch {
     // ignore
+  }
+}
+
+function loadNumberFromStorage(key: string, fallback: number): number {
+  try {
+    const raw = localStorage.getItem(getStorageKey(key));
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function loadStringArrayFromStorage(key: string, fallback: string[]): string[] {
+  try {
+    const raw = localStorage.getItem(getStorageKey(key));
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return fallback;
+    return parsed.every((item): item is string => typeof item === 'string') ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function loadSmsMapFromStorage(key: string): Record<string, ParsedSms> {
+  try {
+    const raw = localStorage.getItem(getStorageKey(key));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!isObject(parsed)) return {};
+    const valid: Record<string, ParsedSms> = {};
+    for (const [fingerprint, value] of Object.entries(parsed)) {
+      if (typeof fingerprint === 'string' && isValidParsedSms(value)) {
+        valid[fingerprint] = value;
+      }
+    }
+    return valid;
+  } catch {
+    return {};
   }
 }
 
@@ -304,6 +406,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [lastChangedAt, setLastChangedAt] = useState<number>(0);
 
+  // SMS auto-import state (Phase 4)
+  const [pendingSms, setPendingSms] = useState<ParsedSms[]>(() =>
+    loadArrayFromStorage('sms-pending', [], isValidParsedSms)
+  );
+  const [dismissedSmsFingerprints, setDismissedSmsFingerprints] = useState<Set<string>>(() =>
+    new Set(loadStringArrayFromStorage('sms-dismissed', []))
+  );
+  const [linkedSms, setLinkedSms] = useState<Record<string, ParsedSms>>(() =>
+    loadSmsMapFromStorage('sms-linked')
+  );
+  const [lastScanMs, setLastScanMs] = useState<number>(() =>
+    loadNumberFromStorage('sms-last-scan', 0)
+  );
+
   useEffect(() => { saveToStorage('transactions', transactions); setLastChangedAt(Date.now()); }, [transactions]);
   useEffect(() => { saveToStorage('categories', categories); setLastChangedAt(Date.now()); }, [categories]);
   useEffect(() => { saveToStorage('budgets', budgets); setLastChangedAt(Date.now()); }, [budgets]);
@@ -312,6 +428,31 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem(getStorageKey('savings-goal'), JSON.stringify(savingsGoal)); } catch { /* ignore */ }
     setLastChangedAt(Date.now());
   }, [savingsGoal]);
+
+  // Persist SMS state (Phase 4)
+  useEffect(() => { saveToStorage('sms-pending', pendingSms); }, [pendingSms]);
+  useEffect(() => { saveToStorage('sms-dismissed', Array.from(dismissedSmsFingerprints)); }, [dismissedSmsFingerprints]);
+  useEffect(() => { saveToStorage('sms-linked', linkedSms); }, [linkedSms]);
+  useEffect(() => { saveToStorage('sms-last-scan', lastScanMs); }, [lastScanMs]);
+
+  // Garbage-collect linkedSms: drop entries whose transaction no longer exists (Phase 4)
+  useEffect(() => {
+    const txnFingerprints = new Set(
+      transactions.filter(t => t.sourceSmsFingerprint).map(t => t.sourceSmsFingerprint!)
+    );
+    const cleanedLinked: Record<string, ParsedSms> = {};
+    let changed = false;
+    for (const [fp, parsed] of Object.entries(linkedSms)) {
+      if (txnFingerprints.has(fp)) {
+        cleanedLinked[fp] = parsed;
+      } else {
+        changed = true;
+      }
+    }
+    if (changed) {
+      setLinkedSms(cleanedLinked);
+    }
+  }, [transactions, linkedSms]);
 
   // One-time backfill: for legacy SavingsGoal entries with a target but no createdAt,
   // anchor pace at the earliest savings transaction in that category (else today).
@@ -603,7 +744,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const getTotalExpenses = useCallback((month?: string) => {
     return getTransactionsForMonth(month)
-      .filter(t => t.type === 'expense' && !SAVINGS_CATEGORY_ID_SET.has(t.categoryId))
+      .filter(isConsumptionExpense)
       .reduce((sum, t) => sum + t.amount, 0);
   }, [getTransactionsForMonth]);
 
@@ -671,6 +812,299 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     };
   }, [getTransactionsForMonth]);
 
+  // ========== SMS auto-import methods (Phase 4) ==========
+
+  const runSmsScan = useCallback(
+    async (opts: {
+      sinceDays: number;
+      mode: 'first' | 'incremental';
+      onProgress?: (event: {
+        phase: 'reading' | 'parsing' | 'matching' | 'done';
+        sender?: string;
+        read: number;
+        parsed: number;
+        newCandidates: number;
+        autoLinked: number;
+      }) => void;
+    }) => {
+      const reader = getSmsReader();
+      const now = Date.now();
+
+      // Check and request permission
+      try {
+        const hasPermission = await reader.hasPermission();
+        if (!hasPermission) {
+          const state = await reader.requestPermission();
+          if (state !== 'granted') {
+            return { ok: false as const, reason: 'permission-denied' as const };
+          }
+        }
+      } catch (error) {
+        if (error instanceof SmsReaderPermissionError) {
+          return { ok: false as const, reason: 'permission-denied' as const, error: error.message };
+        }
+        return { ok: false as const, reason: 'unknown' as const, error: String(error) };
+      }
+
+      // Compute time range
+      const sinceMs =
+        opts.mode === 'incremental'
+          ? Math.max(lastScanMs, now - opts.sinceDays * 86400000)
+          : now - opts.sinceDays * 86400000;
+
+      // Read inbox
+      opts.onProgress?.({ phase: 'reading', read: 0, parsed: 0, newCandidates: 0, autoLinked: 0 });
+      let messages;
+      try {
+        messages = await reader.readMessages(sinceMs, now);
+      } catch (error) {
+        if (error instanceof SmsReaderPermissionError) {
+          return { ok: false as const, reason: 'permission-denied' as const, error: error.message };
+        }
+        if (error instanceof SmsReaderQueryError) {
+          return { ok: false as const, reason: 'query-failed' as const, error: error.message };
+        }
+        return { ok: false as const, reason: 'unknown' as const, error: String(error) };
+      }
+
+      let read = 0;
+      let parsed = 0;
+      let newCandidates = 0;
+      let autoLinked = 0;
+      const newPending: ParsedSms[] = [];
+
+      for (const msg of messages) {
+        read++;
+
+        // Batch progress updates every 10 messages
+        if (read % 10 === 0 || read === messages.length) {
+          opts.onProgress?.({
+            phase: 'parsing',
+            sender: msg.sender,
+            read,
+            parsed,
+            newCandidates,
+            autoLinked,
+          });
+        }
+
+        // Compute fingerprint
+        const fingerprint = await smsFingerprint(msg);
+
+        // Tier-1 skip: dismissed
+        if (dismissedSmsFingerprints.has(fingerprint)) continue;
+
+        // Tier-2 skip: already linked to a transaction
+        if (transactions.some(t => t.sourceSmsFingerprint === fingerprint)) continue;
+
+        // Parse
+        const parsedSms = await parseSms(msg);
+        if (!parsedSms) continue;
+
+        parsed++;
+
+        // On first scan only: attempt auto-link
+        if (opts.mode === 'first') {
+          const match = classifyMatch(parsedSms, transactions);
+          if (match.kind === 'high' && match.existingId) {
+            // Auto-link
+            opts.onProgress?.({
+              phase: 'matching',
+              sender: msg.sender,
+              read,
+              parsed,
+              newCandidates,
+              autoLinked,
+            });
+
+            const existingTx = transactions.find(t => t.id === match.existingId);
+            if (existingTx) {
+              // Update the transaction
+              const updates: Omit<Transaction, 'id'> = {
+                ...existingTx,
+                sourceSmsFingerprint: parsedSms.fingerprint,
+              };
+              if (!existingTx.paymentMethod) {
+                updates.paymentMethod = parsedSms.paymentMethod;
+              }
+              if (!existingTx.merchant && parsedSms.merchant) {
+                updates.merchant = parsedSms.merchant;
+              }
+              updateTransaction(existingTx.id, updates);
+
+              // Store in linkedSms for potential unlink
+              setLinkedSms(prev => ({ ...prev, [parsedSms.fingerprint]: parsedSms }));
+
+              autoLinked++;
+              continue;
+            }
+          }
+        }
+
+        // Add to pending
+        newPending.push(parsedSms);
+        newCandidates++;
+      }
+
+      // Merge new pending with existing
+      setPendingSms(prev => [...newPending, ...prev]);
+      setLastScanMs(now);
+
+      opts.onProgress?.({ phase: 'done', read, parsed, newCandidates, autoLinked });
+
+      return {
+        ok: true as const,
+        newCandidates,
+        autoLinked,
+        needsReview: newPending.length + pendingSms.length,
+      };
+    },
+    [transactions, pendingSms, dismissedSmsFingerprints, lastScanMs, updateTransaction]
+  );
+
+  const approveSms = useCallback(
+    async (fingerprints: string[]) => {
+      const toApprove = pendingSms.filter(p => fingerprints.includes(p.fingerprint));
+      const newTransactions: Transaction[] = [];
+
+      for (const parsed of toApprove) {
+        const tx: Transaction = {
+          id: createId(),
+          type: parsed.direction === 'credit' ? 'income' : 'expense',
+          amount: parsed.amount,
+          categoryId: parsed.suggestedCategoryId || 'leisure', // fallback to leisure if no suggestion
+          note: formatSmsDescription(parsed),
+          date: parsed.dateISO,
+          paymentMethod: parsed.paymentMethod,
+          merchant: parsed.merchant ?? undefined,
+          sourceSmsFingerprint: parsed.fingerprint,
+        };
+        newTransactions.push(tx);
+      }
+
+      // Add all transactions at once
+      setTransactions(prev => [...newTransactions, ...prev]);
+
+      // Remove from pending
+      setPendingSms(prev => prev.filter(p => !fingerprints.includes(p.fingerprint)));
+
+      return { approved: newTransactions.length };
+    },
+    [pendingSms]
+  );
+
+  const dismissSms = useCallback((fingerprints: string[]) => {
+    setDismissedSmsFingerprints(prev => {
+      const next = new Set(prev);
+      fingerprints.forEach(fp => next.add(fp));
+      return next;
+    });
+    setPendingSms(prev => prev.filter(p => !fingerprints.includes(p.fingerprint)));
+  }, []);
+
+  const linkSmsToTransaction = useCallback(
+    (fingerprint: string, existingTxnId: string) => {
+      const parsed = pendingSms.find(p => p.fingerprint === fingerprint);
+      if (!parsed) return;
+
+      const existingTx = transactions.find(t => t.id === existingTxnId);
+      if (!existingTx) return;
+
+      // Update transaction
+      const updates: Omit<Transaction, 'id'> = {
+        ...existingTx,
+        sourceSmsFingerprint: fingerprint,
+      };
+      if (!existingTx.paymentMethod) {
+        updates.paymentMethod = parsed.paymentMethod;
+      }
+      if (!existingTx.merchant && parsed.merchant) {
+        updates.merchant = parsed.merchant;
+      }
+      updateTransaction(existingTxnId, updates);
+
+      // Store in linkedSms
+      setLinkedSms(prev => ({ ...prev, [fingerprint]: parsed }));
+
+      // Remove from pending
+      setPendingSms(prev => prev.filter(p => p.fingerprint !== fingerprint));
+    },
+    [pendingSms, transactions, updateTransaction]
+  );
+
+  const unlinkSmsFromTransaction = useCallback(
+    (fingerprint: string) => {
+      const linked = linkedSms[fingerprint];
+      if (!linked) return;
+
+      const tx = transactions.find(t => t.sourceSmsFingerprint === fingerprint);
+      if (tx) {
+        const updates: Omit<Transaction, 'id'> = {
+          ...tx,
+          sourceSmsFingerprint: undefined,
+        };
+        updateTransaction(tx.id, updates);
+      }
+
+      // Move back to pending
+      setPendingSms(prev => [linked, ...prev]);
+
+      // Remove from linkedSms
+      setLinkedSms(prev => {
+        const next = { ...prev };
+        delete next[fingerprint];
+        return next;
+      });
+    },
+    [linkedSms, transactions, updateTransaction]
+  );
+
+  const dismissSmsBefore = useCallback(
+    async (dateISO: string, onProgress?: (read: number) => void) => {
+      const reader = getSmsReader();
+      try {
+        const messages = await reader.readMessages(0, Date.now());
+        const toDismiss: string[] = [];
+
+        for (let i = 0; i < messages.length; i++) {
+          const msg = messages[i];
+          if (i % 50 === 0) {
+            onProgress?.(i);
+          }
+
+          const fingerprint = await smsFingerprint(msg);
+          const parsedSms = await parseSms(msg);
+
+          if (parsedSms && parsedSms.dateISO < dateISO) {
+            toDismiss.push(fingerprint);
+          }
+        }
+
+        // Add to dismissed set
+        setDismissedSmsFingerprints(prev => {
+          const next = new Set(prev);
+          toDismiss.forEach(fp => next.add(fp));
+          return next;
+        });
+
+        // Remove from pending
+        setPendingSms(prev => prev.filter(p => !toDismiss.includes(p.fingerprint)));
+
+        onProgress?.(messages.length);
+      } catch {
+        // Ignore errors — if we can't read the inbox, we can't dismiss
+      }
+    },
+    []
+  );
+
+  const getLinkedTransactions = useCallback(() => {
+    return transactions.filter(t => t.sourceSmsFingerprint);
+  }, [transactions]);
+
+  const pendingSmsCount = pendingSms.length;
+  const linkedSmsCount = Object.keys(linkedSms).length;
+
   return (
     <FinanceContext.Provider value={{
       transactions, categories, budgets,
@@ -686,6 +1120,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getSpentForCategory,
       getMonthSummary,
       reloadFromStorage, lastChangedAt,
+      // SMS auto-import (Phase 4)
+      pendingSms, pendingSmsCount, linkedSmsCount, lastScanMs,
+      getLinkedTransactions,
+      runSmsScan, approveSms, dismissSms,
+      linkSmsToTransaction, unlinkSmsFromTransaction, dismissSmsBefore,
     }}>
       {children}
     </FinanceContext.Provider>

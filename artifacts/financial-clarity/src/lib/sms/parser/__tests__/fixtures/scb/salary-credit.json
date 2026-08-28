@@ -1,0 +1,16 @@
+{
+  "input": {
+    "id": "test-scb-salary-001",
+    "sender": "SCBANK",
+    "body": "INR 92,500.00 has been credited to your SC A/c XX6789 on 01-Jul-26. Narration: SALARY-JUNE2026. Current Balance: INR 1,15,200.00.",
+    "timestamp": 1719814500000
+  },
+  "expected": {
+    "amount": 92500,
+    "direction": "credit",
+    "merchant": "SALARY-JUNE2026",
+    "accountTail": "6789",
+    "paymentMethod": "bank",
+    "reason": "salary"
+  }
+}

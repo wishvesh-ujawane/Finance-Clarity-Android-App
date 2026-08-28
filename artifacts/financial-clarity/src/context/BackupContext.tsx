@@ -146,6 +146,9 @@ function appPropertiesFor(backup: BackupFile): Record<string, string> {
     countBudgets: String(backup.counts.budgets),
     countRecurring: String(backup.counts.recurringExpenses),
     countSavings: String(backup.counts.savingsGoal),
+    countPendingSms: String(backup.counts.pendingSms),
+    countDismissedSms: String(backup.counts.dismissedSmsFingerprints),
+    countLinkedSms: String(backup.counts.linkedSms),
   };
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(raw)) {
@@ -166,6 +169,9 @@ function remoteInfoFromDriveFile(file: DriveFile): RemoteBackupInfo {
         budgets: Number(ap.countBudgets) || 0,
         recurringExpenses: Number(ap.countRecurring) || 0,
         savingsGoal: Number(ap.countSavings) || 0,
+        pendingSms: Number(ap.countPendingSms) || 0,
+        dismissedSmsFingerprints: Number(ap.countDismissedSms) || 0,
+        linkedSms: Number(ap.countLinkedSms) || 0,
       }
     : undefined;
   return {

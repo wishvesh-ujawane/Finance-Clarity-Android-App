@@ -1,0 +1,16 @@
+{
+  "input": {
+    "id": "test-hdfc-salary-001",
+    "sender": "HDFCBK",
+    "body": "Rs 75,000.00 credited to A/c **4532 on 01-Jul-26 (SALARY-JUN26). Avl Bal: Rs 1,15,320.50.",
+    "timestamp": 1719811200000
+  },
+  "expected": {
+    "amount": 75000,
+    "direction": "credit",
+    "merchant": "SALARY-JUN26",
+    "accountTail": "4532",
+    "paymentMethod": "bank",
+    "reason": "salary"
+  }
+}
