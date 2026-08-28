@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils';
 import { SmsOriginBadge } from '@/components/sms/SmsOriginBadge';
 import { ScanProgressOverlay } from '@/components/sms/ScanProgressOverlay';
 import { SmsApprovalSheet } from '@/components/sms/SmsApprovalSheet';
+import { getSmsReader } from '@/lib/sms/SmsReader';
+import { parseSms } from '@/lib/sms/parser';
 
 type Tab = 'pending' | 'linked' | 'settings';
 type ScanWindow = 7 | 30 | 90;
@@ -121,6 +123,73 @@ export default function SmsAutoImport() {
         setTimeout(() => setShowScanProgress(false), 4000);
       });
   }, [runSmsScan, scanWindow, showScanProgress]);
+
+  // ---------------------------------------------------------------
+  // Diagnostic — read raw inbox and tag each SMS as parsed vs
+  // unrecognised so users (and I) can see which bank/UPI senders
+  // need new parser rules. No data leaves the device.
+  // ---------------------------------------------------------------
+  type DiagnosticRow = {
+    id: string;
+    sender: string;
+    body: string;
+    timestamp: number;
+    parsed: boolean;
+  };
+  const [diagnosticRows, setDiagnosticRows] = useState<DiagnosticRow[] | null>(null);
+  const [diagnosticRunning, setDiagnosticRunning] = useState(false);
+  const [diagnosticError, setDiagnosticError] = useState<string | null>(null);
+  const [diagnosticFilter, setDiagnosticFilter] = useState<'unrecognised' | 'all'>('unrecognised');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleRunDiagnostic = useCallback(async () => {
+    setDiagnosticRunning(true);
+    setDiagnosticError(null);
+    setDiagnosticRows(null);
+    try {
+      const reader = getSmsReader();
+      const hasPerm = await reader.hasPermission();
+      if (!hasPerm) {
+        const state = await reader.requestPermission();
+        if (state !== 'granted') {
+          setDiagnosticError('SMS permission denied.');
+          return;
+        }
+      }
+      const now = Date.now();
+      const sinceMs = now - 30 * 86400000;
+      const messages = await reader.readMessages(sinceMs, now);
+      const rows: DiagnosticRow[] = [];
+      for (const msg of messages) {
+        const parsedSms = await parseSms(msg);
+        rows.push({
+          id: msg.id,
+          sender: msg.sender,
+          body: msg.body,
+          timestamp: msg.timestamp,
+          parsed: parsedSms !== null,
+        });
+      }
+      // Newest first for readability.
+      rows.sort((a, b) => b.timestamp - a.timestamp);
+      setDiagnosticRows(rows);
+    } catch (err) {
+      setDiagnosticError(err instanceof Error ? err.message : 'Diagnostic failed.');
+    } finally {
+      setDiagnosticRunning(false);
+    }
+  }, []);
+
+  const handleCopyBody = useCallback(async (row: DiagnosticRow) => {
+    const payload = `Sender: ${row.sender}\nDate: ${new Date(row.timestamp).toISOString()}\n\n${row.body}`;
+    try {
+      await navigator.clipboard.writeText(payload);
+      setCopiedId(row.id);
+      setTimeout(() => setCopiedId((prev) => (prev === row.id ? null : prev)), 1500);
+    } catch {
+      // Fallback: no-op — user can long-press select on the body itself.
+    }
+  }, []);
 
   const linkedTransactions = getLinkedTransactions();
   const categoryById = new Map(categories.map((c) => [c.id, c]));
@@ -396,6 +465,137 @@ export default function SmsAutoImport() {
             >
               {SMS_COPY.settings.resetDismissedButton}
             </button>
+          </div>
+
+          {/* Diagnostic — unrecognised SMS. Only for debugging parser
+              coverage; does not send any data anywhere. */}
+          <div className="pt-4 border-t border-border">
+            <p className="text-sm font-semibold text-foreground mb-1">
+              Diagnose unrecognised SMS
+            </p>
+            <p className="text-xs text-muted-foreground mb-3">
+              Reads the last 30 days of SMS and shows which ones the parser
+              can't understand yet. Nothing leaves your phone. Copy an
+              unrecognised example and share it to add a new rule for that
+              bank or UPI app.
+            </p>
+            <button
+              type="button"
+              onClick={handleRunDiagnostic}
+              disabled={diagnosticRunning}
+              className="px-4 py-2 rounded-xl bg-muted text-foreground text-sm font-semibold hover:bg-muted/70 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {diagnosticRunning ? 'Reading inbox…' : 'Run diagnostic'}
+            </button>
+            {diagnosticError && (
+              <div
+                role="alert"
+                className="mt-3 rounded-lg bg-destructive/10 border border-destructive/30 p-3 text-xs text-destructive"
+              >
+                {diagnosticError}
+              </div>
+            )}
+            {diagnosticRows !== null && (
+              <div className="mt-4 space-y-3">
+                {(() => {
+                  const total = diagnosticRows.length;
+                  const parsedCount = diagnosticRows.filter((r) => r.parsed).length;
+                  const unrecognisedCount = total - parsedCount;
+                  return (
+                    <div className="flex items-center justify-between text-xs">
+                      <p className="text-muted-foreground">
+                        <span className="font-semibold text-foreground">{total}</span> read
+                        {' · '}
+                        <span className="font-semibold text-emerald-600">{parsedCount}</span> parsed
+                        {' · '}
+                        <span className="font-semibold text-amber-600">{unrecognisedCount}</span> unrecognised
+                      </p>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setDiagnosticFilter('unrecognised')}
+                          className={cn(
+                            'px-2 py-1 rounded-md text-[11px] font-semibold transition-colors',
+                            diagnosticFilter === 'unrecognised'
+                              ? 'bg-accent text-white'
+                              : 'bg-muted text-muted-foreground hover:text-foreground',
+                          )}
+                        >
+                          Unrecognised
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDiagnosticFilter('all')}
+                          className={cn(
+                            'px-2 py-1 rounded-md text-[11px] font-semibold transition-colors',
+                            diagnosticFilter === 'all'
+                              ? 'bg-accent text-white'
+                              : 'bg-muted text-muted-foreground hover:text-foreground',
+                          )}
+                        >
+                          All
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+                {diagnosticRows
+                  .filter((r) => diagnosticFilter === 'all' || !r.parsed)
+                  .slice(0, 50)
+                  .map((row) => (
+                    <div
+                      key={row.id}
+                      className={cn(
+                        'rounded-xl border p-3',
+                        row.parsed
+                          ? 'border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20'
+                          : 'border-amber-200 bg-amber-50/50 dark:bg-amber-950/20',
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-foreground truncate">
+                            {row.sender}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {new Date(row.timestamp).toLocaleString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                            {' · '}
+                            <span
+                              className={cn(
+                                'font-semibold',
+                                row.parsed ? 'text-emerald-600' : 'text-amber-600',
+                              )}
+                            >
+                              {row.parsed ? 'parsed' : 'unrecognised'}
+                            </span>
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyBody(row)}
+                          className="flex-shrink-0 px-2 py-1 rounded-md bg-card border border-border text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {copiedId === row.id ? 'Copied' : 'Copy'}
+                        </button>
+                      </div>
+                      <p className="text-[11px] font-mono text-foreground whitespace-pre-wrap break-words leading-snug">
+                        {row.body}
+                      </p>
+                    </div>
+                  ))}
+                {diagnosticRows.filter((r) => diagnosticFilter === 'all' || !r.parsed).length > 50 && (
+                  <p className="text-[11px] text-muted-foreground text-center">
+                    Showing first 50 of{' '}
+                    {diagnosticRows.filter((r) => diagnosticFilter === 'all' || !r.parsed).length}.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
