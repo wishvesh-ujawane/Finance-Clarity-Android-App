@@ -23,7 +23,7 @@ export interface SmsMessage {
 /**
  * Abstraction for reading SMS messages.
  * Phase 1: mockSmsReader returns fixtures.
- * Phase 2+: native reader via Capacitor plugin.
+ * Phase 3+: native reader via Capacitor plugin with permission handling.
  */
 export interface SmsReader {
   /**
@@ -33,6 +33,18 @@ export interface SmsReader {
    * @returns Array of messages in chronological order (oldest first).
    */
   readMessages(start: number, end: number): Promise<SmsMessage[]>;
+
+  /**
+   * Check if READ_SMS permission is granted.
+   * Returns true for mock reader (no permission needed on web).
+   */
+  hasPermission(): Promise<boolean>;
+
+  /**
+   * Request READ_SMS permission from the user.
+   * Returns 'granted' for mock reader (no permission needed on web).
+   */
+  requestPermission(): Promise<'granted' | 'denied' | 'prompt'>;
 }
 
 /**

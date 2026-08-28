@@ -128,6 +128,16 @@ export class MockSmsReader implements SmsReader {
       (a, b) => a.timestamp - b.timestamp,
     );
   }
+
+  async hasPermission(): Promise<boolean> {
+    // Mock reader always has permission (no permissions needed on web)
+    return true;
+  }
+
+  async requestPermission(): Promise<'granted' | 'denied' | 'prompt'> {
+    // Mock reader always grants permission
+    return 'granted';
+  }
 }
 
 /** Singleton instance for convenience. */

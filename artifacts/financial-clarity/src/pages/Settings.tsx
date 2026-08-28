@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'wouter';
-import { ChevronRight, Cloud, Heart, MessageCircle, PiggyBank, Repeat, Shapes, ShieldCheck } from 'lucide-react';
+import { ChevronRight, Cloud, Heart, MessageCircle, MessageSquareText, PiggyBank, Repeat, Shapes, ShieldCheck } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { useSecurity } from '@/context/SecurityContext';
 import { formatINR } from '@/lib/finance-utils';
@@ -15,7 +15,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export default function Settings() {
-  const { recurringExpenses, savingsGoal } = useFinance();
+  const { recurringExpenses, savingsGoal, pendingSmsCount, linkedSmsCount } = useFinance();
   const { isAppLockEnabled, settings: securitySettings } = useSecurity();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
@@ -67,6 +67,31 @@ export default function Settings() {
                 {recurringExpenses.length === 0
                   ? 'Auto-add rent, EMIs, SIPs, and subscriptions every month.'
                   : `${recurringExpenses.length} configured \u2022 ${activeRecurringCount} active`}
+              </p>
+            </div>
+            <ChevronRight size={16} className="text-muted-foreground" />
+          </button>
+        </Link>
+
+        <div className="border-t border-border" />
+
+        <Link href="/settings/sms-auto-import">
+          <button
+            type="button"
+            data-testid="settings-sms-auto-import-link"
+            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/5 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+              <MessageSquareText size={18} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-foreground">Auto-import from SMS</p>
+              <p className="text-xs text-muted-foreground">
+                {pendingSmsCount > 0
+                  ? `${pendingSmsCount} pending \u2022 ${linkedSmsCount} linked`
+                  : linkedSmsCount > 0
+                  ? `${linkedSmsCount} linked transactions`
+                  : 'Scan your SMS for bank transactions.'}
               </p>
             </div>
             <ChevronRight size={16} className="text-muted-foreground" />

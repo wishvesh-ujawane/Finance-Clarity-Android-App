@@ -112,6 +112,7 @@ export function TransactionSheet() {
   const [categoryId, setCategoryId] = useState('');
   const [note, setNote] = useState('');
   const [date, setDate] = useState(localDateStr(new Date()));
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank' | 'credit-card' | undefined>(undefined);
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('DollarSign');
@@ -128,12 +129,14 @@ export function TransactionSheet() {
         setCategoryId(editingTransaction.categoryId);
         setNote(editingTransaction.note);
         setDate(editingTransaction.date);
+        setPaymentMethod(editingTransaction.paymentMethod as 'cash' | 'bank' | 'credit-card' | undefined);
       } else {
         setMode('expense');
         setAmount('');
         setCategoryId('');
         setNote('');
         setDate(localDateStr(new Date()));
+        setPaymentMethod(undefined);
       }
       setShowNewCat(false);
     }
@@ -153,7 +156,14 @@ export function TransactionSheet() {
 
     // 'save' is a UI mode; underlying transaction is an expense whose category is a savings one.
     const storedType: 'expense' | 'income' = mode === 'income' ? 'income' : 'expense';
-    const payload = { type: storedType, amount: parsed, categoryId, note, date };
+    const payload = { 
+      type: storedType, 
+      amount: parsed, 
+      categoryId, 
+      note, 
+      date,
+      paymentMethod: paymentMethod || undefined,
+    };
 
     if (isEditing && editingTransaction) {
       updateTransaction(editingTransaction.id, payload);
@@ -162,7 +172,7 @@ export function TransactionSheet() {
     }
 
     closeSheet();
-  }, [amount, categoryId, mode, note, date, isEditing, editingTransaction, addTransaction, updateTransaction, closeSheet]);
+  }, [amount, categoryId, mode, note, date, paymentMethod, isEditing, editingTransaction, addTransaction, updateTransaction, closeSheet]);
 
   const handleCalculatorKey = useCallback((key: typeof CALCULATOR_KEYS[number]) => {
     if (key === '=') {
@@ -347,6 +357,33 @@ export function TransactionSheet() {
                       {key}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Payment Method */}
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
+                  Payment Method (Optional)
+                </label>
+                <div className="flex gap-2">
+                  {(['cash', 'bank', 'credit-card'] as const).map((method) => {
+                    const label = method === 'cash' ? 'Cash' : method === 'bank' ? 'Bank' : 'Credit Card';
+                    return (
+                      <button
+                        key={method}
+                        type="button"
+                        onClick={() => setPaymentMethod(paymentMethod === method ? undefined : method)}
+                        className={cn(
+                          'flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all',
+                          paymentMethod === method
+                            ? 'bg-accent text-white shadow-md'
+                            : 'bg-muted text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

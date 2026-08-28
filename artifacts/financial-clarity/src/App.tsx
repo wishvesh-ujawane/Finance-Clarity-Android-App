@@ -25,6 +25,7 @@ import RecurringExpenses from '@/pages/RecurringExpenses';
 import Categories from '@/pages/Categories';
 import BackupRestore from '@/pages/BackupRestore';
 import SavingsGoals from '@/pages/SavingsGoals';
+import SmsAutoImport from '@/pages/SmsAutoImport';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -65,6 +66,7 @@ function AppLayout() {
           <Route path="/settings/categories" component={Categories} />
           <Route path="/settings/backup" component={BackupRestore} />
           <Route path="/settings/savings" component={SavingsGoals} />
+          <Route path="/settings/sms-auto-import" component={SmsAutoImport} />
           <Route path="/settings" component={Settings} />
           <Route component={NotFound} />
         </Switch>
