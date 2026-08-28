@@ -130,20 +130,35 @@ New (add tests against these later if needed):
 
 ## 5. How to verify manually
 
-Prereq: `pnpm install` at repo root (SMS Phase 5a lockfile already applies).
+The dev workflow for this repo is **build a debug APK, transfer to a physical Android phone, and install manually** (no `adb`, no browser dev server). Steps:
 
-```powershell
-cd artifacts/financial-clarity
-pnpm dev
-```
+1. From the repo root, build the debug APK (this runs `pnpm build`, `npx cap sync android`, and `gradlew assembleDebug` in sequence):
 
-Then in the app:
+   ```powershell
+   .\build-debug-apk.ps1
+   ```
 
-1. **Sort check** — Add a new transaction, open the category dropdown → verify alphabetical order. Same for Budgets (tap FAB → Add budget) and Recurring.
-2. **CC (due) label** — Add transaction, open Payment method → the credit-card-payment option should read "Credit Card (due)".
-3. **Speed-dial** — On Dashboard/Transactions/Budgets, tap the FAB. Four options fan out (Expense, Income, Budget, Save). Tap any → correct sheet opens with correct initial mode. Tap outside (backdrop) → menu collapses. On Recurring, FAB still opens the single Add-recurring sheet.
-4. **Budgets accordion** — Create a category, set a low budget (say ₹100), record an expense of ₹150 in that category. Navigate to Budgets → the fully-used one appears under the "Fully used (1)" accordion. Active budgets remain in the top list.
-5. **Highlight deep-link** — On Dashboard, if there's an alert chip for an over-budget category, tap it. Budgets opens, the used-up accordion auto-expands, and the card scrolls into view with a brief amber ring.
+   If no device is connected via USB, the script stops after the Gradle step and prints the APK path. That's the mode we want here — we're doing manual sideload, not `adb install`.
+
+2. Locate the built APK at:
+
+   ```
+   artifacts/financial-clarity/android/app/build/outputs/apk/debug/app-debug.apk
+   ```
+
+3. Transfer that `app-debug.apk` file to your phone (USB file transfer, cloud drive, or any file-sharing method you already use).
+
+4. On the phone, open the APK from your file manager and confirm "Install anyway" if Play Protect prompts. Launch **Financial Clarity**.
+
+5. Walk through each improvement:
+
+   1. **Sort check** — Tap the FAB → Add expense. Open the Category dropdown → verify alphabetical order. Repeat on FAB → Add budget (BudgetSheet), and on Recurring page's category picker.
+   2. **CC (due) label** — In Add expense, open Payment method → the credit-card-payment option should read "Credit Card (due)".
+   3. **Speed-dial** — On Dashboard, Transactions, and Budgets, tap the FAB. Four options fan out (Expense, Income, Budget, Savings). Tap each → correct sheet opens with the correct initial mode. Tap outside (backdrop) → menu collapses. On Recurring, the FAB still opens the single Add-recurring sheet (unchanged).
+   4. **Budgets accordion** — Create a category, set a low budget (say ₹100), record an expense of ₹150 in that category. Navigate to Budgets → the fully-used one appears under the "Fully used (1)" accordion. Active budgets remain in the top list.
+   5. **Highlight deep-link** — On Dashboard, if there's an alert chip for an over-budget category, tap it. Budgets opens, the used-up accordion auto-expands, and the card scrolls into view with a brief amber ring.
+
+> Corporate-network note: if `.\build-debug-apk.ps1` fails at the Gradle step with a TLS reset while downloading the Gradle distribution, that's the known corporate SNI filter on `services.gradle.org`. Rebuild on a home network or open Android Studio (bundled Gradle) once to warm the wrapper cache.
 
 ---
 
