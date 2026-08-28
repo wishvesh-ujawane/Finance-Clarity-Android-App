@@ -84,7 +84,7 @@ export function SmsApprovalSheet({ open, onClose }: SmsApprovalSheetProps) {
   if (!open) return null;
 
   return (
-    <Drawer.Root open={open} onOpenChange={onClose} dismissible={false}>
+    <Drawer.Root open={open} onOpenChange={(next) => { if (!next) onClose(); }} dismissible>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
         <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 bg-card rounded-t-3xl outline-none max-h-[85vh] flex flex-col">
@@ -96,15 +96,15 @@ export function SmsApprovalSheet({ open, onClose }: SmsApprovalSheetProps) {
                   <MessageSquareText size={18} />
                 </div>
                 <div>
-                  <h2
+                  <Drawer.Title
                     className="text-lg font-bold text-foreground"
                     style={{ fontFamily: 'var(--font-display)' }}
                   >
                     {SMS_COPY.approval.title}
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
+                  </Drawer.Title>
+                  <Drawer.Description className="text-xs text-muted-foreground">
                     {SMS_COPY.approval.summaryNew(pendingSms.length)}
-                  </p>
+                  </Drawer.Description>
                 </div>
               </div>
               <button
