@@ -233,19 +233,13 @@ describe('FinanceContext -- SMS auto-import', () => {
       p => p.paymentMethod === 'credit-card-payment',
     );
     expect(ccPayment).toBeDefined();
-    const beforeExpenses = result.current.getTotalExpenses(
-      '2026-07-01',
-      '2026-07-31',
-    );
+    const beforeExpenses = result.current.getTotalExpenses('2026-07');
 
     await act(async () => {
       await result.current.approveSms([ccPayment!.fingerprint]);
     });
 
-    const afterExpenses = result.current.getTotalExpenses(
-      '2026-07-01',
-      '2026-07-31',
-    );
+    const afterExpenses = result.current.getTotalExpenses('2026-07');
     // isConsumptionExpense excludes credit-card-payment, so totals must
     // be byte-identical after approving that specific SMS.
     expect(afterExpenses).toBe(beforeExpenses);
