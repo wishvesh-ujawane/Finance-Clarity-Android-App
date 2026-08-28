@@ -3,7 +3,7 @@
  * Full-featured control panel: pending/linked tabs, scan settings, cutoff management.
  */
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link } from 'wouter';
 import { MessageSquareText, ChevronLeft, Search } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
@@ -12,15 +12,37 @@ import { formatAmount, formatDateLabel } from '@/lib/finance-utils';
 import { SMS_COPY } from '@/lib/sms/copy';
 import { cn } from '@/lib/utils';
 import { SmsOriginBadge } from '@/components/sms/SmsOriginBadge';
+import { ScanProgressOverlay } from '@/components/sms/ScanProgressOverlay';
+import { SmsApprovalSheet } from '@/components/sms/SmsApprovalSheet';
 
 type Tab = 'pending' | 'linked' | 'settings';
 type ScanWindow = 7 | 30 | 90;
+
+/** Format a lastScanMs timestamp as a human-readable relative label. */
+function formatLastScan(lastScanMs: number): string {
+  if (!lastScanMs) return 'Never';
+  const diffMs = Date.now() - lastScanMs;
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hr ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
+  return new Date(lastScanMs).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
 
 export default function SmsAutoImport() {
   const {
     pendingSms,
     pendingSmsCount,
     linkedSmsCount,
+    lastScanMs,
+    runSmsScan,
     getLinkedTransactions,
     approveSms,
     dismissSms,
@@ -31,6 +53,74 @@ export default function SmsAutoImport() {
 
   const [activeTab, setActiveTab] = useState<Tab>('pending');
   const [scanWindow, setScanWindow] = useState<ScanWindow>(30);
+
+  // Scan feedback state (mirrors the Transactions chip flow so the "Scan now"
+  // button on this page shows a live progress bar and always tells the user
+  // the outcome — including "0 new" — instead of silently doing nothing.
+  const [showScanProgress, setShowScanProgress] = useState(false);
+  const [showApprovalSheet, setShowApprovalSheet] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanProgress, setScanProgress] = useState<{
+    phase: 'reading' | 'parsing' | 'matching' | 'done';
+    sender?: string;
+    read: number;
+    parsed: number;
+    newCandidates: number;
+    autoLinked: number;
+  }>({
+    phase: 'reading',
+    read: 0,
+    parsed: 0,
+    newCandidates: 0,
+    autoLinked: 0,
+  });
+
+  const handleScanNow = useCallback(() => {
+    if (showScanProgress) return; // prevent double-fire
+    setScanError(null);
+    setScanProgress({
+      phase: 'reading',
+      read: 0,
+      parsed: 0,
+      newCandidates: 0,
+      autoLinked: 0,
+    });
+    setShowScanProgress(true);
+    // Force a fresh (mode: 'first') scan over the picked window so the
+    // Settings page always honours the filter regardless of lastScanMs.
+    runSmsScan({
+      sinceDays: scanWindow,
+      mode: 'first',
+      onProgress: (event) => setScanProgress(event),
+    })
+      .then((result) => {
+        if (!result.ok) {
+          setScanError(
+            result.reason === 'permission-denied'
+              ? 'SMS permission not granted. Enable it in Settings → Apps → Fiscal Focus → Permissions → SMS.'
+              : result.reason === 'query-failed'
+                ? 'Could not read your SMS inbox. On Samsung, open Settings → Apps → Fiscal Focus → ⋮ → "Allow restricted settings" and re-toggle SMS permission.'
+                : result.error || 'Scan failed.',
+          );
+          // Leave the overlay up so the user reads the error.
+          setTimeout(() => setShowScanProgress(false), 4000);
+          return;
+        }
+        if (result.needsReview > 0) {
+          // Close overlay and open approval sheet.
+          setShowScanProgress(false);
+          setShowApprovalSheet(true);
+        } else {
+          // No new SMS to review — keep the "Scan complete · N read · 0 new"
+          // summary visible for a moment so the user sees the outcome.
+          setTimeout(() => setShowScanProgress(false), 2500);
+        }
+      })
+      .catch((err) => {
+        setScanError(err instanceof Error ? err.message : 'Scan failed unexpectedly.');
+        setTimeout(() => setShowScanProgress(false), 4000);
+      });
+  }, [runSmsScan, scanWindow, showScanProgress]);
 
   const linkedTransactions = getLinkedTransactions();
   const categoryById = new Map(categories.map((c) => [c.id, c]));
@@ -81,17 +171,27 @@ export default function SmsAutoImport() {
               {SMS_COPY.settings.heroSummary(pendingSmsCount, linkedSmsCount)}
             </p>
             <p className="text-xs text-muted-foreground">
-              Last scan: {/* TODO: format lastScanMs */}Never
+              Last scan: {formatLastScan(lastScanMs)}
             </p>
           </div>
           <button
             type="button"
-            className="px-4 py-2 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors flex items-center gap-2"
+            onClick={handleScanNow}
+            disabled={showScanProgress}
+            className="px-4 py-2 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Search size={14} />
             {SMS_COPY.settings.scanNowButton}
           </button>
         </div>
+        {scanError && (
+          <div
+            role="alert"
+            className="mt-2 rounded-lg bg-destructive/10 border border-destructive/30 p-3 text-xs text-destructive"
+          >
+            {scanError}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -299,6 +399,16 @@ export default function SmsAutoImport() {
           </div>
         </div>
       )}
+
+      <ScanProgressOverlay
+        open={showScanProgress}
+        progress={scanProgress}
+        onCancel={() => setShowScanProgress(false)}
+      />
+      <SmsApprovalSheet
+        open={showApprovalSheet}
+        onClose={() => setShowApprovalSheet(false)}
+      />
     </div>
   );
 }
