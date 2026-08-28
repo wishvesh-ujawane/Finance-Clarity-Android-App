@@ -1,0 +1,16 @@
+{
+  "input": {
+    "id": "test-scb-cc-001",
+    "sender": "SCBANK",
+    "body": "Your SC Credit Card XX4512 was used for INR 6,750.00 at SWIGGY on 11-Jul-26 at 19:45. If not you, call 18001034444.",
+    "timestamp": 1720716300000
+  },
+  "expected": {
+    "amount": 6750,
+    "direction": "debit",
+    "merchant": "SWIGGY",
+    "accountTail": "4512",
+    "paymentMethod": "credit-card",
+    "reason": "purchase"
+  }
+}

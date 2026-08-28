@@ -1,0 +1,16 @@
+{
+  "input": {
+    "id": "test-bom-debit-001",
+    "sender": "BKOFMH",
+    "body": "Rs 1,599.00 debited from your BoM A/c **8765 on 12-Jul-26 at AMAZON via Debit Card. Avl Bal: Rs 29,850.00. For help, SMS BLOCK to 9222281818.",
+    "timestamp": 1720802700000
+  },
+  "expected": {
+    "amount": 1599,
+    "direction": "debit",
+    "merchant": "AMAZON",
+    "accountTail": "8765",
+    "paymentMethod": "bank",
+    "reason": "purchase"
+  }
+}

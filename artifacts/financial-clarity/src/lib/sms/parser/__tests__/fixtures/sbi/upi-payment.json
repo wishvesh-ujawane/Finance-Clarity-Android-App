@@ -1,0 +1,17 @@
+{
+  "input": {
+    "id": "test-sbi-upi-001",
+    "sender": "SBIPSG",
+    "body": "Rs 450.00 debited from SBI A/c **3421 on 09-Jul-26 via UPI to merchant@paytm (REF: 234567890123). Avl Bal: Rs 57,750.00.",
+    "timestamp": 1720502400000
+  },
+  "expected": {
+    "amount": 450,
+    "direction": "debit",
+    "merchant": "merchant",
+    "accountTail": "3421",
+    "paymentMethod": "bank",
+    "txnRef": "234567890123",
+    "reason": "purchase"
+  }
+}

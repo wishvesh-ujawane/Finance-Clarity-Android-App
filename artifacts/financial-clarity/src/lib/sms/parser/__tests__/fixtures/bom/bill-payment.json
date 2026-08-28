@@ -1,0 +1,17 @@
+{
+  "input": {
+    "id": "test-bom-bill-001",
+    "sender": "BKOFMH",
+    "body": "Rs 2,450.00 debited from BoM A/c **8765 on 13-Jul-26 for Electricity Bill Payment (Ref: MSEDCL202607). Avl Bal: Rs 27,400.00.",
+    "timestamp": 1720875300000
+  },
+  "expected": {
+    "amount": 2450,
+    "direction": "debit",
+    "merchant": "Electricity Bill Payment",
+    "accountTail": "8765",
+    "paymentMethod": "bank",
+    "txnRef": "MSEDCL202607",
+    "reason": "purchase"
+  }
+}

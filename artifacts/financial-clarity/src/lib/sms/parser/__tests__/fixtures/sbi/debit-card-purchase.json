@@ -1,0 +1,16 @@
+{
+  "input": {
+    "id": "test-sbi-debit-001",
+    "sender": "SBIATM",
+    "body": "Dear SBI User, Rs 2,100.50 debited from A/c **3421 on 08-Jul-26 at BIG BAZAAR by Debit Card XX9987. Avl Bal Rs 58,200.00. Not you? Call 1800112211.",
+    "timestamp": 1720416000000
+  },
+  "expected": {
+    "amount": 2100.5,
+    "direction": "debit",
+    "merchant": "BIG BAZAAR",
+    "accountTail": "3421",
+    "paymentMethod": "bank",
+    "reason": "purchase"
+  }
+}
