@@ -43,7 +43,10 @@ export default function RecurringExpenses() {
   } = useFinance();
 
   const eligibleCategories = useMemo(
-    () => categories.filter(c => c.type === 'expense' || c.type === 'commitment' || c.type === 'both' || c.type === 'savings'),
+    () => categories
+      .filter(c => c.type === 'expense' || c.type === 'commitment' || c.type === 'both' || c.type === 'savings')
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name)),
     [categories]
   );
 

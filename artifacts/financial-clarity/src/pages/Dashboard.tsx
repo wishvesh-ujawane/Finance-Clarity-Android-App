@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useFinance } from '@/context/FinanceContext';
-import { useFabAction } from '@/context/FabContext';
+import { useDefaultFabMenu } from '@/hooks/useDefaultFabMenu';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { ConnectDriveBanner } from '@/components/ConnectDriveBanner';
 import { MonthEndReviewBanner } from '@/components/MonthEndReviewBanner';
@@ -35,7 +35,7 @@ export default function Dashboard() {
     openEditSheet, openSheet,
   } = useFinance();
 
-  useFabAction(openSheet, 'Add transaction', 'fab-add-transaction');
+  useDefaultFabMenu();
 
   const [, setLocation] = useLocation();
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
