@@ -11,6 +11,7 @@ import { MonthEndReviewProvider, useMonthEndReview } from '@/context/MonthEndRev
 import { Navigation } from '@/components/Navigation';
 import { FAB } from '@/components/FAB';
 import { TransactionSheet } from '@/components/TransactionSheet';
+import { BudgetSheet } from '@/components/BudgetSheet';
 import { LockScreen } from '@/components/LockScreen';
 import { OnboardingFlow } from '@/components/onboarding/OnboardingFlow';
 import { MonthEndReviewFlow } from '@/components/month-end/MonthEndReviewFlow';
@@ -73,6 +74,7 @@ function AppLayout() {
       </main>
       {!isLocked && !showOnboarding && <FAB />}
       <TransactionSheet />
+      <BudgetSheet />
       <LockScreen />
       {!isLocked && !showOnboarding && <MonthEndReviewFlow />}
       {showOnboarding && (

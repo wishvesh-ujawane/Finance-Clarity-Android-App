@@ -101,9 +101,15 @@ interface FinanceContextType {
   setSelectedMonth: (m: string) => void;
   isSheetOpen: boolean;
   editingTransaction: Transaction | null;
-  openSheet: () => void;
+  /** Initial mode to seed the Add Transaction sheet with. Null falls back to 'expense'. */
+  sheetInitialMode: 'expense' | 'income' | 'save' | null;
+  openSheet: (initialMode?: 'expense' | 'income' | 'save') => void;
   openEditSheet: (t: Transaction) => void;
   closeSheet: () => void;
+  /** Global Add Budget sheet state (rendered once in App root). */
+  isBudgetSheetOpen: boolean;
+  openBudgetSheet: () => void;
+  closeBudgetSheet: () => void;
   getTotalIncome: (month?: string) => number;
   getTotalExpenses: (month?: string) => number;
   getTotalSavings: (month?: string) => number;
@@ -404,6 +410,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [sheetInitialMode, setSheetInitialMode] = useState<'expense' | 'income' | 'save' | null>(null);
+  const [isBudgetSheetOpen, setIsBudgetSheetOpen] = useState(false);
   const [lastChangedAt, setLastChangedAt] = useState<number>(0);
 
   // SMS auto-import state (Phase 4)
@@ -570,19 +578,30 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return sourceBudgets.length;
   }, [budgets]);
 
-  const openSheet = useCallback(() => {
+  const openSheet = useCallback((initialMode?: 'expense' | 'income' | 'save') => {
     setEditingTransaction(null);
+    setSheetInitialMode(initialMode ?? null);
     setIsSheetOpen(true);
   }, []);
 
   const openEditSheet = useCallback((t: Transaction) => {
     setEditingTransaction(t);
+    setSheetInitialMode(null);
     setIsSheetOpen(true);
   }, []);
 
   const closeSheet = useCallback(() => {
     setIsSheetOpen(false);
     setEditingTransaction(null);
+    setSheetInitialMode(null);
+  }, []);
+
+  const openBudgetSheet = useCallback(() => {
+    setIsBudgetSheetOpen(true);
+  }, []);
+
+  const closeBudgetSheet = useCallback(() => {
+    setIsBudgetSheetOpen(false);
   }, []);
 
   const addRecurring = useCallback((r: Omit<RecurringExpense, 'id' | 'lastGeneratedMonth'>) => {
@@ -1115,8 +1134,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       addRecurring, updateRecurring, deleteRecurring, toggleRecurringActive,
       setSavingsGoal,
       selectedMonth, setSelectedMonth,
-      isSheetOpen, editingTransaction,
+      isSheetOpen, editingTransaction, sheetInitialMode,
       openSheet, openEditSheet, closeSheet,
+      isBudgetSheetOpen, openBudgetSheet, closeBudgetSheet,
       getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getSpentForCategory,
       getMonthSummary,
       reloadFromStorage, lastChangedAt,

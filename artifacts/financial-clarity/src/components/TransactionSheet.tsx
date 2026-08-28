@@ -102,7 +102,7 @@ export function TransactionSheet() {
   const {
     isSheetOpen, closeSheet, categories,
     addTransaction, updateTransaction, deleteTransaction, addCategory,
-    editingTransaction,
+    editingTransaction, sheetInitialMode,
   } = useFinance();
 
   const isEditing = !!editingTransaction;
@@ -131,7 +131,7 @@ export function TransactionSheet() {
         setDate(editingTransaction.date);
         setPaymentMethod(editingTransaction.paymentMethod as 'cash' | 'bank' | 'credit-card' | undefined);
       } else {
-        setMode('expense');
+        setMode(sheetInitialMode ?? 'expense');
         setAmount('');
         setCategoryId('');
         setNote('');
@@ -140,13 +140,14 @@ export function TransactionSheet() {
       }
       setShowNewCat(false);
     }
-  }, [isSheetOpen, editingTransaction]);
+  }, [isSheetOpen, editingTransaction, sheetInitialMode]);
 
-  const filteredCategories = mode === 'save'
+  const filteredCategories = (mode === 'save'
     ? categories.filter(c => c.type === 'savings')
     : mode === 'expense'
       ? categories.filter(c => c.type === 'expense' || c.type === 'commitment' || c.type === 'both')
-      : categories.filter(c => c.type === 'income' || c.type === 'both');
+      : categories.filter(c => c.type === 'income' || c.type === 'both')
+  ).slice().sort((a, b) => a.name.localeCompare(b.name));
 
   const calculatedAmount = evaluateAmountExpression(amount);
 
@@ -367,7 +368,7 @@ export function TransactionSheet() {
                 </label>
                 <div className="flex gap-2">
                   {(['cash', 'bank', 'credit-card'] as const).map((method) => {
-                    const label = method === 'cash' ? 'Cash' : method === 'bank' ? 'Bank' : 'Credit Card';
+                    const label = method === 'cash' ? 'Cash' : method === 'bank' ? 'Bank' : 'Credit Card (due)';
                     return (
                       <button
                         key={method}

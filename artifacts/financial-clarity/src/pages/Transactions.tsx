@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, Download, FileText, Search, X, MessageSquareText } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
-import { useFabAction } from '@/context/FabContext';
+import { useDefaultFabMenu } from '@/hooks/useDefaultFabMenu';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { SmsOriginBadge } from '@/components/sms/SmsOriginBadge';
 import { FirstScanWizard } from '@/components/sms/FirstScanWizard';
@@ -56,7 +56,7 @@ function formatPeriodLabel(preset: RangePreset, from: string, to: string): strin
 export default function Transactions() {
   const { transactions, categories, openEditSheet, openSheet, pendingSmsCount, lastScanMs, runSmsScan } = useFinance();
 
-  useFabAction(openSheet, 'Add transaction', 'fab-add-transaction');
+  useDefaultFabMenu();
 
   const [preset, setPreset] = useState<RangePreset>('current');
   const [customFrom, setCustomFrom] = useState(() => {
