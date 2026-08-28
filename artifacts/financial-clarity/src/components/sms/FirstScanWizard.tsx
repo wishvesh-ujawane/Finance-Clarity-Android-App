@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react';
-import { MessageSquareText, Sparkles } from 'lucide-react';
+import { MessageSquareText, Sparkles, X } from 'lucide-react';
 import { Drawer } from 'vaul';
 import { cn } from '@/lib/utils';
 import { SMS_COPY } from '@/lib/sms/copy';
@@ -28,11 +28,24 @@ export function FirstScanWizard({ open, onClose, onScanStart, onMaybeLater }: Fi
   };
 
   return (
-    <Drawer.Root open={open} onOpenChange={onClose} dismissible={false}>
+    <Drawer.Root open={open} onOpenChange={(next) => { if (!next) onClose(); }} dismissible>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
         <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 bg-card rounded-t-3xl outline-none max-h-[90vh] overflow-y-auto">
           <div className="p-6 pb-8">
+            {/* Grab handle + close button */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="mx-auto w-10 h-1.5 rounded-full bg-muted" aria-hidden />
+              <button
+                type="button"
+                onClick={onClose}
+                className="absolute right-4 top-4 w-9 h-9 rounded-full bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
             {/* Illustration band */}
             <div className="flex items-center justify-center gap-3 mb-6">
               <div className="w-14 h-14 rounded-full bg-accent/10 text-accent flex items-center justify-center">
@@ -42,10 +55,15 @@ export function FirstScanWizard({ open, onClose, onScanStart, onMaybeLater }: Fi
             </div>
 
             {/* Title and explanation */}
-            <h2 className="text-lg font-bold text-foreground mb-2" style={{ fontFamily: 'var(--font-display)' }}>
+            <Drawer.Title
+              className="text-lg font-bold text-foreground mb-2"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
               {SMS_COPY.wizard.title}
-            </h2>
-            <p className="text-sm text-muted-foreground mb-1">{SMS_COPY.wizard.subtitle}</p>
+            </Drawer.Title>
+            <Drawer.Description className="text-sm text-muted-foreground mb-1">
+              {SMS_COPY.wizard.subtitle}
+            </Drawer.Description>
             <div className="space-y-1 mb-6">
               {SMS_COPY.wizard.explanation.map((line, i) => (
                 <p key={i} className="text-xs text-muted-foreground">
