@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, Check, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import {
@@ -9,7 +9,7 @@ import {
 import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
-import { localDateStr } from '@/lib/finance-utils';
+import { localDateStr, formatAmountExpression } from '@/lib/finance-utils';
 import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
@@ -119,6 +119,48 @@ export function TransactionSheet() {
   const [newCatColor, setNewCatColor] = useState('#10B981');
   const [newCatType, setNewCatType] = useState<'income' | 'expense'>('expense');
 
+  // Amount input: `amount` state stays raw (no commas); the input shows a
+  // formatted display with Indian-style grouping. Cursor position must be
+  // restored after re-render so commas don't cause it to jump.
+  const amountInputRef = useRef<HTMLInputElement>(null);
+  const pendingCursorRef = useRef<number | null>(null);
+  const displayAmount = formatAmountExpression(amount);
+
+  const handleAmountChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const selectionStart = e.target.selectionStart ?? rawValue.length;
+    // Count non-comma chars before cursor to preserve caret position across
+    // reformat.
+    const digitsBefore = rawValue.slice(0, selectionStart).replace(/,/g, '').length;
+    const stripped = rawValue.replace(/,/g, '');
+    setAmount(stripped);
+    // Walk the formatted display, counting non-comma chars until we reach the
+    // same digit count — that's where the cursor should land.
+    const formatted = formatAmountExpression(stripped);
+    if (digitsBefore === 0) {
+      pendingCursorRef.current = 0;
+      return;
+    }
+    let count = 0;
+    let newCursor = formatted.length;
+    for (let i = 0; i < formatted.length; i += 1) {
+      if (formatted[i] !== ',') count += 1;
+      if (count === digitsBefore) {
+        newCursor = i + 1;
+        break;
+      }
+    }
+    pendingCursorRef.current = newCursor;
+  }, []);
+
+  useLayoutEffect(() => {
+    if (pendingCursorRef.current !== null && amountInputRef.current) {
+      const pos = pendingCursorRef.current;
+      amountInputRef.current.setSelectionRange(pos, pos);
+      pendingCursorRef.current = null;
+    }
+  });
+
   // Pre-fill form when editing
   useEffect(() => {
     if (isSheetOpen) {
@@ -179,7 +221,9 @@ export function TransactionSheet() {
     if (key === '=') {
       const result = evaluateAmountExpression(amount);
       if (result !== null && result > 0) {
-        setAmount(formatAmountResult(result));
+        const next = formatAmountResult(result);
+        setAmount(next);
+        pendingCursorRef.current = formatAmountExpression(next).length;
       }
       return;
     }
@@ -187,10 +231,11 @@ export function TransactionSheet() {
     setAmount(prev => {
       const trimmed = prev.trim();
       if (!trimmed && key !== '-') return prev;
-      if (trimmed && isOperator(trimmed.slice(-1))) {
-        return `${trimmed.slice(0, -1)}${key}`;
-      }
-      return `${trimmed}${key}`;
+      const next = trimmed && isOperator(trimmed.slice(-1))
+        ? `${trimmed.slice(0, -1)}${key}`
+        : `${trimmed}${key}`;
+      pendingCursorRef.current = formatAmountExpression(next).length;
+      return next;
     });
   }, [amount]);
 
@@ -325,12 +370,13 @@ export function TransactionSheet() {
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-muted-foreground">₹</span>
                   <input
+                    ref={amountInputRef}
                     data-testid="amount-input"
                     type="text"
                     inputMode="decimal"
                     placeholder="0 or 250+75"
-                    value={amount}
-                    onChange={e => setAmount(e.target.value)}
+                    value={displayAmount}
+                    onChange={handleAmountChange}
                     className="w-full pl-10 pr-4 py-4 text-3xl font-bold bg-muted rounded-2xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground placeholder:text-muted-foreground/40"
                   />
                 </div>
