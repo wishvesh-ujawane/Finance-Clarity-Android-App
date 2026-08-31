@@ -45,8 +45,21 @@ export function MonthEndReviewFlow() {
     window.setTimeout(() => complete(), 300);
   };
 
+  // Any close initiated once the user has moved past the analysis step counts
+  // as "reviewed" so the banner stops re-prompting. Closing from step 1
+  // (before the user saw anything) still just dismisses. See Bug #3.
+  const closeFromStep = () => {
+    if (step === 2) complete();
+    else dismiss();
+  };
+
+  const skipFromStep = () => {
+    if (step === 2) complete();
+    else skip();
+  };
+
   const handleOpenChange = (open: boolean) => {
-    if (!open) dismiss();
+    if (!open) closeFromStep();
   };
 
   return (
@@ -80,7 +93,7 @@ export function MonthEndReviewFlow() {
                 <StepDots current={step} />
                 <button
                   type="button"
-                  onClick={dismiss}
+                  onClick={closeFromStep}
                   className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                   aria-label="Close review"
                   data-testid="month-end-close"
@@ -147,10 +160,10 @@ export function MonthEndReviewFlow() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={skip}
+                  onClick={skipFromStep}
                   data-testid="month-end-skip-step-2"
                 >
-                  Skip for now
+                  Finish
                 </Button>
               </div>
             )}

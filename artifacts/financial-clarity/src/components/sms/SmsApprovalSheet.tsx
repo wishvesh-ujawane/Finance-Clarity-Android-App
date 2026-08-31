@@ -191,7 +191,10 @@ interface SmsRowProps {
 }
 
 function SmsRow({ parsed, isSelected, onToggleSelect, onDismiss, categoryById }: SmsRowProps) {
-  const category = categoryById.get(parsed.suggestedCategoryId || 'leisure');
+  // Match FinanceContext.approveSms fallback so the preview icon reflects the
+  // category the transaction will actually receive on approval.
+  const fallbackCategoryId = parsed.direction === 'credit' ? 'other-income' : 'other';
+  const category = categoryById.get(parsed.suggestedCategoryId || fallbackCategoryId);
 
   const amountColor = (() => {
     if (parsed.direction === 'credit') return 'text-emerald-600';
@@ -237,7 +240,7 @@ function SmsRow({ parsed, isSelected, onToggleSelect, onDismiss, categoryById }:
             <div>
               <p className="text-sm font-semibold text-foreground truncate">{merchant}</p>
               <p className="text-xs text-muted-foreground">
-                {formatDateLabel(parsed.dateISO)} · {category?.name || 'Leisure'}
+                {formatDateLabel(parsed.dateISO)} · {category?.name || 'Other'}
               </p>
             </div>
             <div className={cn('flex items-center gap-1 text-sm font-bold', amountColor)}>

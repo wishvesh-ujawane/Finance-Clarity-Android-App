@@ -147,9 +147,14 @@ export default function Transactions() {
         mode: 'incremental',
         onProgress: (event) => setScanProgress(event),
       }).then((result) => {
-        setShowScanProgress(false);
         if (result.ok && result.needsReview > 0) {
+          // Close progress and open approval sheet immediately.
+          setShowScanProgress(false);
           setShowApprovalSheet(true);
+        } else {
+          // Keep the "Scan complete · N read · 0 new" summary visible for a
+          // moment so the user gets clear feedback instead of a silent no-op.
+          setTimeout(() => setShowScanProgress(false), 2500);
         }
       });
     }
@@ -163,9 +168,12 @@ export default function Transactions() {
       mode: 'first',
       onProgress: (event) => setScanProgress(event),
     }).then((result) => {
-      setShowScanProgress(false);
       if (result.ok && result.needsReview > 0) {
+        setShowScanProgress(false);
         setShowApprovalSheet(true);
+      } else {
+        // Same feedback rule as the incremental path.
+        setTimeout(() => setShowScanProgress(false), 2500);
       }
     });
   }, [runSmsScan]);
