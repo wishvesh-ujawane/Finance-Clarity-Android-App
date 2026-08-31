@@ -42,7 +42,6 @@ export default function SmsAutoImport() {
   const {
     pendingSms,
     pendingSmsCount,
-    linkedSmsCount,
     lastScanMs,
     runSmsScan,
     getLinkedTransactions,
@@ -192,6 +191,10 @@ export default function SmsAutoImport() {
   }, []);
 
   const linkedTransactions = getLinkedTransactions();
+  // Both the hero summary and the tab label read from this so they cannot
+  // drift from the rendered list. `linkedSmsCount` on the context is now
+  // also derived from transactions but we compute locally here for clarity.
+  const linkedCount = linkedTransactions.length;
   const categoryById = new Map(categories.map((c) => [c.id, c]));
 
   const handleApprove = async (fingerprint: string) => {
@@ -237,7 +240,7 @@ export default function SmsAutoImport() {
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>
             <p className="text-sm font-semibold text-foreground mb-1">
-              {SMS_COPY.settings.heroSummary(pendingSmsCount, linkedSmsCount)}
+              {SMS_COPY.settings.heroSummary(pendingSmsCount, linkedCount)}
             </p>
             <p className="text-xs text-muted-foreground">
               Last scan: {formatLastScan(lastScanMs)}
@@ -268,7 +271,7 @@ export default function SmsAutoImport() {
         {(['pending', 'linked', 'settings'] as const).map((tab) => {
           const label = (() => {
             if (tab === 'pending') return SMS_COPY.settings.tabPending(pendingSmsCount);
-            if (tab === 'linked') return SMS_COPY.settings.tabLinked(linkedSmsCount);
+            if (tab === 'linked') return SMS_COPY.settings.tabLinked(linkedCount);
             return SMS_COPY.settings.tabSettings;
           })();
 
@@ -304,7 +307,11 @@ export default function SmsAutoImport() {
             </div>
           ) : (
             pendingSms.map((parsed) => {
-              const category = categoryById.get(parsed.suggestedCategoryId || 'leisure');
+              // Match FinanceContext.approveSms fallback so the preview icon
+              // reflects the category the transaction will actually be given.
+              const fallbackCategoryId =
+                parsed.direction === 'credit' ? 'other-income' : 'other';
+              const category = categoryById.get(parsed.suggestedCategoryId || fallbackCategoryId);
               const merchant =
                 parsed.merchant || (parsed.direction === 'debit' ? 'Payment' : 'Transfer');
 

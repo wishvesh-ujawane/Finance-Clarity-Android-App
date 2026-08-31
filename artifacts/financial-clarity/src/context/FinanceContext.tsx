@@ -5,7 +5,6 @@ import type { ParsedSms } from '@/lib/sms/parser/types';
 import { parseSms } from '@/lib/sms/parser';
 import { smsFingerprint, matchesExistingBySourceRef } from '@/lib/sms/dedup';
 import { classifyMatch } from '@/lib/sms/reconcile';
-import { formatSmsDescription } from '@/lib/sms/description';
 import { getSmsReader } from '@/lib/sms/SmsReader';
 import { SmsReaderPermissionError, SmsReaderQueryError } from '@/lib/sms/androidSmsReader';
 
@@ -34,6 +33,17 @@ const SAVINGS_DEFAULTS: Category[] = [
   { id: 'savings-emergency', name: 'Emergency Fund', icon: 'ShieldCheck', color: '#14B8A6', type: 'savings' },
 ];
 
+/**
+ * "Other" catch-all categories used as a neutral fallback when a suggestion
+ * cannot be derived (e.g. SMS parser found no merchant match). Splitting by
+ * transaction type keeps expense/income totals accurate without steering the
+ * user toward a misleading bucket like "Leisure".
+ */
+const OTHER_DEFAULTS: Category[] = [
+  { id: 'other', name: 'Other', icon: 'Receipt', color: '#94A3B8', type: 'expense' },
+  { id: 'other-income', name: 'Other Income', icon: 'Banknote', color: '#22C55E', type: 'income' },
+];
+
 const DEFAULT_CATEGORIES: Category[] = [
   { id: 'groceries', name: 'Groceries', icon: 'ShoppingCart', color: '#10B981', type: 'expense' },
   { id: 'rent', name: 'Rent', icon: 'Home', color: '#6366F1', type: 'expense' },
@@ -45,19 +55,26 @@ const DEFAULT_CATEGORIES: Category[] = [
   { id: 'freelance', name: 'Freelance', icon: 'Laptop', color: '#8B5CF6', type: 'income' },
   { id: 'investment', name: 'Investment', icon: 'TrendingUp', color: '#2563EB', type: 'income' },
   ...SAVINGS_DEFAULTS,
+  ...OTHER_DEFAULTS,
 ];
 
-/** Ensure both hardcoded savings categories exist in the array and have type='savings'. */
-function ensureSavingsCategories(list: Category[]): Category[] {
+/**
+ * Ensure hardcoded required categories exist in the array with the correct
+ * `type`. Covers the two Savings buckets and the two "Other" catch-alls used
+ * as SMS fallback. Missing entries are appended; entries with a wrong `type`
+ * are corrected in place. Preserves user ordering.
+ */
+function ensureRequiredCategories(list: Category[]): Category[] {
+  const seeds = [...SAVINGS_DEFAULTS, ...OTHER_DEFAULTS];
   const byId = new Map(list.map(c => [c.id, c] as const));
   let mutated = false;
-  for (const seed of SAVINGS_DEFAULTS) {
+  for (const seed of seeds) {
     const existing = byId.get(seed.id);
     if (!existing) {
       byId.set(seed.id, { ...seed });
       mutated = true;
-    } else if (existing.type !== 'savings') {
-      byId.set(seed.id, { ...existing, type: 'savings' });
+    } else if (existing.type !== seed.type) {
+      byId.set(seed.id, { ...existing, type: seed.type });
       mutated = true;
     }
   }
@@ -69,7 +86,7 @@ function ensureSavingsCategories(list: Category[]): Category[] {
     seen.add(c.id);
     ordered.push(byId.get(c.id) ?? c);
   }
-  for (const seed of SAVINGS_DEFAULTS) {
+  for (const seed of seeds) {
     if (!seen.has(seed.id)) ordered.push(byId.get(seed.id)!);
   }
   return ordered;
@@ -366,7 +383,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [categories, setCategories] = useState<Category[]>(() => {
     const stored = loadArrayFromStorage('categories', [], isValidCategory);
     if (stored.length === 0) return DEFAULT_CATEGORIES;
-    return ensureSavingsCategories(stored);
+    return ensureRequiredCategories(stored);
   });
   const [budgets, setBudgets] = useState<Budget[]>(() =>
     loadArrayFromStorage('budgets', [], isValidBudget).map(b => ({ ...b, month: b.month || currentMonth() }))
@@ -644,7 +661,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setTransactions(txns);
 
     const storedCats = loadArrayFromStorage('categories', [], isValidCategory);
-    setCategories(storedCats.length === 0 ? DEFAULT_CATEGORIES : ensureSavingsCategories(storedCats));
+    setCategories(storedCats.length === 0 ? DEFAULT_CATEGORIES : ensureRequiredCategories(storedCats));
 
     const storedBudgets = loadArrayFromStorage('budgets', [], isValidBudget).map(b => ({ ...b, month: b.month || currentMonth() }));
     setBudgets(storedBudgets);
@@ -987,12 +1004,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const newTransactions: Transaction[] = [];
 
       for (const parsed of toApprove) {
+        // Fallback category: neutral "Other" bucket keyed on direction. Using
+        // 'leisure' here (the previous default) misclassified every SMS whose
+        // merchant didn't hit the seed keyword table as a leisure expense,
+        // polluting budgets and totals. See docs Bug #1.
+        const fallbackCategoryId = parsed.direction === 'credit' ? 'other-income' : 'other';
         const tx: Transaction = {
           id: createId(),
           type: parsed.direction === 'credit' ? 'income' : 'expense',
           amount: parsed.amount,
-          categoryId: parsed.suggestedCategoryId || 'leisure', // fallback to leisure if no suggestion
-          note: formatSmsDescription(parsed),
+          categoryId: parsed.suggestedCategoryId || fallbackCategoryId,
+          // Store the FULL raw SMS body as the description so the user can
+          // audit exactly what the parser saw. The formatted one-line summary
+          // (formatSmsDescription) is still used inside the approval sheet
+          // preview; it is not persisted onto the transaction.
+          note: parsed.rawBody,
           date: parsed.dateISO,
           paymentMethod: parsed.paymentMethod,
           merchant: parsed.merchant ?? undefined,
@@ -1122,7 +1148,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [transactions]);
 
   const pendingSmsCount = pendingSms.length;
-  const linkedSmsCount = Object.keys(linkedSms).length;
+  // Derive from actual transactions so the tab count and the rendered list
+  // are always in sync. The `linkedSms` map is kept around for reconcile /
+  // unlink but can lag behind (e.g. transaction was deleted before the GC
+  // effect trimmed the stale entry). See docs Bug #4.
+  const linkedSmsCount = transactions.reduce(
+    (acc, t) => (t.sourceSmsFingerprint ? acc + 1 : acc),
+    0,
+  );
 
   return (
     <FinanceContext.Provider value={{
