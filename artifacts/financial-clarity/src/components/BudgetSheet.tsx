@@ -4,6 +4,9 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { useFinance } from '@/context/FinanceContext';
 import { formatMonthLabel } from '@/lib/finance-utils';
 import { parseCurrencyInput } from '@/lib/currency-utils';
+import { SYSTEM_ADJUSTMENT_CATEGORY_IDS } from '@/lib/types';
+
+const SYSTEM_ADJUSTMENT_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
 
 /**
  * Global Add Budget sheet. Mounted once at the app root so any screen can
@@ -28,7 +31,10 @@ export function BudgetSheet() {
   );
 
   const expenseCategories = useMemo(
-    () => categories.filter(c => c.type === 'expense' || c.type === 'commitment' || c.type === 'both'),
+    () => categories.filter(c =>
+      !SYSTEM_ADJUSTMENT_ID_SET.has(c.id) &&
+      (c.type === 'expense' || c.type === 'commitment' || c.type === 'both')
+    ),
     [categories],
   );
   const savingsCategories = useMemo(

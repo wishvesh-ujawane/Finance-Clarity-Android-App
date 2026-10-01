@@ -46,6 +46,31 @@ writes via the context's add / update / delete actions.
 ## Edge cases & empty states
 - Empty month: empty-state placeholder and a hint to add a transaction.
 
+## Amount input (2026-08-31)
+The amount field in the transaction sheet
+([`TransactionSheet.tsx`](../../../artifacts/financial-clarity/src/components/TransactionSheet.tsx))
+supports two things at once:
+
+1. **Calculator expressions.** Users can type `250+75` or `10000+2500` and hit
+   `=` (or Save) to evaluate. Supported operators: `+`, `-`, `x`, `/`.
+   Evaluated by `evaluateAmountExpression` inside the same file. The
+   calculator keypad buttons preserve input focus via `preventDefault` on
+   pointer/mouse/touch down so the soft keyboard stays open — see
+   [bugs/20260705-tx-keypad-dismissal.md](../bugs/20260705-tx-keypad-dismissal.md).
+2. **Live Indian-style comma grouping.** As the user types, each numeric
+   segment is displayed with `1,23,456`-style grouping (last 3 digits, then
+   groups of 2). Operators are preserved: typing `10000+2500` shows
+   `10,000+2,500`. Decimals are preserved: typing `1234.56` shows `1,234.56`.
+
+The `amount` React state is always stored **raw** (no commas). The display
+value is derived via `formatAmountExpression(amount)` from
+[`finance-utils.ts`](../../../artifacts/financial-clarity/src/lib/finance-utils.ts),
+which delegates each numeric segment to `formatIndianDigits`. Cursor position
+is preserved across re-formats by counting non-comma characters in the input
+before the cursor, then walking the formatted display to find the equivalent
+position — restored in a `useLayoutEffect` before paint. The calculator
+buttons also set the cursor to end-of-string after each key.
+
 ## Cross-feature dependencies
 - [budgets.md](./budgets.md) — spending categories drive budget progress bars.
 - [recurring-expenses.md](./recurring-expenses.md) — auto-created transactions

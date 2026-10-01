@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-08-31 — features/transactions.md — Amount input now applies live Indian comma grouping (`1,23,456`) while typing; preserves operators in calculator expressions (`10,000+2,500`); cursor position is preserved across reformats. New helpers `formatIndianDigits` / `formatAmountExpression` in finance-utils.ts with unit tests.
 2026-07-05 — features/month-end-review.md — Added spending-breakdown donut chart to step 1 and live "Budget allocated" tracker (income-ratio bar + delta chip) to step 2. No new dependencies.
 2026-07-05 — features/month-end-review.md — New feature entry for the two-step Month-End Review flow (analysis + guided budget setup + home-screen banner + confetti).
 2026-07-05 — decisions/0003-month-end-review-flow.md — ADR-0003 accepted: trigger rule, impulse heuristic, 3-month budget suggestion, no new confetti dependency.

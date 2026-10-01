@@ -5,7 +5,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { formatINR, formatMonthYear, getMonthOverMonthChange, formatDateLabel, type MoMChange } from '@/lib/finance-utils';
+import { formatINR, formatMonthYear, getMonthOverMonthChange, formatDateLabel, isConsumptionExpense, addMonths, localDateStr, type MoMChange } from '@/lib/finance-utils';
 import { getBudgetPill, getDateRangeExpenseTotal, addDays, startOfWeekMonday } from '@/lib/analysis-utils';
 import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
 import type { AnalysisShared } from './useAnalysisShared';
@@ -26,6 +26,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
   const {
     finance: { transactions, categories, budgets, selectedMonth, openEditSheet },
     today,
+    previousMonth,
     monthlyTransactions,
     monthlyIncome,
     monthlyExpenses,
@@ -35,11 +36,14 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
     prevSummary,
     isCurrentMonthInProgress,
     monthlyBudgetTotal,
+    monthlyDayToDayBudgetTotal,
     monthlyCommitments,
     monthlyDayToDay,
+    monthlySavings,
     monthlyExpensesToDate,
     monthlyCommitmentsToDate,
     monthlyDayToDayToDate,
+    monthlySavingsToDate,
     daysLeftInMonth,
     elapsedDays,
     allCategorySpending,
@@ -49,28 +53,117 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
   const [allCategoriesOpen, setAllCategoriesOpen] = useState(false);
   const [expenseBreakdownOpen, setExpenseBreakdownOpen] = useState(false);
   const [commitmentsBreakdownOpen, setCommitmentsBreakdownOpen] = useState(false);
+  const [savingsBreakdownOpen, setSavingsBreakdownOpen] = useState(false);
   const [selectedPieSlice, setSelectedPieSlice] = useState<string | null>(null);
 
-  const monthlySavings = currentSummary.totalSavings;
+  // Spending-by-Category period selector. Default to the currently-selected
+  // month so the pane stays in sync with the month picker.
+  type SpendPeriod = 'this-month' | 'last-month' | 'last-3-months' | 'custom';
+  const [spendPeriod, setSpendPeriod] = useState<SpendPeriod>('this-month');
+  const [customFrom, setCustomFrom] = useState<string>('');
+  const [customTo, setCustomTo] = useState<string>('');
+
   const previousSavings = prevSummary.totalSavings;
   const momOpts = { previousHasData: prevSummary.hasData, currentMonthInProgress: isCurrentMonthInProgress };
   const spentChange: MoMChange = getMonthOverMonthChange(monthlyExpenses, previousExpenses, momOpts);
   const savingsChange: MoMChange = getMonthOverMonthChange(monthlySavings, previousSavings, momOpts);
 
-  const remainingBudget = monthlyBudgetTotal - monthlyDayToDayToDate;
-  const spentPct = monthlyBudgetTotal > 0 ? (monthlyDayToDayToDate / monthlyBudgetTotal) * 100 : 0;
+  // Spendable (day-to-day) budget only — commitments and savings are tracked
+  // separately so a maxed-out savings bucket no longer poisons this ratio.
+  const remainingBudget = monthlyDayToDayBudgetTotal - monthlyDayToDayToDate;
+  const spentPct = monthlyDayToDayBudgetTotal > 0 ? (monthlyDayToDayToDate / monthlyDayToDayBudgetTotal) * 100 : 0;
   const budgetPill = getBudgetPill(spentPct);
-  const isBudgetExceeded = monthlyBudgetTotal > 0 && monthlyDayToDayToDate > monthlyBudgetTotal;
+  const isBudgetExceeded = monthlyDayToDayBudgetTotal > 0 && monthlyDayToDayToDate > monthlyDayToDayBudgetTotal;
 
   const avgSpendPerDay = monthlyExpensesToDate / Math.max(1, elapsedDays);
   const top5Categories = allCategorySpending.slice(0, 5);
   const topCategory = top5Categories[0];
 
+  // Resolve a {startDate, endDate} window from the current period selection.
+  // Dates are YYYY-MM-DD strings so they compare lexically against t.date.
+  const spendPeriodRange = useMemo(() => {
+    const monthFirst = (m: string) => `${m}-01`;
+    const monthLast = (m: string) => {
+      const [y, mo] = m.split('-').map(Number);
+      const last = new Date(y, mo, 0).getDate();
+      return `${m}-${String(last).padStart(2, '0')}`;
+    };
+    if (spendPeriod === 'this-month') {
+      return { start: monthFirst(selectedMonth), end: monthLast(selectedMonth) };
+    }
+    if (spendPeriod === 'last-month') {
+      return { start: monthFirst(previousMonth), end: monthLast(previousMonth) };
+    }
+    if (spendPeriod === 'last-3-months') {
+      const startMonth = addMonths(selectedMonth, -2);
+      return { start: monthFirst(startMonth), end: monthLast(selectedMonth) };
+    }
+    return { start: customFrom, end: customTo };
+  }, [spendPeriod, selectedMonth, previousMonth, customFrom, customTo]);
+
+  const spendPeriodLabel = useMemo(() => {
+    if (spendPeriod === 'this-month') return formatMonthYear(selectedMonth);
+    if (spendPeriod === 'last-month') return formatMonthYear(previousMonth);
+    if (spendPeriod === 'last-3-months') {
+      const startMonth = addMonths(selectedMonth, -2);
+      return `${formatMonthYear(startMonth)} – ${formatMonthYear(selectedMonth)}`;
+    }
+    if (spendPeriodRange.start && spendPeriodRange.end) {
+      return `${formatDateLabel(spendPeriodRange.start)} – ${formatDateLabel(spendPeriodRange.end)}`;
+    }
+    return 'Pick a date range';
+  }, [spendPeriod, selectedMonth, previousMonth, spendPeriodRange]);
+
+  // Category spending aggregated across the selected period. Excludes savings
+  // transfers (not spend) so the donut matches the "Day-to-day + Commitments"
+  // bucket semantics used elsewhere.
+  const spendPeriodBreakdown = useMemo(() => {
+    const { start, end } = spendPeriodRange;
+    if (!start || !end || start > end) return { rows: [] as Array<{ categoryId: string; name: string; icon: string; color: string; amount: number; pct: number }>, total: 0 };
+    const map: Record<string, number> = {};
+    for (const t of transactions) {
+      if (t.type !== 'expense') continue;
+      if (SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number])) continue;
+      if (t.date < start || t.date > end) continue;
+      map[t.categoryId] = (map[t.categoryId] || 0) + t.amount;
+    }
+    const total = Object.values(map).reduce((s, v) => s + v, 0);
+    const rows = Object.entries(map)
+      .map(([categoryId, amount]) => {
+        const category = categories.find(c => c.id === categoryId);
+        return {
+          categoryId,
+          name: category?.name || 'Unknown',
+          icon: category?.icon || 'DollarSign',
+          color: category?.color || '#94A3B8',
+          amount,
+          pct: total > 0 ? (amount / total) * 100 : 0,
+        };
+      })
+      .sort((a, b) => b.amount - a.amount);
+    return { rows, total };
+  }, [transactions, categories, spendPeriodRange]);
+
+  const spendTop5 = spendPeriodBreakdown.rows.slice(0, 5);
+  const spendTotal = spendPeriodBreakdown.total;
+
+  // Seed the custom-range inputs to a sensible last-30-days window the first
+  // time the user picks "Custom" so they aren't staring at empty inputs.
+  const todayStrForSeed = localDateStr(new Date());
+  const defaultCustomFrom = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 29);
+    return localDateStr(d);
+  }, []);
+
   const monthlySavingsRate = monthlyIncome > 0 ? (monthlySavings / monthlyIncome) * 100 : 0;
   const previousSavingsRate = previousIncome > 0 ? (previousSavings / previousIncome) * 100 : 0;
 
+  // Biggest expense excludes savings transfers (they're not spend) and the
+  // credit-card payment synthetic category (also not spend). Commitments still
+  // qualify — rent / EMI are real outgoing cash and often the top-line item.
   const biggestExpense = useMemo(() => {
-    const expenses = monthlyTransactions.filter(t => t.type === 'expense');
+    const expenses = monthlyTransactions.filter(isConsumptionExpense);
     if (expenses.length === 0) return null;
     const top = expenses.reduce((max, t) => (t.amount > max.amount ? t : max), expenses[0]);
     const cat = categories.find(c => c.id === top.categoryId);
@@ -141,6 +234,23 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
       })
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [monthlyTransactions, categories, commitmentCategoryIds]);
+
+  // Savings transactions only for the "Savings this month" tile drill-down,
+  // sorted newest first.
+  const savingsTransactions = useMemo(() => {
+    return monthlyTransactions
+      .filter(t => t.type === 'expense' && SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number]))
+      .map(t => {
+        const category = categories.find(c => c.id === t.categoryId);
+        return {
+          ...t,
+          categoryName: category?.name || 'Unknown',
+          categoryIcon: category?.icon || 'DollarSign',
+          categoryColor: category?.color || '#94A3B8',
+        };
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [monthlyTransactions, categories]);
 
   const weeklyInsight = useMemo(() => {
     const thisWeekStart = startOfWeekMonday(today);
@@ -270,7 +380,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
             <Link
               href="/budgets"
               data-testid="tile-budget"
@@ -278,8 +388,8 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               className="rounded-xl bg-muted/50 px-3 py-2 text-left hover:bg-muted/70 active:bg-muted transition-colors flex items-start justify-between gap-1"
             >
               <div className="min-w-0">
-                <p className="text-[11px] text-muted-foreground">Budget</p>
-                <p className="text-sm font-bold text-foreground">{formatINR(monthlyBudgetTotal)}</p>
+                <p className="text-[11px] text-muted-foreground">Spendable Budget</p>
+                <p className="text-sm font-bold text-foreground">{formatINR(monthlyDayToDayBudgetTotal)}</p>
               </div>
               <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
             </Link>
@@ -291,7 +401,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               className="rounded-xl bg-muted/50 px-3 py-2 text-left hover:bg-muted/70 active:bg-muted transition-colors flex items-start justify-between gap-1"
             >
               <div className="min-w-0">
-                <p className="text-[11px] text-muted-foreground">Expenses this month</p>
+                <p className="text-[11px] text-muted-foreground">Day-to-day</p>
                 <p className={cn('text-sm font-bold', isBudgetExceeded ? 'text-red-500' : 'text-foreground')}>{formatINR(monthlyDayToDay)}</p>
               </div>
               <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
@@ -309,23 +419,61 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               </div>
               <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
             </button>
+            <button
+              type="button"
+              data-testid="tile-savings-this-month"
+              aria-label="View savings breakdown"
+              onClick={() => setSavingsBreakdownOpen(true)}
+              className="rounded-xl bg-muted/50 px-3 py-2 text-left hover:bg-muted/70 active:bg-muted transition-colors flex items-start justify-between gap-1"
+            >
+              <div className="min-w-0">
+                <p className="text-[11px] text-muted-foreground">Savings</p>
+                <p className="text-sm font-bold text-sky-600 dark:text-sky-400">{formatINR(monthlySavings)}</p>
+              </div>
+              <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
+            </button>
             <div className="rounded-xl bg-muted/50 px-3 py-2">
               <p className="text-[11px] text-muted-foreground">Days Left</p>
               <p className="text-sm font-bold text-foreground">{daysLeftInMonth} day{daysLeftInMonth === 1 ? '' : 's'}</p>
             </div>
           </div>
 
-          <div className="h-2 rounded-full overflow-hidden bg-muted mb-3">
+          <div className="h-2 rounded-full overflow-hidden bg-muted mb-3 flex">
             <div
-              className={cn('h-full rounded-full', spentPct <= 80 ? 'bg-emerald-500' : spentPct <= 100 ? 'bg-amber-500' : 'bg-red-500')}
+              className={cn('h-full', spentPct <= 80 ? 'bg-emerald-500' : spentPct <= 100 ? 'bg-amber-500' : 'bg-red-500')}
               style={{ width: `${Math.min(Math.max(spentPct, 0), 100)}%` }}
+              aria-hidden
+            />
+            <div
+              className="h-full bg-emerald-500/25"
+              style={{ width: `${Math.max(0, 100 - Math.min(spentPct, 100))}%` }}
+              aria-hidden
             />
           </div>
 
-          <div className="flex items-center justify-between text-sm">
-            <p className="text-muted-foreground">Remaining budget</p>
-            <p className={cn('font-bold', remainingBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
-              {formatINR(remainingBudget)}
+          <div
+            className={cn(
+              'flex items-center justify-between rounded-xl px-3 py-2 text-sm',
+              remainingBudget >= 0
+                ? 'bg-emerald-500/10 border border-emerald-500/20'
+                : 'bg-red-500/10 border border-red-500/20'
+            )}
+            data-testid="remaining-budget"
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  'inline-block w-2 h-2 rounded-full',
+                  remainingBudget >= 0 ? 'bg-emerald-500' : 'bg-red-500'
+                )}
+                aria-hidden
+              />
+              <p className="font-semibold text-foreground">
+                {remainingBudget >= 0 ? 'Remaining budget' : 'Over budget'}
+              </p>
+            </div>
+            <p className={cn('text-base font-bold', remainingBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+              {formatINR(Math.abs(remainingBudget))}
             </p>
           </div>
         </div>
@@ -386,8 +534,11 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
         <p className="text-base font-bold text-foreground px-1 pt-1" style={{ fontFamily: 'var(--font-display)' }} data-testid="zone-label-3">Where did the money go?</p>
 
         <div className="bg-card border border-border rounded-2xl p-5" data-testid="top-categories-pie">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Top 5 Categories</h2>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Spending by Category</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{spendPeriodLabel}</p>
+            </div>
             <button
               type="button"
               onClick={() => setAllCategoriesOpen(true)}
@@ -397,15 +548,81 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             </button>
           </div>
 
-          {top5Categories.length === 0 ? (
-            <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">No category spending in this month yet</div>
+          {/* Period chips */}
+          <div className="flex flex-wrap gap-1.5 mb-4" role="tablist" aria-label="Spending period">
+            {([
+              { key: 'this-month' as const, label: 'This month' },
+              { key: 'last-month' as const, label: 'Last month' },
+              { key: 'last-3-months' as const, label: 'Last 3 months' },
+              { key: 'custom' as const, label: 'Custom' },
+            ]).map(chip => {
+              const active = spendPeriod === chip.key;
+              return (
+                <button
+                  key={chip.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  data-testid={`spend-period-${chip.key}`}
+                  onClick={() => {
+                    if (chip.key === 'custom') {
+                      if (!customFrom) setCustomFrom(defaultCustomFrom);
+                      if (!customTo) setCustomTo(todayStrForSeed);
+                    }
+                    setSpendPeriod(chip.key);
+                    setSelectedPieSlice(null);
+                  }}
+                  className={cn(
+                    'px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border',
+                    active
+                      ? 'bg-accent text-white border-accent'
+                      : 'bg-muted/40 text-muted-foreground border-border hover:bg-muted'
+                  )}
+                >
+                  {chip.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {spendPeriod === 'custom' && (
+            <div className="flex flex-wrap items-end gap-3 mb-4" data-testid="spend-period-custom-inputs">
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                From
+                <input
+                  type="date"
+                  value={customFrom}
+                  max={customTo || undefined}
+                  onChange={e => setCustomFrom(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-lg border border-border bg-background text-sm text-foreground"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                To
+                <input
+                  type="date"
+                  value={customTo}
+                  min={customFrom || undefined}
+                  onChange={e => setCustomTo(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-lg border border-border bg-background text-sm text-foreground"
+                />
+              </label>
+            </div>
+          )}
+
+          {spendTop5.length === 0 ? (
+            <div className="h-48 flex items-center justify-center text-sm text-muted-foreground text-center px-4">
+              {spendPeriod === 'custom' && (!customFrom || !customTo)
+                ? 'Pick a start and end date to see your category spend.'
+                : `No category spending in ${spendPeriodLabel.toLowerCase()}.`}
+            </div>
           ) : (
             <div className="grid md:grid-cols-[260px_1fr] gap-4 items-center">
               <div className="h-56 relative">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={top5Categories}
+                      data={spendTop5}
                       dataKey="amount"
                       nameKey="name"
                       cx="50%"
@@ -419,7 +636,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                         }
                       }}
                     >
-                      {top5Categories.map(item => {
+                      {spendTop5.map(item => {
                         const isDimmed = selectedPieSlice !== null && selectedPieSlice !== item.categoryId;
                         return (
                           <Cell
@@ -436,7 +653,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   {selectedPieSlice ? (() => {
-                    const slice = top5Categories.find(c => c.categoryId === selectedPieSlice);
+                    const slice = spendTop5.find(c => c.categoryId === selectedPieSlice);
                     if (!slice) return null;
                     return (
                       <>
@@ -448,7 +665,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                   })() : (
                     <>
                       <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Total</p>
-                      <p className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(monthlyExpenses)}</p>
+                      <p className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(spendTotal)}</p>
                       <p className="text-[10px] text-muted-foreground">Tap a slice</p>
                     </>
                   )}
@@ -456,7 +673,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               </div>
 
               <div className="space-y-2">
-                {top5Categories.map(item => {
+                {spendTop5.map(item => {
                   const isSelected = selectedPieSlice === item.categoryId;
                   const isDimmed = selectedPieSlice !== null && !isSelected;
                   return (
@@ -563,15 +780,15 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               Category Spend Breakdown
             </SheetTitle>
             <SheetDescription>
-              All categories for {formatMonthYear(selectedMonth)} with spend percentage
+              All categories for {spendPeriodLabel} • {formatINR(spendTotal)} total
             </SheetDescription>
           </SheetHeader>
 
-          {allCategorySpending.length === 0 ? (
-            <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">No category spending in this month</div>
+          {spendPeriodBreakdown.rows.length === 0 ? (
+            <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">No category spending in this period</div>
           ) : (
             <div className="divide-y divide-border rounded-xl border border-border overflow-hidden">
-              {allCategorySpending.map(item => (
+              {spendPeriodBreakdown.rows.map(item => (
                 <div key={item.categoryId} className="w-full flex items-center justify-between gap-3 px-4 py-3">
                   <div className="min-w-0 flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${item.color}22` }}>
@@ -579,7 +796,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.pct.toFixed(1)}% of monthly spend</p>
+                      <p className="text-xs text-muted-foreground">{item.pct.toFixed(1)}% of period spend</p>
                     </div>
                   </div>
                   <span className="text-sm font-bold text-foreground flex-shrink-0">{formatINR(item.amount)}</span>
@@ -679,6 +896,51 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                     </div>
                   </div>
                   <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 flex-shrink-0">{formatINR(tx.amount)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={savingsBreakdownOpen} onOpenChange={setSavingsBreakdownOpen}>
+        <SheetContent side="bottom" className="max-h-[82vh] overflow-y-auto rounded-t-2xl p-5">
+          <SheetHeader className="text-left mb-4 pr-8">
+            <SheetTitle className="text-base" style={{ fontFamily: 'var(--font-display)' }}>
+              Savings
+            </SheetTitle>
+            <SheetDescription>
+              Savings transfers for {formatMonthYear(selectedMonth)} • {formatINR(monthlySavings)} total
+            </SheetDescription>
+          </SheetHeader>
+
+          {savingsTransactions.length === 0 ? (
+            <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">No savings recorded this month</div>
+          ) : (
+            <div className="divide-y divide-border rounded-xl border border-border overflow-hidden" data-testid="savings-breakdown-list">
+              {savingsTransactions.map(tx => (
+                <button
+                  key={tx.id}
+                  type="button"
+                  data-testid={`savings-txn-${tx.id}`}
+                  aria-label={`Edit transaction: ${tx.note || tx.categoryName} on ${formatDateLabel(tx.date)}`}
+                  onClick={() => {
+                    setSavingsBreakdownOpen(false);
+                    setTimeout(() => openEditSheet(tx), 200);
+                  }}
+                  className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 active:bg-muted/60 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-muted-foreground mb-0.5">{formatDateLabel(tx.date)}</p>
+                    <p className="text-sm font-medium text-foreground mb-1">{tx.note || 'No description'}</p>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${tx.categoryColor}22` }}>
+                        <CategoryIcon icon={tx.categoryIcon} color={tx.categoryColor} size={10} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">{tx.categoryName}</p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-sky-600 dark:text-sky-400 flex-shrink-0">{formatINR(tx.amount)}</span>
                 </button>
               ))}
             </div>

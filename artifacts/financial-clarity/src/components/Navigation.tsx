@@ -14,9 +14,12 @@ const NAV_ITEMS = [
 
 export function Navigation() {
   const [location] = useLocation();
-  const { getTotalIncome, getTotalExpenses, getBalance } = useFinance();
+  const { getTotalIncome, getTotalExpenses, getNetBalanceToDate } = useFinance();
 
-  const balance = getBalance();
+  // Keep sidebar language aligned with the Dashboard hero — the big number is
+  // lifetime pocket cash (month-agnostic), and the Income/Expenses tiles below
+  // are the current-month figures.
+  const balance = getNetBalanceToDate();
   const income = getTotalIncome();
   const expenses = getTotalExpenses();
 
@@ -60,9 +63,9 @@ export function Navigation() {
 
         <div className="p-4 border-t border-white/10">
           <div className="bg-white/5 rounded-xl p-4 space-y-3">
-            <p className="text-xs text-white/40 uppercase tracking-wider font-medium">This Month</p>
+            <p className="text-xs text-white/40 uppercase tracking-wider font-medium">Overview</p>
             <div>
-              <p className="text-xs text-white/50">Balance</p>
+              <p className="text-xs text-white/50">Lifetime balance</p>
               <p className={cn(
                 'text-xl font-bold',
                 balance >= 0 ? 'text-emerald-400' : 'text-red-400'
@@ -72,11 +75,11 @@ export function Navigation() {
             </div>
             <div className="flex gap-3">
               <div className="flex-1">
-                <p className="text-[10px] text-white/40">Income</p>
+                <p className="text-[10px] text-white/40">Income (this month)</p>
                 <p className="text-xs font-semibold text-emerald-400">{formatINR(income)}</p>
               </div>
               <div className="flex-1">
-                <p className="text-[10px] text-white/40">Expenses</p>
+                <p className="text-[10px] text-white/40">Expenses (this month)</p>
                 <p className="text-xs font-semibold text-red-400">{formatINR(expenses)}</p>
               </div>
             </div>

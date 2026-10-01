@@ -31,6 +31,47 @@ export function formatShortINR(amount: number) {
   return `₹${Math.round(amount)}`;
 }
 
+/**
+ * Formats a raw digit string (or digits with a single decimal point) with
+ * Indian-style grouping: last 3 digits, then groups of 2.
+ *
+ *   formatIndianDigits('')          -> ''
+ *   formatIndianDigits('123')       -> '123'
+ *   formatIndianDigits('1234')      -> '1,234'
+ *   formatIndianDigits('1234567')   -> '12,34,567'
+ *   formatIndianDigits('1234.56')   -> '1,234.56'
+ *   formatIndianDigits('1,00,000')  -> '1,00,000' (existing commas stripped, re-grouped)
+ *
+ * Leading zeros are preserved. Non-numeric input (other than an optional
+ * trailing decimal) is returned unchanged.
+ */
+export function formatIndianDigits(numStr: string): string {
+  if (!numStr) return numStr;
+  const cleaned = numStr.replace(/,/g, '');
+  const dotIndex = cleaned.indexOf('.');
+  const intPart = dotIndex === -1 ? cleaned : cleaned.slice(0, dotIndex);
+  const decPart = dotIndex === -1 ? '' : cleaned.slice(dotIndex);
+  if (!/^\d+$/.test(intPart) || intPart.length <= 3) return cleaned;
+  const lastThree = intPart.slice(-3);
+  const rest = intPart.slice(0, -3);
+  const grouped = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',');
+  return `${grouped},${lastThree}${decPart}`;
+}
+
+/**
+ * Applies `formatIndianDigits` to each numeric run inside a calculator
+ * expression, preserving operators (+, -, x, /) and whitespace.
+ *
+ *   formatAmountExpression('')            -> ''
+ *   formatAmountExpression('250')         -> '250'
+ *   formatAmountExpression('10000+2500')  -> '10,000+2,500'
+ *   formatAmountExpression('1234.56+500') -> '1,234.56+500'
+ */
+export function formatAmountExpression(expr: string): string {
+  if (!expr) return expr;
+  return expr.replace(/\d+(?:\.\d*)?/g, match => formatIndianDigits(match));
+}
+
 export function localDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
