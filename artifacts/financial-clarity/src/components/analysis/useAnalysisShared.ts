@@ -10,7 +10,7 @@ import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
  */
 export function useAnalysisShared() {
   const finance = useFinance();
-  const { transactions, categories, budgets, selectedMonth, getMonthSummary } = finance;
+  const { transactions, categories, selectedMonth, getMonthSummary } = finance;
 
   const today = useMemo(() => new Date(), []);
   const todayStr = useMemo(() => localDateStr(today), [today]);
@@ -45,10 +45,19 @@ export function useAnalysisShared() {
   const currentSummary = useMemo(() => getMonthSummary(selectedMonth), [getMonthSummary, selectedMonth]);
   const prevSummary = useMemo(() => getMonthSummary(previousMonth), [getMonthSummary, previousMonth]);
 
-  const monthlyBudgetTotal = useMemo(
-    () => budgets.filter(b => b.month === selectedMonth).reduce((sum, b) => sum + b.limit, 0),
-    [budgets, selectedMonth]
+  // Three-bucket budget totals (day-to-day / commitments / savings), driven by
+  // category type. Replaces the former single `monthlyBudgetTotal` that lumped
+  // all three together and double-counted savings into the Analysis "Budget"
+  // and "Remaining budget" numbers.
+  const budgetBreakdown = useMemo(
+    () => finance.getBudgetBreakdown(selectedMonth),
+    [finance, selectedMonth]
   );
+  const monthlyDayToDayBudgetTotal = budgetBreakdown.dayToDay.limit;
+  const monthlyCommitmentBudgetTotal = budgetBreakdown.commitments.limit;
+  const monthlySavingsBudgetTotal = budgetBreakdown.savings.limit;
+  // Back-compat alias — now explicitly the day-to-day (spendable) budget only.
+  const monthlyBudgetTotal = monthlyDayToDayBudgetTotal;
 
   const commitmentCategoryIds = useMemo(
     () => new Set(categories.filter(c => c.type === 'commitment').map(c => c.id)),
@@ -91,6 +100,17 @@ export function useAnalysisShared() {
 
   const monthlyDayToDayToDate = monthlyExpensesToDate - monthlyCommitmentsToDate;
 
+  // Savings spent this month (full-month and to-date). Mirrors the commitments
+  // split so screens can show symmetric "Day-to-day · Commitments · Savings"
+  // tiles without recomputing locally.
+  const monthlySavings = currentSummary.totalSavings;
+  const monthlySavingsToDate = useMemo(
+    () => transactions
+      .filter(t => t.type === 'expense' && t.date.startsWith(selectedMonth) && t.date <= todayStr && SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number]))
+      .reduce((sum, t) => sum + t.amount, 0),
+    [transactions, selectedMonth, todayStr]
+  );
+
   const monthlyTransactions = useMemo(
     () => transactions.filter(t => t.date.startsWith(selectedMonth)),
     [transactions, selectedMonth]
@@ -131,13 +151,19 @@ export function useAnalysisShared() {
     currentSummary,
     prevSummary,
     monthlyBudgetTotal,
+    monthlyDayToDayBudgetTotal,
+    monthlyCommitmentBudgetTotal,
+    monthlySavingsBudgetTotal,
+    budgetBreakdown,
     commitmentCategoryIds,
     monthlyCommitments,
     monthlyDayToDay,
+    monthlySavings,
     monthlyExpensesToDate,
     monthlyIncomeToDate,
     monthlyCommitmentsToDate,
     monthlyDayToDayToDate,
+    monthlySavingsToDate,
     monthlyTransactions,
     allCategorySpending,
   };

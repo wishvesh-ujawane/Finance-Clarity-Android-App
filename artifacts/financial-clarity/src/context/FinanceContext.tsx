@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { Transaction, Category, Budget, RecurringExpense, SavingsGoal, SAVINGS_CATEGORY_IDS, PaymentMethod } from '@/lib/types';
+import { Transaction, Category, Budget, RecurringExpense, SavingsGoal, SAVINGS_CATEGORY_IDS, SYSTEM_ADJUSTMENT_CATEGORY_IDS, MonthReconciliation, PaymentMethod } from '@/lib/types';
 import { currentMonth, localDateStr, isConsumptionExpense } from '@/lib/finance-utils';
 import type { ParsedSms } from '@/lib/sms/parser/types';
 import { parseSms } from '@/lib/sms/parser';
@@ -9,6 +9,7 @@ import { getSmsReader } from '@/lib/sms/SmsReader';
 import { SmsReaderPermissionError, SmsReaderQueryError } from '@/lib/sms/androidSmsReader';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
+const SYSTEM_ADJUSTMENT_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
 
 /**
  * Canonical per-month summary. Single source of truth for screen-level totals.
@@ -44,6 +45,17 @@ const OTHER_DEFAULTS: Category[] = [
   { id: 'other-income', name: 'Other Income', icon: 'Banknote', color: '#22C55E', type: 'income' },
 ];
 
+/**
+ * Hidden system categories used by the Month-End Review reconciliation
+ * step. Filtered out of every user-facing category picker (budgets page,
+ * transaction sheet grid, analysis chip rows) via
+ * `SYSTEM_ADJUSTMENT_CATEGORY_ID_SET`.
+ */
+const ADJUSTMENT_DEFAULTS: Category[] = [
+  { id: '_adjustment-missed-spend', name: 'Missed Spend', icon: 'HelpCircle', color: '#64748B', type: 'expense' },
+  { id: '_adjustment-overlogged', name: 'Over-logged Reversal', icon: 'Undo2', color: '#64748B', type: 'income' },
+];
+
 const DEFAULT_CATEGORIES: Category[] = [
   { id: 'groceries', name: 'Groceries', icon: 'ShoppingCart', color: '#10B981', type: 'expense' },
   { id: 'rent', name: 'Rent', icon: 'Home', color: '#6366F1', type: 'expense' },
@@ -56,16 +68,18 @@ const DEFAULT_CATEGORIES: Category[] = [
   { id: 'investment', name: 'Investment', icon: 'TrendingUp', color: '#2563EB', type: 'income' },
   ...SAVINGS_DEFAULTS,
   ...OTHER_DEFAULTS,
+  ...ADJUSTMENT_DEFAULTS,
 ];
 
 /**
  * Ensure hardcoded required categories exist in the array with the correct
- * `type`. Covers the two Savings buckets and the two "Other" catch-alls used
- * as SMS fallback. Missing entries are appended; entries with a wrong `type`
- * are corrected in place. Preserves user ordering.
+ * `type`. Covers the two Savings buckets, the two "Other" catch-alls used as
+ * SMS fallback, and the two hidden Adjustment categories used by the
+ * Month-End Review reconciliation step. Missing entries are appended;
+ * entries with a wrong `type` are corrected in place. Preserves user ordering.
  */
 function ensureRequiredCategories(list: Category[]): Category[] {
-  const seeds = [...SAVINGS_DEFAULTS, ...OTHER_DEFAULTS];
+  const seeds = [...SAVINGS_DEFAULTS, ...OTHER_DEFAULTS, ...ADJUSTMENT_DEFAULTS];
   const byId = new Map(list.map(c => [c.id, c] as const));
   let mutated = false;
   for (const seed of seeds) {
@@ -98,6 +112,8 @@ interface FinanceContextType {
   budgets: Budget[];
   recurringExpenses: RecurringExpense[];
   savingsGoal: SavingsGoal;
+  /** Month-End Review reconciliation records (one per month, at most). */
+  reconciliations: MonthReconciliation[];
   addTransaction: (t: Omit<Transaction, 'id'>) => void;
   importTransactions: (items: Omit<Transaction, 'id'>[]) => number;
   updateTransaction: (id: string, updates: Omit<Transaction, 'id'>) => void;
@@ -130,13 +146,48 @@ interface FinanceContextType {
   getTotalIncome: (month?: string) => number;
   getTotalExpenses: (month?: string) => number;
   getTotalSavings: (month?: string) => number;
+  /** Commitments: consumption expenses in commitment-type categories. */
+  getTotalCommitments: (month?: string) => number;
+  /** Day-to-day: consumption expenses excluding commitments and savings. */
+  getTotalDayToDay: (month?: string) => number;
+  /** Per-month budget totals split by category type (dayToDay / commitments / savings). */
+  getBudgetBreakdown: (month?: string) => {
+    dayToDay: { limit: number; spent: number };
+    commitments: { limit: number; spent: number };
+    savings: { limit: number; spent: number };
+  };
   getBalance: (month?: string) => number;
   getCarryForward: (month: string) => number;
   /** Total cash in pocket through today — month-agnostic. Sum of all
-   * income minus all expenses (savings transfers included as outflow)
-   * for transactions with date <= today. Future-dated transactions are
-   * excluded so planned/recurring future txns don't change pocket cash. */
+   * income minus consumption-only expenses (credit-card-payment transfers
+   * and savings transfers are excluded) for transactions with date <= today.
+   * Future-dated transactions are excluded so planned/recurring future txns
+   * don't change pocket cash. */
   getNetBalanceToDate: () => number;
+  /** Expected cash balance at the END of a given calendar month. Same math
+   * as getNetBalanceToDate but with a month-end cutoff. Used by Month-End
+   * Review's reconcile step to compare against the user's actual bank
+   * balance for that month. */
+  getCumulativeNetBalanceThroughEndOf: (month: string) => number;
+  /** All-time outstanding credit-card balance = sum of credit-card purchases
+   * minus sum of credit-card-payment transfers. Floored at zero. Accuracy
+   * tracks SMS auto-import coverage; manual non-SMS card spends won't show
+   * up until the user tags paymentMethod explicitly. */
+  getOutstandingCardBalance: () => number;
+  /** Return the reconciliation record for `month`, or null if the month
+   * has not been reconciled yet. */
+  getReconciliationFor: (month: string) => MonthReconciliation | null;
+  /** Record a Month-End Review reconciliation for `month`. If an adjustment
+   * amount is provided, a hidden-category adjustment transaction is created
+   * dated the last calendar day of `month` and its id is stored on the
+   * record. Returns the saved record. */
+  addReconciliation: (input: {
+    month: string;
+    actualBalance: number;
+    expectedBalance: number;
+    adjustmentAmount?: number;
+    note?: string;
+  }) => MonthReconciliation;
   getSpentForCategory: (categoryId: string, month: string) => number;
   /** Canonical per-month summary — use this from all screens. */
   getMonthSummary: (month?: string) => MonthSummary;
@@ -261,6 +312,21 @@ function isValidRecurring(value: unknown): value is RecurringExpense {
     typeof value.active === 'boolean' &&
     typeof value.startMonth === 'string' &&
     (value.lastGeneratedMonth === undefined || typeof value.lastGeneratedMonth === 'string')
+  );
+}
+
+function isValidReconciliation(value: unknown): value is MonthReconciliation {
+  return (
+    isObject(value) &&
+    typeof value.month === 'string' &&
+    /^\d{4}-\d{2}$/.test(value.month) &&
+    typeof value.actualBalance === 'number' &&
+    Number.isFinite(value.actualBalance) &&
+    typeof value.expectedBalance === 'number' &&
+    Number.isFinite(value.expectedBalance) &&
+    (value.adjustmentTxnId === undefined || typeof value.adjustmentTxnId === 'string') &&
+    typeof value.reconciledAt === 'number' &&
+    Number.isFinite(value.reconciledAt)
   );
 }
 
@@ -391,6 +457,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(() =>
     loadArrayFromStorage('recurring', [], isValidRecurring)
   );
+  const [reconciliations, setReconciliations] = useState<MonthReconciliation[]>(() =>
+    loadArrayFromStorage('reconciliations', [], isValidReconciliation)
+  );
   const [savingsGoal, setSavingsGoalState] = useState<SavingsGoal>(() => {
     const empty: SavingsGoal = { goal: { monthly: 0, annual: 0 }, emergency: { monthly: 0, annual: 0 } };
     const validEntry = (v: unknown): v is { monthly: number; annual: number; createdAt?: string } =>
@@ -449,6 +518,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage('categories', categories); setLastChangedAt(Date.now()); }, [categories]);
   useEffect(() => { saveToStorage('budgets', budgets); setLastChangedAt(Date.now()); }, [budgets]);
   useEffect(() => { saveToStorage('recurring', recurringExpenses); setLastChangedAt(Date.now()); }, [recurringExpenses]);
+  useEffect(() => { saveToStorage('reconciliations', reconciliations); setLastChangedAt(Date.now()); }, [reconciliations]);
   useEffect(() => {
     try { localStorage.setItem(getStorageKey('savings-goal'), JSON.stringify(savingsGoal)); } catch { /* ignore */ }
     setLastChangedAt(Date.now());
@@ -667,6 +737,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setBudgets(storedBudgets);
 
     setRecurringExpenses(loadArrayFromStorage('recurring', [], isValidRecurring));
+    setReconciliations(loadArrayFromStorage('reconciliations', [], isValidReconciliation));
 
     try {
       const raw = localStorage.getItem(getStorageKey('savings-goal'));
@@ -790,20 +861,48 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       .reduce((sum, t) => sum + t.amount, 0);
   }, [getTransactionsForMonth]);
 
+  // Commitments: consumption-expense txns whose category is of type 'commitment'
+  // (rent, home-loan EMI, etc.). Non-overlapping with savings; subset of
+  // getTotalExpenses.
+  const getTotalCommitments = useCallback((month?: string) => {
+    const commitmentIds = new Set(categories.filter(c => c.type === 'commitment').map(c => c.id));
+    return getTransactionsForMonth(month)
+      .filter(isConsumptionExpense)
+      .filter(t => commitmentIds.has(t.categoryId))
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [getTransactionsForMonth, categories]);
+
+  // Day-to-day: consumption-expense txns that are NOT commitments and NOT
+  // savings. The canonical "discretionary spend" number used by the
+  // Analysis "Day-to-day" tile and the Dashboard day-to-day budget bar.
+  const getTotalDayToDay = useCallback((month?: string) => {
+    return getTotalExpenses(month) - getTotalCommitments(month);
+  }, [getTotalExpenses, getTotalCommitments]);
+
   const getBalance = useCallback((month?: string) => {
     return getTotalIncome(month) - getTotalExpenses(month) - getTotalSavings(month);
   }, [getTotalIncome, getTotalExpenses, getTotalSavings]);
 
-  // Carry forward = cumulative balance of all months BEFORE the given month
+  // Carry forward = cumulative balance of all months BEFORE the given month.
+  // Expenses are filtered through isConsumptionExpense so credit-card-payment
+  // transfers (bank -> card) don't double-count — the underlying credit-card
+  // purchase is already an outflow. Savings-category expenses are also
+  // excluded (user still has that money, just moved to a savings bucket).
   const getCarryForward = useCallback((month: string) => {
     const prevTransactions = transactions.filter(t => t.date < month);
-    const income = prevTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const expenses = prevTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    return income - expenses;
+    let income = 0;
+    let outflow = 0;
+    for (const t of prevTransactions) {
+      if (t.type === 'income') income += t.amount;
+      else if (isConsumptionExpense(t)) outflow += t.amount;
+    }
+    return income - outflow;
   }, [transactions]);
 
-  // Total pocket cash through today, ignoring the selected month.
-  // Future-dated transactions are excluded so projections don't move the number.
+  // Total pocket cash through today, ignoring the selected month. Same
+  // consumption-only filter as getCarryForward: card-payment transfers and
+  // savings transfers are not outflows. Future-dated transactions are
+  // excluded so projections don't move the number.
   const getNetBalanceToDate = useCallback(() => {
     const todayStr = localDateStr(new Date());
     let income = 0;
@@ -811,16 +910,139 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     for (const t of transactions) {
       if (t.date > todayStr) continue;
       if (t.type === 'income') income += t.amount;
-      else if (t.type === 'expense') outflow += t.amount; // savings count as outflow
+      else if (isConsumptionExpense(t)) outflow += t.amount;
     }
     return income - outflow;
   }, [transactions]);
+
+  // Expected cash balance at the END of a calendar month — same model as
+  // getNetBalanceToDate but with a month-end cutoff instead of today. Used
+  // by the Month-End Review reconcile step to compare against the user's
+  // actual bank balance for that month.
+  const getCumulativeNetBalanceThroughEndOf = useCallback((month: string) => {
+    // month is 'YYYY-MM'; cutoff is any date starting with month or earlier.
+    // String compare works because dates are ISO 'YYYY-MM-DD'.
+    const cutoffPrefix = month;
+    let income = 0;
+    let outflow = 0;
+    for (const t of transactions) {
+      // Keep entries dated on or before the last day of `month`.
+      if (t.date.slice(0, 7) > cutoffPrefix) continue;
+      if (t.type === 'income') income += t.amount;
+      else if (isConsumptionExpense(t)) outflow += t.amount;
+    }
+    return income - outflow;
+  }, [transactions]);
+
+  // Outstanding credit-card balance = all-time card purchases minus all-time
+  // card-bill payments. Floored at zero so overpayments don't surface a
+  // confusing negative. Accuracy depends on SMS auto-import or manual
+  // paymentMethod tagging — see knowledge-base/features/reconciliation.md.
+  const getOutstandingCardBalance = useCallback(() => {
+    let purchases = 0;
+    let payments = 0;
+    for (const t of transactions) {
+      if (t.type !== 'expense') continue;
+      if (t.paymentMethod === 'credit-card') purchases += t.amount;
+      else if (t.paymentMethod === 'credit-card-payment') payments += t.amount;
+    }
+    return Math.max(0, purchases - payments);
+  }, [transactions]);
+
+  const getReconciliationFor = useCallback(
+    (month: string): MonthReconciliation | null =>
+      reconciliations.find(r => r.month === month) ?? null,
+    [reconciliations],
+  );
+
+  // Create / replace a Month-End Review reconciliation record for `month`.
+  // When `adjustmentAmount` is non-zero we also create a hidden-category
+  // adjustment transaction dated the last calendar day of `month`, so the
+  // next month's carry-forward is already correct. Positive amounts become
+  // an expense in `_adjustment-missed-spend`; negative amounts become an
+  // income in `_adjustment-overlogged`.
+  const addReconciliation = useCallback(
+    (input: {
+      month: string;
+      actualBalance: number;
+      expectedBalance: number;
+      adjustmentAmount?: number;
+      note?: string;
+    }): MonthReconciliation => {
+      const { month, actualBalance, expectedBalance, adjustmentAmount, note } = input;
+
+      let adjustmentTxnId: string | undefined;
+      if (adjustmentAmount !== undefined && adjustmentAmount !== 0) {
+        // Last calendar day of `month`.
+        const [yStr, mStr] = month.split('-').map(Number);
+        const lastDay = new Date(yStr, mStr, 0).getDate();
+        const dateIso = `${month}-${String(lastDay).padStart(2, '0')}`;
+        const amt = Math.abs(adjustmentAmount);
+        const id = createId();
+        adjustmentTxnId = id;
+        const tx: Transaction = adjustmentAmount > 0
+          ? {
+              id,
+              type: 'expense',
+              amount: amt,
+              categoryId: '_adjustment-missed-spend',
+              note: note || 'Missed spend (reconciled)',
+              date: dateIso,
+            }
+          : {
+              id,
+              type: 'income',
+              amount: amt,
+              categoryId: '_adjustment-overlogged',
+              note: note || 'Over-logged reversal (reconciled)',
+              date: dateIso,
+            };
+        setTransactions(prev => [tx, ...prev]);
+      }
+
+      const record: MonthReconciliation = {
+        month,
+        actualBalance,
+        expectedBalance,
+        adjustmentTxnId,
+        reconciledAt: Date.now(),
+      };
+      // Replace any existing record for the month (allow re-reconcile).
+      setReconciliations(prev => [record, ...prev.filter(r => r.month !== month)]);
+      return record;
+    },
+    [],
+  );
 
   const getSpentForCategory = useCallback((categoryId: string, month: string) => {
     return transactions
       .filter(t => t.type === 'expense' && t.categoryId === categoryId && t.date.startsWith(month))
       .reduce((sum, t) => sum + t.amount, 0);
   }, [transactions]);
+
+  // Three-bucket budget breakdown by category type, driven off `cat.type`.
+  // Budgets whose category is 'expense' or 'both' land in dayToDay; 'commitment'
+  // in commitments; 'savings' in savings. Unknown-category rows fall into
+  // dayToDay (safe default — matches the pre-split behavior).
+  const getBudgetBreakdown = useCallback((month?: string) => {
+    const m = month || selectedMonth;
+    const monthBudgets = budgets.filter(b => b.month === m);
+    const buckets = {
+      dayToDay: { limit: 0, spent: 0 },
+      commitments: { limit: 0, spent: 0 },
+      savings: { limit: 0, spent: 0 },
+    };
+    for (const b of monthBudgets) {
+      const cat = categories.find(c => c.id === b.categoryId);
+      const bucket =
+        cat?.type === 'commitment' ? buckets.commitments
+        : cat?.type === 'savings' ? buckets.savings
+        : buckets.dayToDay;
+      bucket.limit += b.limit;
+      bucket.spent += getSpentForCategory(b.categoryId, m);
+    }
+    return buckets;
+  }, [budgets, categories, selectedMonth, getSpentForCategory]);
 
   const getMonthSummary = useCallback((month?: string): MonthSummary => {
     const monthTxns = getTransactionsForMonth(month);
@@ -1161,6 +1383,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     <FinanceContext.Provider value={{
       transactions, categories, budgets,
       recurringExpenses, savingsGoal,
+      reconciliations,
       addTransaction, importTransactions, updateTransaction, deleteTransaction,
       addCategory, updateCategory, deleteCategory,
       addBudget, updateBudget, deleteBudget, transferBudgetsToMonth,
@@ -1170,7 +1393,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       isSheetOpen, editingTransaction, sheetInitialMode,
       openSheet, openEditSheet, closeSheet,
       isBudgetSheetOpen, openBudgetSheet, closeBudgetSheet,
-      getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getSpentForCategory,
+      getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getCumulativeNetBalanceThroughEndOf, getOutstandingCardBalance, getReconciliationFor, addReconciliation, getSpentForCategory,
+      getTotalCommitments, getTotalDayToDay, getBudgetBreakdown,
       getMonthSummary,
       reloadFromStorage, lastChangedAt,
       // SMS auto-import (Phase 4)

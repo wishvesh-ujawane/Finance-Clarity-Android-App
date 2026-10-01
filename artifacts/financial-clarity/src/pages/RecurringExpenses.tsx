@@ -13,6 +13,9 @@ import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { currentMonth, formatINR } from '@/lib/finance-utils';
 import { parseCurrencyInput } from '@/lib/currency-utils';
+import { SYSTEM_ADJUSTMENT_CATEGORY_IDS } from '@/lib/types';
+
+const SYSTEM_ADJUSTMENT_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
 
 interface FormState {
   description: string;
@@ -44,7 +47,10 @@ export default function RecurringExpenses() {
 
   const eligibleCategories = useMemo(
     () => categories
-      .filter(c => c.type === 'expense' || c.type === 'commitment' || c.type === 'both' || c.type === 'savings')
+      .filter(c =>
+        !SYSTEM_ADJUSTMENT_ID_SET.has(c.id) &&
+        (c.type === 'expense' || c.type === 'commitment' || c.type === 'both' || c.type === 'savings')
+      )
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name)),
     [categories]

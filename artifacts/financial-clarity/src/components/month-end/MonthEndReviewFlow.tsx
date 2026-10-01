@@ -7,15 +7,23 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useMonthEndReview } from '@/context/MonthEndReviewContext';
 import { MonthEndAnalysisCard } from './MonthEndAnalysisCard';
+import { MonthEndReconcileCard } from './MonthEndReconcileCard';
 import { MonthEndBudgetCard } from './MonthEndBudgetCard';
 import { Confetti } from './Confetti';
 
-type Step = 1 | 2;
+type Step = 1 | 2 | 3;
+
+const STEP_LABEL: Record<Step, string> = {
+  1: 'Look back',
+  2: 'Reconcile',
+  3: 'Plan ahead',
+};
 
 /**
- * Two-step month-end review modal.
+ * Three-step month-end review modal.
  *  1. Analysis of the just-ended month (top categories, impulse, savings)
- *  2. Category-by-category budget setup for the next month
+ *  2. Reconcile the month-end balance against the user's real bank
+ *  3. Category-by-category budget setup for the next month
  *
  * Skip / X → `useMonthEndReview.skip()` / `.dismiss()` — banner stays up.
  * Finish   → `useMonthEndReview.complete()` — banner hides for that month.
@@ -34,8 +42,10 @@ export function MonthEndReviewFlow() {
 
   if (!pendingMonth) return null;
 
-  const handleContinue = () => setStep(2);
+  const handleContinueToReconcile = () => setStep(2);
+  const handleContinueToPlan = () => setStep(3);
   const handleBackToAnalysis = () => setStep(1);
+  const handleBackToReconcile = () => setStep(2);
 
   const handleBudgetFinished = () => {
     // Fire finale confetti before closing.
@@ -49,12 +59,12 @@ export function MonthEndReviewFlow() {
   // as "reviewed" so the banner stops re-prompting. Closing from step 1
   // (before the user saw anything) still just dismisses. See Bug #3.
   const closeFromStep = () => {
-    if (step === 2) complete();
+    if (step === 3) complete();
     else dismiss();
   };
 
   const skipFromStep = () => {
-    if (step === 2) complete();
+    if (step === 3) complete();
     else skip();
   };
 
@@ -86,7 +96,7 @@ export function MonthEndReviewFlow() {
                   Month-end review
                 </p>
                 <p className="text-sm font-semibold text-foreground">
-                  Step {step} of 2 · {step === 1 ? 'Look back' : 'Plan ahead'}
+                  Step {step} of 3 · {STEP_LABEL[step]}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -114,11 +124,22 @@ export function MonthEndReviewFlow() {
                   transition={{ type: 'spring', stiffness: 320, damping: 32 }}
                   className="h-full"
                 >
-                  {step === 1 ? (
+                  {step === 1 && (
                     <div className="h-full overflow-y-auto px-4 py-4">
                       <MonthEndAnalysisCard month={pendingMonth} />
                     </div>
-                  ) : (
+                  )}
+                  {step === 2 && (
+                    <div className="h-full px-4 py-4">
+                      <MonthEndReconcileCard
+                        reviewMonth={pendingMonth}
+                        onContinue={handleContinueToPlan}
+                        onBack={handleBackToAnalysis}
+                        onSkip={handleContinueToPlan}
+                      />
+                    </div>
+                  )}
+                  {step === 3 && (
                     <div className="h-full px-4 py-4">
                       <MonthEndBudgetCard reviewMonth={pendingMonth} onFinished={handleBudgetFinished} />
                     </div>
@@ -127,7 +148,7 @@ export function MonthEndReviewFlow() {
               </AnimatePresence>
             </div>
 
-            {/* Footer only for step 1; step 2 owns its own controls. */}
+            {/* Footer only for step 1; steps 2 and 3 own their own controls. */}
             {step === 1 && (
               <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
                 <Button
@@ -140,28 +161,28 @@ export function MonthEndReviewFlow() {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={handleContinue}
+                  onClick={handleContinueToReconcile}
                   data-testid="month-end-continue"
                 >
-                  Continue → Plan next month
+                  Continue → Reconcile
                 </Button>
               </div>
             )}
-            {step === 2 && (
+            {step === 3 && (
               <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={handleBackToAnalysis}
-                  data-testid="month-end-back-to-analysis"
+                  onClick={handleBackToReconcile}
+                  data-testid="month-end-back-to-reconcile"
                 >
-                  ← Back to analysis
+                  ← Back to reconcile
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={skipFromStep}
-                  data-testid="month-end-skip-step-2"
+                  data-testid="month-end-skip-step-3"
                 >
                   Finish
                 </Button>
@@ -177,7 +198,7 @@ export function MonthEndReviewFlow() {
 function StepDots({ current }: { current: Step }) {
   return (
     <div className="flex items-center gap-1" aria-hidden="true">
-      {[1, 2].map(n => (
+      {[1, 2, 3].map(n => (
         <span
           key={n}
           className={cn(

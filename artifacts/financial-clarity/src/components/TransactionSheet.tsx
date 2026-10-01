@@ -10,9 +10,10 @@ import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { localDateStr, formatAmountExpression } from '@/lib/finance-utils';
-import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
+import { SAVINGS_CATEGORY_IDS, SYSTEM_ADJUSTMENT_CATEGORY_IDS } from '@/lib/types';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
+const SYSTEM_ADJUSTMENT_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
 
 const COLOR_SWATCHES = [
   '#10B981', '#6366F1', '#F59E0B', '#3B82F6', '#EF4444',
@@ -187,8 +188,12 @@ export function TransactionSheet() {
   const filteredCategories = (mode === 'save'
     ? categories.filter(c => c.type === 'savings')
     : mode === 'expense'
-      ? categories.filter(c => c.type === 'expense' || c.type === 'commitment' || c.type === 'both')
-      : categories.filter(c => c.type === 'income' || c.type === 'both')
+      ? categories.filter(c =>
+          !SYSTEM_ADJUSTMENT_ID_SET.has(c.id) &&
+          (c.type === 'expense' || c.type === 'commitment' || c.type === 'both'))
+      : categories.filter(c =>
+          !SYSTEM_ADJUSTMENT_ID_SET.has(c.id) &&
+          (c.type === 'income' || c.type === 'both'))
   ).slice().sort((a, b) => a.name.localeCompare(b.name));
 
   const calculatedAmount = evaluateAmountExpression(amount);
@@ -407,7 +412,13 @@ export function TransactionSheet() {
                 </div>
               </div>
 
-              {/* Payment Method */}
+              {/* Payment Method — hidden from manual entry. The underlying
+                  `paymentMethod` state is preserved so that transactions
+                  imported from SMS (which populate this field automatically)
+                  can be opened in the edit sheet and saved again without
+                  losing their original method. Re-enable this block to
+                  restore the Cash / Bank / Credit Card UI. */}
+              {false && (
               <div>
                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
                   Payment Method (Optional)
@@ -433,6 +444,7 @@ export function TransactionSheet() {
                   })}
                 </div>
               </div>
+              )}
 
               {/* Category */}
               <div>
