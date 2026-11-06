@@ -31,6 +31,8 @@ node_modules
 /.sass-cache
 /connect.lock
 /coverage
+/artifacts/financial-clarity/playwright-report/
+/artifacts/financial-clarity/test-results/
 /libpeerconnection.log
 npm-debug.log
 yarn-error.log
@@ -44,9 +46,8 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
-# Replit
-.cache/
-.local/
+# Salesforce CLI metadata (not part of this project)
+.sf/
 
 # Environment / secrets
 .env

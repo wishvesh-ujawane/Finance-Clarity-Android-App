@@ -1,12 +1,16 @@
 /**
  * Tests for backup schema versions and migrations.
  * - Phase 1: added Transaction.paymentMethod (v1 -> v2).
- * - Phase 5: added SMS auto-import state (v2 -> v3).
+ * - v3 backups retain their legacy SMS data block for compatibility only.
  */
 
-import { describe, it, expect } from 'vitest';
-import { validateBackup, BACKUP_VERSION } from '../backup';
+import { beforeEach, describe, it, expect } from 'vitest';
+import { applyBackup, buildBackup, validateBackup, BACKUP_VERSION } from '../backup';
 import type { BackupFile } from '../backup';
+
+beforeEach(() => {
+  localStorage.clear();
+});
 
 describe('Backup schema versioning', () => {
   it('current BACKUP_VERSION is 3', () => {
@@ -70,7 +74,29 @@ describe('Backup schema versioning', () => {
     }
   });
 
-  it('accepts a valid v3 backup with SMS data present', () => {
+  it('carries forward legacy local SMS data without changing its storage', () => {
+    const pending = '[{"smsId":"old-message","rawBody":"legacy content"}]';
+    const dismissed = '["old-fingerprint"]';
+    const linked = '{"old-fingerprint":{"smsId":"linked-message","rawBody":"linked content"}}';
+    const lastScan = '1753000000000';
+    localStorage.setItem('financial-clarity:sms-pending', pending);
+    localStorage.setItem('financial-clarity:sms-dismissed', dismissed);
+    localStorage.setItem('financial-clarity:sms-linked', linked);
+    localStorage.setItem('financial-clarity:sms-last-scan', lastScan);
+
+    const backup = buildBackup();
+
+    expect(backup.data.sms.pendingSms).toEqual(JSON.parse(pending));
+    expect(backup.data.sms.dismissedSmsFingerprints).toEqual(JSON.parse(dismissed));
+    expect(backup.data.sms.linkedSms).toEqual(JSON.parse(linked));
+    expect(backup.data.sms.lastScanMs).toBe(Number(lastScan));
+    expect(localStorage.getItem('financial-clarity:sms-pending')).toBe(pending);
+    expect(localStorage.getItem('financial-clarity:sms-dismissed')).toBe(dismissed);
+    expect(localStorage.getItem('financial-clarity:sms-linked')).toBe(linked);
+    expect(localStorage.getItem('financial-clarity:sms-last-scan')).toBe(lastScan);
+  });
+
+  it('restores legacy v3 SMS data without making it active runtime state', () => {
     const v3Backup: BackupFile = {
       schemaVersion: 3,
       appVersion: '1.0.0',
@@ -135,6 +161,17 @@ describe('Backup schema versioning', () => {
       expect(result.backup.data.sms.pendingSms).toHaveLength(1);
       expect(Object.keys(result.backup.data.sms.linkedSms)).toHaveLength(1);
       expect(result.backup.data.sms.lastScanMs).toBe(1_753_000_000_000);
+      applyBackup(result.backup);
+      expect(localStorage.getItem('financial-clarity:sms-pending')).toBe(
+        JSON.stringify(result.backup.data.sms.pendingSms),
+      );
+      expect(localStorage.getItem('financial-clarity:sms-dismissed')).toBe(
+        JSON.stringify(result.backup.data.sms.dismissedSmsFingerprints),
+      );
+      expect(localStorage.getItem('financial-clarity:sms-linked')).toBe(
+        JSON.stringify(result.backup.data.sms.linkedSms),
+      );
+      expect(localStorage.getItem('financial-clarity:sms-last-scan')).toBe('1753000000000');
     }
   });
 
@@ -188,6 +225,17 @@ describe('Backup schema versioning', () => {
   });
 
   it('migrates a v2 backup up to v3 (adds empty SMS block)', () => {
+    const existingLegacySms = {
+      pending: '[{"rawBody":"keep existing legacy record"}]',
+      dismissed: '["keep-this-fingerprint"]',
+      linked: '{"keep-this-fingerprint":{"rawBody":"keep linked record"}}',
+      lastScan: '1753000000000',
+    };
+    localStorage.setItem('financial-clarity:sms-pending', existingLegacySms.pending);
+    localStorage.setItem('financial-clarity:sms-dismissed', existingLegacySms.dismissed);
+    localStorage.setItem('financial-clarity:sms-linked', existingLegacySms.linked);
+    localStorage.setItem('financial-clarity:sms-last-scan', existingLegacySms.lastScan);
+
     const v2Backup: unknown = {
       schemaVersion: 2,
       appVersion: '1.0.0',
@@ -223,6 +271,14 @@ describe('Backup schema versioning', () => {
       expect(result.backup.data.sms.pendingSms).toEqual([]);
       expect(result.backup.data.sms.dismissedSmsFingerprints).toEqual([]);
       expect(result.backup.data.sms.linkedSms).toEqual({});
+      applyBackup(result.backup);
+      expect(localStorage.getItem('financial-clarity:sms-pending')).toBe(existingLegacySms.pending);
+      expect(localStorage.getItem('financial-clarity:sms-dismissed')).toBe(existingLegacySms.dismissed);
+      expect(localStorage.getItem('financial-clarity:sms-linked')).toBe(existingLegacySms.linked);
+      expect(localStorage.getItem('financial-clarity:sms-last-scan')).toBe(existingLegacySms.lastScan);
+      expect(JSON.parse(localStorage.getItem('financial-clarity:transactions') || '[]')).toEqual(
+        result.backup.data.transactions,
+      );
     }
   });
 

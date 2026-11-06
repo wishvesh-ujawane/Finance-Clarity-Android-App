@@ -204,13 +204,15 @@ export function TransactionSheet() {
 
     // 'save' is a UI mode; underlying transaction is an expense whose category is a savings one.
     const storedType: 'expense' | 'income' = mode === 'income' ? 'income' : 'expense';
-    const payload = { 
+    const payload = {
       type: storedType, 
       amount: parsed, 
       categoryId, 
       note, 
       date,
       paymentMethod: paymentMethod || undefined,
+      merchant: isEditing ? editingTransaction?.merchant : undefined,
+      sourceSmsFingerprint: isEditing ? editingTransaction?.sourceSmsFingerprint : undefined,
     };
 
     if (isEditing && editingTransaction) {
@@ -412,12 +414,8 @@ export function TransactionSheet() {
                 </div>
               </div>
 
-              {/* Payment Method — hidden from manual entry. The underlying
-                  `paymentMethod` state is preserved so that transactions
-                  imported from SMS (which populate this field automatically)
-                  can be opened in the edit sheet and saved again without
-                  losing their original method. Re-enable this block to
-                  restore the Cash / Bank / Credit Card UI. */}
+              {/* Payment method remains hidden from manual entry; existing
+                  values are preserved when an entry is edited and saved. */}
               {false && (
               <div>
                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">

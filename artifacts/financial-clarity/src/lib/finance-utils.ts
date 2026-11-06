@@ -22,9 +22,6 @@ export function formatAmount(value: number): string {
   return value < 0 ? `-${formatted}` : formatted;
 }
 
-// Back-compat alias — keeps existing call sites working against the single canonical impl.
-export const formatINRCompact = formatAmount;
-
 export function formatShortINR(amount: number) {
   if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
   if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}k`;

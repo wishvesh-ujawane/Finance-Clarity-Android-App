@@ -100,8 +100,10 @@ Under [src/lib/](../../../artifacts/financial-clarity/src/lib/):
 
 ## Persistence model
 LocalStorage only. `FinanceContext` is the canonical reader/writer. No API
-client is wired in. The OpenAPI / Drizzle stack is reserved for future
-server-backed features and currently does not back this app.
+client is wired in, and the repository contains no server or database code
+(the former OpenAPI / Drizzle scaffolds were removed on 2026-11-06). Cloud
+copies exist only as user-initiated Google Drive backups; CSV covers
+transaction import and export.
 
 ## Known gotchas
 - FAB has no per-screen color or icon override — every screen sees the same

@@ -160,7 +160,8 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
       ? await verifyBiometric('Confirm biometrics to enable unlock')
       : false;
     const next = await createSecuritySettings(pin, { biometricEnabled });
-    saveSecuritySettings(next);
+    const result = saveSecuritySettings(next);
+    if (!result.ok) throw new Error(result.message);
     setSettings(next);
     setIsLocked(false);
     void refreshBiometricState();
@@ -174,7 +175,8 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     if (!ok) return false;
     const newHash = await hashPin(newPin, settings.pinSalt);
     const next: SecuritySettings = { ...settings, pinHash: newHash, updatedAt: Date.now() };
-    saveSecuritySettings(next);
+    const result = saveSecuritySettings(next);
+    if (!result.ok) throw new Error(result.message);
     setSettings(next);
     return true;
   }, [settings]);
@@ -192,7 +194,8 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
       return false;
     }
     const next: SecuritySettings = { ...settings, biometricEnabled: true, updatedAt: Date.now() };
-    saveSecuritySettings(next);
+    const result = saveSecuritySettings(next);
+    if (!result.ok) throw new Error(result.message);
     setSettings(next);
     setBiometricAvailable(true);
     setBiometricReason('Biometric authentication is available.');
@@ -202,7 +205,8 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
   const disableBiometric = useCallback(() => {
     if (!settings) return;
     const next: SecuritySettings = { ...settings, biometricEnabled: false, updatedAt: Date.now() };
-    saveSecuritySettings(next);
+    const result = saveSecuritySettings(next);
+    if (!result.ok) throw new Error(result.message);
     setSettings(next);
   }, [settings]);
 
@@ -220,7 +224,8 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     if (!settings) return false;
     const ok = await verifyPin(currentPin, settings);
     if (!ok) return false;
-    clearSecuritySettings();
+    const result = clearSecuritySettings();
+    if (!result.ok) throw new Error(result.message);
     setSettings(null);
     setIsLocked(false);
     return true;

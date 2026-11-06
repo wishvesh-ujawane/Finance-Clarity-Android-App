@@ -4,10 +4,10 @@ title: <API or contract name>
 date: YYYY-MM-DD
 updated: YYYY-MM-DD
 status: current
-scope: [api-spec, api-client-react, api-zod, api-server]
+scope: [<package-or-module>]
 related: []
 source-of-truth-files:
-  - lib/api-spec/openapi.yaml
+  - artifacts/financial-clarity/src/lib/<contract-file>.ts
 ---
 
 # <API or contract name>

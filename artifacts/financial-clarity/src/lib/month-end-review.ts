@@ -8,7 +8,7 @@
 // docs/knowledge-base/decisions/0002-month-end-review-flow.md.
 
 import { Transaction, Category, SAVINGS_CATEGORY_IDS } from '@/lib/types';
-import { addMonths, currentMonth, localDateStr } from '@/lib/finance-utils';
+import { addMonths, currentMonth } from '@/lib/finance-utils';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 
@@ -57,12 +57,6 @@ export function markReviewSkipped(month: string) {
 
 export function markReviewDismissedForNow(month: string) {
   safeSet(reviewKey(month), `dismissed:${Date.now()}`);
-}
-
-/** Is `month` (YYYY-MM) fully in the past relative to `today`? */
-export function isMonthFullyPast(month: string, today: Date = new Date()): boolean {
-  const cur = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-  return month < cur;
 }
 
 /** Is `today` the last calendar day of `today.getMonth()`? */
@@ -312,12 +306,4 @@ export function suggestBudgetForCategory(
   if (monthsWithHistory === 0) return null;
   const avg = totalSpend / monthsWithHistory;
   return Math.round(avg / 100) * 100;
-}
-
-// ─────────────────────────────────────────────────────────────
-// Test-support helpers (not shipped code paths)
-// ─────────────────────────────────────────────────────────────
-
-export function _today(): string {
-  return localDateStr(new Date());
 }

@@ -1,5 +1,5 @@
 /**
- * Regression test suite for Phase 1 SMS Auto-Import foundation.
+ * Regression test suite for payment-method and aggregation invariants.
  * Ensures that adding paymentMethod field and refactoring to isConsumptionExpense
  * preserves all existing aggregation logic — no numeric changes in totals.
  */

@@ -1,5 +1,3 @@
-import { z } from 'zod';
-
 /**
  * Safe currency input parser for the Financial Clarity app.
  * 
@@ -42,25 +40,3 @@ export function parseCurrencyInput(input: string): number {
   
   return parsed;
 }
-
-/**
- * Zod schema for validating currency input strings.
- * Use this in forms to validate before calling parseCurrencyInput.
- */
-export const currencyInputSchema = z.string().refine(
-  (val) => {
-    const parsed = parseCurrencyInput(val);
-    return parsed > 0;
-  },
-  { message: 'Amount must be a positive number' }
-);
-
-/**
- * Zod schema for non-zero positive currency amounts.
- * Returns the parsed number after validation.
- */
-export const positiveAmountSchema = z.string().transform((val) => {
-  const parsed = parseCurrencyInput(val);
-  if (parsed <= 0) throw new Error('Amount must be greater than 0');
-  return parsed;
-});

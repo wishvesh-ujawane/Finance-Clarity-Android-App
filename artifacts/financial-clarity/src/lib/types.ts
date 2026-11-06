@@ -1,9 +1,4 @@
-/**
- * Payment method for a transaction. Enables the SMS auto-import feature to
- * distinguish credit-card purchases (consumption) from credit-card bill
- * payments (transfers, must be excluded from spend totals to avoid
- * double-counting). Legacy rows without a value are treated as consumption.
- */
+/** Payment method metadata; legacy rows without a value are treated as consumption. */
 export type PaymentMethod = 'cash' | 'bank' | 'credit-card' | 'credit-card-payment';
 
 export interface Transaction {
@@ -13,18 +8,13 @@ export interface Transaction {
   categoryId: string;
   note: string;
   date: string;
-  /** Payment method for auto-import bookkeeping. Optional for backward compat. */
+  /** Optional payment method metadata retained by backup and restore. */
   paymentMethod?: PaymentMethod;
-  /** Fingerprint of the SMS this transaction was imported from. Set only by the SMS-import flow. */
+  /** Legacy provenance field retained for transaction and backup compatibility. */
   sourceSmsFingerprint?: string;
-  /** Merchant / payee inferred from an imported SMS (Swiggy, Uber, etc.). Optional. */
+  /** Optional merchant / payee retained with legacy transactions. */
   merchant?: string;
 }
-
-/** Valid values for `Transaction.paymentMethod`, exported for runtime validators. */
-export const PAYMENT_METHODS: readonly PaymentMethod[] = [
-  'cash', 'bank', 'credit-card', 'credit-card-payment',
-] as const;
 
 export interface Category {
   id: string;
@@ -35,7 +25,6 @@ export interface Category {
 }
 
 export const SAVINGS_CATEGORY_IDS = ['savings-goal', 'savings-emergency'] as const;
-export type SavingsCategoryId = typeof SAVINGS_CATEGORY_IDS[number];
 
 /**
  * System categories reserved for the Month-End Review reconciliation step.
@@ -54,7 +43,6 @@ export const SYSTEM_ADJUSTMENT_CATEGORY_IDS = [
   '_adjustment-missed-spend',
   '_adjustment-overlogged',
 ] as const;
-export type SystemAdjustmentCategoryId = typeof SYSTEM_ADJUSTMENT_CATEGORY_IDS[number];
 
 export interface Budget {
   id: string;
@@ -78,8 +66,6 @@ export interface SavingsGoal {
   goal: { monthly: number; annual: number; createdAt?: string };
   emergency: { monthly: number; annual: number; createdAt?: string };
 }
-
-export type GoalEntry = SavingsGoal['goal'];
 
 /**
  * Reconciliation record created by the Month-End Review flow. Captures

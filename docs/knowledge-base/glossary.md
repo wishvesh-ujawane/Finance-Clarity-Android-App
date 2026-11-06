@@ -30,9 +30,8 @@ The custom subagent ([.github/agents/app-oracle.agent.md](../../.github/agents/a
 that owns this knowledge base. Sole writer for files in `docs/knowledge-base/`.
 
 ## Artifact
-A buildable end-user-facing deliverable inside `artifacts/*` (for example the
-Financial Clarity React app or the API server). Distinct from `lib/*`, which
-holds reusable libraries.
+A buildable end-user-facing deliverable inside `artifacts/*`. The only artifact
+is the Fiscal Focus app (`artifacts/financial-clarity`).
 
 ## Carry-forward
 The unspent portion of a previous month's budget that rolls into the next
@@ -56,14 +55,13 @@ Indian-rupee currency formatting (e.g. `₹1,23,456`) implemented by
 [finance-utils.ts](../../artifacts/financial-clarity/src/lib/finance-utils.ts).
 
 ## Orval
-The OpenAPI-driven codegen tool ([lib/api-spec/orval.config.ts](../../lib/api-spec/orval.config.ts))
-that produces both the React-Query client (`@workspace/api-client-react`) and
-the Zod schemas (`@workspace/api-zod`) from
-[openapi.yaml](../../lib/api-spec/openapi.yaml).
+*Removed 2026-11-06.* An OpenAPI-driven codegen tool that the former `lib/api-spec`
+scaffold used to generate a React Query client and Zod schemas. It is no longer
+part of the workspace.
 
 ## pnpm workspace
 The monorepo layout declared in [pnpm-workspace.yaml](../../pnpm-workspace.yaml).
-Packages live under `artifacts/*`, `lib/*`, and `lib/integrations/*`.
+Packages live under `artifacts/*`; today that is only the app.
 
 ## Surplus
 On the Budgets screen, the difference between total income (minus carry-forward

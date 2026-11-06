@@ -39,7 +39,7 @@ export default function Dashboard() {
   // Pocket cash through today — month-agnostic, identical on every month tab.
   const netBalance = getNetBalanceToDate();
   // Outstanding credit-card balance — never month-scoped. Shown as a chip
-  // only when > 0. Scope: as accurate as SMS-tagged / manually-tagged data.
+  // only when > 0. Scope: as accurate as manually tagged data.
   const cardDebt = getOutstandingCardBalance();
   // Per-month figures (these DO change with the month picker).
   const balance = getBalance(selectedMonth);

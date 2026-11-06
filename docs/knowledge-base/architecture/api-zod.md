@@ -2,8 +2,8 @@
 id: architecture-api-zod
 title: Generated Zod schemas (`@workspace/api-zod`)
 date: 2026-06-28
-updated: 2026-06-28
-status: current
+updated: 2026-11-06
+status: deprecated
 scope: [api-zod]
 related:
   - ./api-spec.md
@@ -15,6 +15,8 @@ source-of-truth-files:
 ---
 
 # Generated Zod schemas (`@workspace/api-zod`)
+
+> **Deprecated 2026-11-06.** This package was deleted from the workspace because the app is local-only (on-device storage, Google Drive backup, CSV import/export) and never used it. Links to its source files below no longer resolve. This entry is kept as a historical record only. See [workspace.md](./workspace.md).
 
 ## Purpose
 Zod (`zod/v4`) schemas mirroring every OpenAPI component and request/response

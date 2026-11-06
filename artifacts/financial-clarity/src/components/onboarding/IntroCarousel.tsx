@@ -28,7 +28,7 @@ const SLIDES: Slide[] = [
     iconBg: 'bg-emerald-400/15 ring-1 ring-emerald-400/30',
     iconColor: 'text-emerald-300',
     glow: 'bg-emerald-500/25',
-    eyebrow: 'Welcome to Finance Clarity',
+    eyebrow: 'Welcome to Fiscal Focus',
     title: 'Track every rupee, your way.',
     body: 'A fast, offline-first companion for daily spending, income and recurring bills — no account required to get started.',
   },

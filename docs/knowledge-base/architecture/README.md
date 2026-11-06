@@ -6,11 +6,14 @@ Use [`../_templates/architecture.md`](../_templates/architecture.md) for new ent
 
 ## Index
 
-- [workspace.md](./workspace.md) — pnpm monorepo overview, packages, top-level commands.
+- [workspace.md](./workspace.md) — pnpm workspace overview, layout, top-level commands.
 - [financial-clarity.md](./financial-clarity.md) — React + Vite + Capacitor consumer app under `artifacts/financial-clarity`.
-- [api-server.md](./api-server.md) — Express 5 API server under `artifacts/api-server`.
-- [api-spec.md](./api-spec.md) — OpenAPI spec + Orval codegen under `lib/api-spec`.
-- [api-client-react.md](./api-client-react.md) — Generated React Query client under `lib/api-client-react`.
-- [api-zod.md](./api-zod.md) — Generated Zod schemas under `lib/api-zod`.
-- [db.md](./db.md) — Drizzle ORM + PostgreSQL schema under `lib/db`.
-- [mockup-sandbox.md](./mockup-sandbox.md) — Visual mockup sandbox under `artifacts/mockup-sandbox`.
+
+### Deprecated (removed from the workspace on 2026-11-06)
+
+- [api-server.md](./api-server.md) — former Express 5 API server scaffold.
+- [api-spec.md](./api-spec.md) — former OpenAPI spec + Orval codegen.
+- [api-client-react.md](./api-client-react.md) — former generated React Query client.
+- [api-zod.md](./api-zod.md) — former generated Zod schemas.
+- [db.md](./db.md) — former Drizzle ORM + PostgreSQL scaffold.
+- [mockup-sandbox.md](./mockup-sandbox.md) — former visual mockup sandbox.

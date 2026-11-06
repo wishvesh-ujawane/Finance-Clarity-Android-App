@@ -25,7 +25,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       className="fixed inset-0 z-50 flex flex-col bg-background"
       role="dialog"
       aria-modal="true"
-      aria-label="Welcome to Finance Clarity"
+      aria-label="Welcome to Fiscal Focus"
       data-testid="onboarding-flow"
     >
       {step === 'intro' && (

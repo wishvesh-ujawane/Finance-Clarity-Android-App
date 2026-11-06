@@ -6,7 +6,6 @@ import type {
   SavingsGoal,
   Transaction,
 } from './types';
-import type { ParsedSms } from './sms/parser/types';
 import { sha256Hex } from './backupHash';
 
 export const BACKUP_VERSION = 3;
@@ -29,9 +28,10 @@ export interface BackupDeviceInfo {
 }
 
 export interface BackupSmsState {
-  pendingSms: ParsedSms[];
+  /** Opaque legacy fields; never interpreted by the finance runtime. */
+  pendingSms: unknown[];
   dismissedSmsFingerprints: string[];
-  linkedSms: Record<string, ParsedSms>;
+  linkedSms: Record<string, unknown>;
   lastScanMs: number;
 }
 
@@ -76,9 +76,8 @@ const EMPTY_SMS_STATE: BackupSmsState = {
 export const migrations: Record<number, (b: BackupFile) => BackupFile> = {
   // v1 -> v2: added optional Transaction.paymentMethod field; no data transform needed.
   1: (b) => ({ ...b, schemaVersion: 2 }),
-  // v2 -> v3: added SMS auto-import state (pendingSms, dismissedSmsFingerprints,
-  // linkedSms, lastScanMs). Older backups get an empty SMS block so restore
-  // is safe and idempotent.
+  // v2 -> v3: added a legacy data block. Keep its shape for old-backup
+  // compatibility; it is not read by the finance runtime.
   2: (b) => ({
     ...b,
     schemaVersion: 3,
@@ -163,39 +162,12 @@ function isValidSavingsGoal(value: unknown): value is SavingsGoal {
   return isObj(value) && validEntry(value.goal) && validEntry(value.emergency);
 }
 
-const VALID_SMS_PAYMENT_METHODS = new Set(['bank', 'credit-card', 'credit-card-payment']);
-const VALID_SMS_DIRECTIONS = new Set(['debit', 'credit']);
-const VALID_SMS_REASONS = new Set(['purchase', 'refund', 'salary', 'card-payment', 'transfer', 'unknown']);
-
-function isValidParsedSms(value: unknown): value is ParsedSms {
-  return (
-    isObj(value) &&
-    typeof value.smsId === 'string' && value.smsId.length > 0 &&
-    typeof value.fingerprint === 'string' && value.fingerprint.length > 0 &&
-    typeof value.senderId === 'string' &&
-    typeof value.amount === 'number' && Number.isFinite(value.amount) &&
-    typeof value.direction === 'string' && VALID_SMS_DIRECTIONS.has(value.direction) &&
-    (value.merchant === null || typeof value.merchant === 'string') &&
-    (value.accountTail === null || typeof value.accountTail === 'string') &&
-    typeof value.paymentMethod === 'string' && VALID_SMS_PAYMENT_METHODS.has(value.paymentMethod) &&
-    (value.txnRef === null || typeof value.txnRef === 'string') &&
-    typeof value.timestamp === 'number' && Number.isFinite(value.timestamp) &&
-    typeof value.dateISO === 'string' && value.dateISO.length > 0 &&
-    (value.suggestedCategoryId === null || typeof value.suggestedCategoryId === 'string') &&
-    typeof value.reason === 'string' && VALID_SMS_REASONS.has(value.reason) &&
-    typeof value.rawBody === 'string'
-  );
-}
-
 function isValidSmsState(value: unknown): value is BackupSmsState {
   if (!isObj(value)) return false;
-  if (!Array.isArray(value.pendingSms) || !value.pendingSms.every(isValidParsedSms)) return false;
+  if (!Array.isArray(value.pendingSms)) return false;
   if (!Array.isArray(value.dismissedSmsFingerprints) ||
       !value.dismissedSmsFingerprints.every(v => typeof v === 'string')) return false;
   if (!isObj(value.linkedSms)) return false;
-  for (const v of Object.values(value.linkedSms)) {
-    if (!isValidParsedSms(v)) return false;
-  }
   if (typeof value.lastScanMs !== 'number' || !Number.isFinite(value.lastScanMs)) return false;
   return true;
 }
@@ -230,15 +202,11 @@ function readSmsState(): BackupSmsState {
   const lastScan = parseStored<unknown>(STORAGE.smsLastScan, 0);
 
   return {
-    pendingSms: Array.isArray(pending) ? pending.filter(isValidParsedSms) : [],
+    pendingSms: Array.isArray(pending) ? pending : [],
     dismissedSmsFingerprints: Array.isArray(dismissed)
       ? dismissed.filter((v): v is string => typeof v === 'string')
       : [],
-    linkedSms: isObj(linked)
-      ? Object.fromEntries(
-          Object.entries(linked).filter(([, v]) => isValidParsedSms(v)),
-        ) as Record<string, ParsedSms>
-      : {},
+    linkedSms: isObj(linked) ? linked : {},
     lastScanMs: typeof lastScan === 'number' && Number.isFinite(lastScan) ? lastScan : 0,
   };
 }
@@ -385,11 +353,19 @@ export function applyBackup(backup: BackupFile): ApplyResult {
     [STORAGE.categories, JSON.stringify(backup.data.categories)],
     [STORAGE.budgets, JSON.stringify(backup.data.budgets)],
     [STORAGE.recurring, JSON.stringify(backup.data.recurringExpenses)],
-    [STORAGE.smsPending, JSON.stringify(backup.data.sms.pendingSms)],
-    [STORAGE.smsDismissed, JSON.stringify(backup.data.sms.dismissedSmsFingerprints)],
-    [STORAGE.smsLinked, JSON.stringify(backup.data.sms.linkedSms)],
-    [STORAGE.smsLastScan, JSON.stringify(backup.data.sms.lastScanMs)],
   ];
+  if (backup.data.sms.pendingSms.length > 0) {
+    writes.push([STORAGE.smsPending, JSON.stringify(backup.data.sms.pendingSms)]);
+  }
+  if (backup.data.sms.dismissedSmsFingerprints.length > 0) {
+    writes.push([STORAGE.smsDismissed, JSON.stringify(backup.data.sms.dismissedSmsFingerprints)]);
+  }
+  if (Object.keys(backup.data.sms.linkedSms).length > 0) {
+    writes.push([STORAGE.smsLinked, JSON.stringify(backup.data.sms.linkedSms)]);
+  }
+  if (backup.data.sms.lastScanMs !== 0) {
+    writes.push([STORAGE.smsLastScan, JSON.stringify(backup.data.sms.lastScanMs)]);
+  }
 
   try {
     for (const [k, v] of writes) localStorage.setItem(k, v);

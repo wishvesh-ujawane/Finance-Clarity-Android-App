@@ -6,7 +6,6 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(android.os.Bundle savedInstanceState) {
         registerPlugin(BiometricSettingsPlugin.class);
-        registerPlugin(SmsInboxPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

@@ -36,16 +36,22 @@ export default function Security() {
   };
 
   const handleEnable = () => {
+    setMessage('');
+    setError('');
     setPendingCurrentPin(null);
     setDialogMode('setup');
   };
 
   const handleChange = () => {
+    setMessage('');
+    setError('');
     setPendingCurrentPin(null);
     setDialogMode('change');
   };
 
   const handleDisable = () => {
+    setMessage('');
+    setError('');
     setPendingCurrentPin(null);
     setDialogMode('confirm-disable');
   };
@@ -66,8 +72,7 @@ export default function Security() {
       // the new PIN here. Use changePin with stored current PIN snapshot.
       const current = pendingCurrentPin;
       if (!current) {
-        showError('Please re-enter your current PIN.');
-        return;
+        throw new Error('Please re-enter your current PIN.');
       }
       const ok = await changePin(current, pin);
       setPendingCurrentPin(null);
@@ -91,20 +96,21 @@ export default function Security() {
   const handleBiometricToggle = async (checked: boolean) => {
     if (!settings || isBiometricBusy) return;
 
-    if (!checked) {
-      disableBiometric();
-      showMessage('Biometric unlock disabled.');
-      return;
-    }
-
     setIsBiometricBusy(true);
     try {
+      if (!checked) {
+        disableBiometric();
+        showMessage('Biometric unlock disabled.');
+        return;
+      }
       const ok = await enableBiometric();
       if (ok) {
         showMessage('Biometric unlock enabled.');
         return;
       }
       showError(biometricAvailable ? 'Biometric confirmation was cancelled.' : biometricReason);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Could not update biometric settings. Please try again.');
     } finally {
       setIsBiometricBusy(false);
     }

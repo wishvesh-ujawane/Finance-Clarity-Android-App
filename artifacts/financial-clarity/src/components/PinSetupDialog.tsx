@@ -86,24 +86,26 @@ export function PinSetupDialog({ open, mode, onOpenChange, verifyCurrent, onComp
     if (step === 'verify-current' || step === 'verify-only') {
       if (!verifyCurrent) return;
       setBusy(true);
-      const ok = await verifyCurrent(value);
-      setBusy(false);
-      if (!ok) {
-        setPin('');
-        setError('Incorrect PIN.');
-        return;
-      }
-      if (step === 'verify-only') {
-        try {
+      try {
+        const ok = await verifyCurrent(value);
+        if (!ok) {
+          setPin('');
+          setError('Incorrect PIN.');
+          return;
+        }
+        if (step === 'verify-only') {
           await onComplete(value);
           onOpenChange(false);
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'Something went wrong.');
+          return;
         }
-        return;
+        setPin('');
+        setStep('enter-new');
+      } catch (err) {
+        setPin('');
+        setError(err instanceof Error ? err.message : 'Something went wrong.');
+      } finally {
+        setBusy(false);
       }
-      setPin('');
-      setStep('enter-new');
       return;
     }
 
@@ -127,6 +129,7 @@ export function PinSetupDialog({ open, mode, onOpenChange, verifyCurrent, onComp
         await onComplete(value);
         onOpenChange(false);
       } catch (err) {
+        setPin('');
         setError(err instanceof Error ? err.message : 'Something went wrong.');
       } finally {
         setBusy(false);

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Switch, Route, Router as WouterRouter } from 'wouter';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { FinanceProvider } from '@/context/FinanceContext';
@@ -26,10 +25,7 @@ import RecurringExpenses from '@/pages/RecurringExpenses';
 import Categories from '@/pages/Categories';
 import BackupRestore from '@/pages/BackupRestore';
 import SavingsGoals from '@/pages/SavingsGoals';
-import SmsAutoImport from '@/pages/SmsAutoImport';
 import NotFound from '@/pages/not-found';
-
-const queryClient = new QueryClient();
 
 function normalizeRouterBase(baseUrl: string) {
   const normalized = baseUrl.replace(/\/$/, '');
@@ -67,7 +63,6 @@ function AppLayout() {
           <Route path="/settings/categories" component={Categories} />
           <Route path="/settings/backup" component={BackupRestore} />
           <Route path="/settings/savings" component={SavingsGoals} />
-          <Route path="/settings/sms-auto-import" component={SmsAutoImport} />
           <Route path="/settings" component={Settings} />
           <Route component={NotFound} />
         </Switch>
@@ -88,24 +83,22 @@ function App() {
   const routerBase = normalizeRouterBase(import.meta.env.BASE_URL);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <FinanceProvider>
-        <SecurityProvider>
-          <BackupProvider>
-            <FabProvider>
-              <MonthEndReviewProvider>
-                <TooltipProvider>
-                  <WouterRouter base={routerBase}>
-                    <AppLayout />
-                  </WouterRouter>
-                  <Toaster />
-                </TooltipProvider>
-              </MonthEndReviewProvider>
-            </FabProvider>
-          </BackupProvider>
-        </SecurityProvider>
-      </FinanceProvider>
-    </QueryClientProvider>
+    <FinanceProvider>
+      <SecurityProvider>
+        <BackupProvider>
+          <FabProvider>
+            <MonthEndReviewProvider>
+              <TooltipProvider>
+                <WouterRouter base={routerBase}>
+                  <AppLayout />
+                </WouterRouter>
+                <Toaster />
+              </TooltipProvider>
+            </MonthEndReviewProvider>
+          </FabProvider>
+        </BackupProvider>
+      </SecurityProvider>
+    </FinanceProvider>
   );
 }
 

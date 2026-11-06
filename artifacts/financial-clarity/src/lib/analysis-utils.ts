@@ -1,4 +1,3 @@
-import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
 import { isConsumptionExpense } from '@/lib/finance-utils';
 
 type Txn = { id: string; type: 'income' | 'expense'; amount: number; date: string; categoryId: string };
@@ -36,12 +35,6 @@ export function getMonthTotal<T extends Txn>(transactions: T[], month: string, t
   return transactions
     .filter(t => t.type === type && t.date.startsWith(month))
     .filter(t => type === 'income' || isConsumptionExpense(t))
-    .reduce((sum, t) => sum + t.amount, 0);
-}
-
-export function getMonthSavingsTotal<T extends Txn>(transactions: T[], month: string) {
-  return transactions
-    .filter(t => t.type === 'expense' && t.date.startsWith(month) && SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number]))
     .reduce((sum, t) => sum + t.amount, 0);
 }
 

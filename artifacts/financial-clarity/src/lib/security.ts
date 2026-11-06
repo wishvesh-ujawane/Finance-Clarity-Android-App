@@ -56,19 +56,23 @@ export function loadSecuritySettings(): SecuritySettings | null {
   }
 }
 
-export function saveSecuritySettings(settings: SecuritySettings): void {
+export type SecurityStorageResult = { ok: true } | { ok: false; message: string };
+
+export function saveSecuritySettings(settings: SecuritySettings): SecurityStorageResult {
   try {
     localStorage.setItem(SECURITY_STORAGE_KEY, JSON.stringify(settings));
+    return { ok: true };
   } catch {
-    // ignore
+    return { ok: false, message: 'Could not save security settings. Your previous settings are unchanged. Check device storage and try again.' };
   }
 }
 
-export function clearSecuritySettings(): void {
+export function clearSecuritySettings(): SecurityStorageResult {
   try {
     localStorage.removeItem(SECURITY_STORAGE_KEY);
+    return { ok: true };
   } catch {
-    // ignore
+    return { ok: false, message: 'Could not remove security settings. Your app lock is still enabled. Check device storage and try again.' };
   }
 }
 

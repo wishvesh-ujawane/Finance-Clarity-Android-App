@@ -2,35 +2,34 @@
 id: environment-security-baseline
 title: Supply-chain hardening (pnpm `minimumReleaseAge`)
 date: 2026-06-28
-updated: 2026-06-28
+updated: 2026-11-06
 status: current
 scope: [workspace]
 related:
   - ./build-and-test.md
 source-of-truth-files:
-  - .npmrc
+  - pnpm-workspace.yaml
 ---
 
 # Supply-chain hardening (pnpm `minimumReleaseAge`)
 
 ## Summary
-[.npmrc](../../../.npmrc) pins `minimumReleaseAge: 1440` (24 hours). pnpm will
-refuse to install any npm package version published within the last day. This
-is the workspace's primary defence against drive-by supply-chain attacks: most
-malicious releases are detected and pulled within hours, so a 24h delay
-provides a strong safety buffer.
+[pnpm-workspace.yaml](../../../pnpm-workspace.yaml) sets `minimumReleaseAge: 1440`
+(24 hours). pnpm will refuse to install any npm package version published
+within the last day. This is the workspace's primary defence against drive-by
+supply-chain attacks: most malicious releases are detected and pulled within
+hours, so a 24h delay provides a strong safety buffer.
 
 ## Files involved
-- [.npmrc](../../../.npmrc) — `minimumReleaseAge` and `minimumReleaseAgeExclude`
-  allow-list.
+- [pnpm-workspace.yaml](../../../pnpm-workspace.yaml) — `minimumReleaseAge` and
+  the optional `minimumReleaseAgeExclude` allow-list.
 
 ## Allow-list
-The only currently-allowed exceptions:
-- `@replit/*`
-- `stripe-replit-sync`
+There are no exceptions. The former `@replit/*` and `stripe-replit-sync`
+exclusions were removed on 2026-11-06 along with the Replit tooling.
 
 To add a package to the allow-list:
-1. Confirm the publisher's security posture warrants it.
+1. Write an ADR (AGENTS.md §6) and confirm the publisher's security posture warrants it.
 2. Add it under `minimumReleaseAgeExclude`.
 3. Remove the entry once the 1-day window has passed.
 
