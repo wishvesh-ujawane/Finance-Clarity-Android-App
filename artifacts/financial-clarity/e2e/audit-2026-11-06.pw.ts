@@ -1,10 +1,9 @@
 import fs from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
-// Reproductions for defects found in docs/audits/2026-11-06-e2e-browser-audit.md.
-// Each test asserts the CORRECT behaviour and is marked test.fail() because the
-// defect is still present. When a fix lands, Playwright reports the test as an
-// unexpected pass: remove its test.fail() line in the same change.
+// Regression tests for defects found in docs/audits/2026-11-06-e2e-browser-audit.md.
+// Each test asserts the correct behaviour. They were added as test.fail()
+// reproductions and became ordinary tests as each defect was fixed.
 
 type SeedTxn = { id: string; type: 'income' | 'expense'; amount: number; categoryId: string; note: string };
 
@@ -145,7 +144,6 @@ test('[SEC-006] keyboard focus cannot leave the lock screen', async ({ page }) =
 });
 
 test('[CAT-002] a category with transactions cannot be deleted', async ({ page }) => {
-  test.fail(true, 'Known defect: Delete is offered for used categories (PRD FR-03, D6)');
   await prepare(page, [
     { id: 'e2e-groceries', type: 'expense', amount: 300, categoryId: 'groceries', note: 'e2e groceries' },
   ]);

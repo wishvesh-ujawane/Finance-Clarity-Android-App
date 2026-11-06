@@ -673,7 +673,7 @@ None of these items is authorized by this document alone. Each needs owner appro
 |---|---|---|---|
 | A1 | SMS screens, parsers, native reader, route, and `READ_SMS` permission still present | Remove completely; keep legacy SMS keys readable for backups | PRD FR-10 |
 | A2 | `saveToStorage` ignores errors; writes happen after state changes | Persist first, typed results, visible failures | PRD §9; §6.2 |
-| A3 | No category active/inactive status; delete not blocked in mutation logic | Domain-enforced usage rule, `active` flag, local migration, backup schema v4 | PRD FR-03 |
+| A3 | **Partly resolved 2026-11-06:** deletion is blocked in the mutation for reserved categories and for categories used by transactions, budgets, or recurring rules (`lib/category-rules.ts`). Still missing: category active/inactive status | Domain-enforced usage rule, `active` flag, local migration, backup schema v4 | PRD FR-03 |
 | A4 | Recurring rules lack D4 behavior | Occurrence identity, short-month clamp, skip paused months, idempotent catch-up | PRD FR-07; §6.4 |
 | A5 | Two amount formatters; fonts loaded from Google at runtime | One formatter; bundled fonts | DESIGN G7, G8 |
 | A6 | **Resolved 2026-11-06.** Removed the unused React Query provider, the `@workspace/api-client-react` dependency, 42 unused `components/ui` primitives, the unused `use-mobile` hook, and the 31 packages only they used | Remove | §2.3 |

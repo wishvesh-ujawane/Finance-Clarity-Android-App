@@ -100,6 +100,39 @@ describe('FinanceContext', () => {
   });
 });
 
+describe('FinanceContext category deletion', () => {
+  it('refuses to delete a used or reserved category and leaves its records intact', () => {
+    const { result } = renderHook(() => useFinance(), { wrapper });
+    act(() => {
+      result.current.addTransaction({ type: 'expense', amount: 300, date: '2026-11-01', categoryId: 'groceries', note: 'milk' });
+      result.current.addBudget({ categoryId: 'dining', limit: 2000, month: '2026-11' });
+    });
+    const categoryCount = result.current.categories.length;
+
+    let outcome: ReturnType<typeof result.current.deleteCategory> | undefined;
+    act(() => { outcome = result.current.deleteCategory('groceries'); });
+    expect(outcome).toMatchObject({ ok: false, reason: 'in-use' });
+    act(() => { outcome = result.current.deleteCategory('dining'); });
+    expect(outcome).toMatchObject({ ok: false, reason: 'in-use' });
+    act(() => { outcome = result.current.deleteCategory('savings-emergency'); });
+    expect(outcome).toEqual({ ok: false, reason: 'reserved' });
+
+    expect(result.current.categories).toHaveLength(categoryCount);
+    expect(result.current.transactions).toHaveLength(1);
+    expect(result.current.budgets).toHaveLength(1);
+  });
+
+  it('deletes an unused category', () => {
+    const { result } = renderHook(() => useFinance(), { wrapper });
+    const before = result.current.categories.length;
+    let outcome: ReturnType<typeof result.current.deleteCategory> | undefined;
+    act(() => { outcome = result.current.deleteCategory('transport'); });
+    expect(outcome).toEqual({ ok: true });
+    expect(result.current.categories).toHaveLength(before - 1);
+    expect(result.current.categories.some(c => c.id === 'transport')).toBe(false);
+  });
+});
+
 describe('FinanceContext after SMS removal', () => {
   it('keeps legacy storage untouched and exposes no SMS runtime actions', () => {
     const legacy = {

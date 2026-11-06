@@ -13,6 +13,7 @@ import {
 import { useFinance } from '@/context/FinanceContext';
 import { useFabAction } from '@/context/FabContext';
 import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
+import { canDeleteCategory, describeCategoryDeleteBlock } from '@/lib/category-rules';
 import { cn } from '@/lib/utils';
 
 const COLOR_SWATCHES = [
@@ -48,7 +49,11 @@ function CommitmentHint() {
 
 export default function Categories() {
   const [, setLocation] = useLocation();
-  const { categories, addCategory, updateCategory, deleteCategory } = useFinance();
+  const {
+    categories, transactions, budgets, recurringExpenses,
+    addCategory, updateCategory, deleteCategory,
+  } = useFinance();
+  const [deleteError, setDeleteError] = useState('');
 
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState('');
@@ -65,6 +70,7 @@ export default function Categories() {
   const startEditCat = (catId: string) => {
     const cat = categories.find(c => c.id === catId);
     if (!cat) return;
+    setDeleteError('');
     setEditingCatId(catId);
     setEditCatName(cat.name);
     setEditCatIcon(cat.icon);
@@ -251,33 +257,52 @@ export default function Categories() {
                                 <X size={14} className="inline mr-1" />Cancel
                               </button>
                             </div>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <button className="w-full py-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/15 text-sm font-semibold transition-colors">
-                                  <Trash2 size={14} className="inline mr-1" />Delete Category
-                                </button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Category?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you really want to delete "{cat.name}"? Its associated budget will also be removed. Existing transactions will show as Unknown.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => {
-                                      deleteCategory(cat.id);
-                                      setEditingCatId(null);
-                                    }}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+                            {(() => {
+                              const deleteCheck = canDeleteCategory(cat.id, { transactions, budgets, recurringExpenses });
+                              if (!deleteCheck.ok) {
+                                return (
+                                  <p className="text-xs text-muted-foreground text-center" data-testid="category-delete-blocked">
+                                    {describeCategoryDeleteBlock(deleteCheck)}
+                                  </p>
+                                );
+                              }
+                              return (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <button className="w-full py-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/15 text-sm font-semibold transition-colors">
+                                      <Trash2 size={14} className="inline mr-1" />Delete Category
+                                    </button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete Category?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Delete "{cat.name}"? No transactions, budgets, or recurring expenses use it. This can't be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => {
+                                          const result = deleteCategory(cat.id);
+                                          if (result.ok) {
+                                            setEditingCatId(null);
+                                          } else {
+                                            setDeleteError(`${describeCategoryDeleteBlock(result)} Nothing was deleted.`);
+                                          }
+                                        }}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              );
+                            })()}
+                            {deleteError && (
+                              <p className="text-xs font-medium text-destructive text-center" role="alert">{deleteError}</p>
+                            )}
                           </div>
                         </motion.div>
                       ) : (

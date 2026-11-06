@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Transaction, Category, Budget, RecurringExpense, SavingsGoal, SAVINGS_CATEGORY_IDS, SYSTEM_ADJUSTMENT_CATEGORY_IDS, MonthReconciliation } from '@/lib/types';
 import { currentMonth, localDateStr, isConsumptionExpense } from '@/lib/finance-utils';
+import { canDeleteCategory, type CategoryDeleteCheck } from '@/lib/category-rules';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 const SYSTEM_ADJUSTMENT_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
@@ -109,7 +110,7 @@ interface FinanceContextType {
   deleteTransaction: (id: string) => void;
   addCategory: (c: Omit<Category, 'id'>) => Category;
   updateCategory: (id: string, updates: Omit<Category, 'id'>) => void;
-  deleteCategory: (id: string) => void;
+  deleteCategory: (id: string) => CategoryDeleteCheck;
   addBudget: (b: Omit<Budget, 'id'>) => void;
   updateBudget: (id: string, limit: number) => void;
   deleteBudget: (id: string) => void;
@@ -473,11 +474,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const deleteCategory = useCallback((id: string) => {
-    if (SAVINGS_CATEGORY_ID_SET.has(id)) return; // hardcoded; cannot delete
+  const deleteCategory = useCallback((id: string): CategoryDeleteCheck => {
+    const check = canDeleteCategory(id, { transactions, budgets, recurringExpenses });
+    if (!check.ok) return check;
     setCategories(prev => prev.filter(c => c.id !== id));
-    setBudgets(prev => prev.filter(b => b.categoryId !== id));
-  }, []);
+    return check;
+  }, [transactions, budgets, recurringExpenses]);
 
   const addBudget = useCallback((b: Omit<Budget, 'id'>) => {
     setBudgets(prev => {

@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-11-06 — bugs/20261106-used-category-deletion.md, features/categories.md — `deleteCategory` refuses reserved categories and any category used by transactions, budgets, or recurring rules, returning a typed result; the page hides Delete and explains why. Fixes audit F-07.
 2026-11-06 — bugs/20261106-app-lock-exposure.md, features/security.md — Nothing but the lock screen renders while locked; focus is trapped; failed attempts and an escalating cooldown (30 s → 1 min → 5 min → 15 min) persist in security settings; `FLAG_SECURE` is set while the app lock is on (owner decision). Fixes audit F-04, F-09, F-13.
 2026-11-06 — bugs/20261106-csv-import-export-safety.md, features/backup-restore.md — CSV export guards formula cells; import shows a preview, skips invalid rows (real calendar dates, strict amounts), maps savings/commitment rows back to their categories, and refuses files over 5 MB. Fixes audit F-01–F-03.
 2026-11-06 — audits/2026-11-06-cleanup-phases-3-4-review.md, ARCHITECTURE.md §19 — Recorded cleanup Phases 3 and 4 for owner review (not implemented). Added gaps A12 (screens re-sum transactions with different rules; confirmed Dashboard/Transactions drift), A13 (defeated lazy imports), A14 (non-conforming file names), A15 (Drive error logging), A16 (1.2 MB bundle).
