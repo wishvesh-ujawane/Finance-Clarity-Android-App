@@ -98,4 +98,6 @@ under the **Report file format** section.
 
 ## Index
 
-_No audits run yet. Entries will appear here as reports are filed._
+- [2026-11-06-e2e-browser-audit.md](./2026-11-06-e2e-browser-audit.md) — End-to-end browser audit with scripted Playwright exploration, security review, and home-PC APK build path. P0=4, P1=13, P2=4, P3=5. Eight reproductions added as expected failures.
+- [2026-11-06-cleanup-phases-3-4-review.md](./2026-11-06-cleanup-phases-3-4-review.md) — Cleanup Phases 3 (duplicate/inconsistent code) and 4 (reliability/privacy debt). **Pending owner review**; nothing implemented. P0=0, P1=2, P2=7, P3=4.
+- [2026-06-28-full-sweep.md](./2026-06-28-full-sweep.md) — Full static sweep. P0=0, P1=3, P2=2, P3=4.

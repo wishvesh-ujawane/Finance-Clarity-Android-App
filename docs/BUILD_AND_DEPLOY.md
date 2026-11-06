@@ -29,9 +29,9 @@ Complete guide for building the Android APK and deploying to mobile devices.
    - Download from: https://developer.android.com/studio#command-line-tools-only
    - Extract to: `C:\Android\cmdline-tools\latest\`
 
-3. **Java Development Kit (JDK) 17+**
+3. **Java Development Kit (JDK) 21**
    ```powershell
-   java -version  # Should be 17 or higher
+   java -version  # Must be 21.x (Capacitor 8 needs 21; Gradle 8.14.3 cannot run on 25+)
    ```
 
 ---
@@ -48,7 +48,7 @@ notepad $PROFILE
 Add these lines:
 ```powershell
 $env:ANDROID_HOME = "C:\Android"
-$env:JAVA_HOME = "C:\Program Files\Java\jdk-17"  # Adjust to your JDK path
+$env:JAVA_HOME = "C:\Program Files\Java\jdk-21"  # Adjust to your JDK 21 path
 $env:PATH += ";C:\Android\cmdline-tools\latest\bin"
 $env:PATH += ";C:\Android\platform-tools"
 $env:PATH += ";C:\Android\build-tools\34.0.0"
@@ -342,63 +342,21 @@ cd android
 
 ## One-Command Build Scripts
 
-### Create `build-debug-apk.ps1` in Project Root
+Two helper scripts live in [`scripts/`](../scripts/). They work from any directory because each one switches to the repository root first.
 
-```powershell
-# Quick debug build and install
-Write-Host "🔨 Building debug APK..." -ForegroundColor Cyan
-
-# Build web assets
-Write-Host "📦 Building web assets..." -ForegroundColor Yellow
-pnpm --filter @workspace/financial-clarity run build
-
-# Sync to Android
-Write-Host "🔄 Syncing to Android..." -ForegroundColor Yellow
-Set-Location artifacts/financial-clarity
-npx cap sync android
-
-# Build APK
-Write-Host "🏗️  Building APK..." -ForegroundColor Yellow
-Set-Location android
-.\gradlew assembleDebug
-
-# Install on device
-Write-Host "📲 Installing on device..." -ForegroundColor Yellow
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-
-Write-Host "✅ Done! App installed." -ForegroundColor Green
-Set-Location ../../..
-```
-
-### Create `clean-build.ps1` in Project Root
-
-```powershell
-# Clean build from scratch
-Write-Host "🧹 Cleaning Gradle cache..." -ForegroundColor Cyan
-
-Set-Location artifacts/financial-clarity/android
-.\gradlew clean
-Remove-Item -Recurse -Force .gradle -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force app/build -ErrorAction SilentlyContinue
-
-Set-Location ../../..
-
-Write-Host "📦 Rebuilding dependencies..." -ForegroundColor Yellow
-pnpm install
-
-Write-Host "🔨 Building fresh APK..." -ForegroundColor Yellow
-.\build-debug-apk.ps1
-```
+| Script | What it does |
+|---|---|
+| [`build-debug-apk.ps1`](../scripts/build-debug-apk.ps1) | Web build → `cap sync android` → Gradle debug APK → installs on a connected device (skips install if none) |
+| [`clean-build.ps1`](../scripts/clean-build.ps1) | Asks for confirmation, clears Gradle build caches, reinstalls dependencies, then rebuilds the debug APK |
 
 ### Usage
 
 ```powershell
 # Regular build and install
-.\build-debug-apk.ps1
+.\scripts\build-debug-apk.ps1
 
 # Clean build (when things break)
-.\clean-build.ps1
+.\scripts\clean-build.ps1
 ```
 
 ---
@@ -480,13 +438,13 @@ cd artifacts/financial-clarity/android
 echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" >> gradle.properties
 ```
 
-### Error: "Unsupported class file major version 65"
+### Error: "invalid source release: 21" or "Unsupported class file major version 69"
 
-**Fix:** Java version mismatch. Use JDK 17:
+**Fix:** Java version mismatch. JDK 17 is too old for Capacitor 8, and JDK 25+ is too new for Gradle 8.14.3. Use JDK 21:
 ```powershell
-java -version  # Should show version 17
+java -version  # Should show version 21
 # Update JAVA_HOME if needed
-$env:JAVA_HOME = "C:\Program Files\Java\jdk-17"
+$env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
 ```
 
 ---
