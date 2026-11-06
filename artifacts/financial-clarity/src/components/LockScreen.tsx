@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Fingerprint, Lock, ShieldAlert } from 'lucide-react';
 import { useSecurity } from '@/context/SecurityContext';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
@@ -15,8 +15,15 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 
-const MAX_ATTEMPTS_BEFORE_COOLDOWN = 5;
-const COOLDOWN_MS = 30_000;
+const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function formatCooldown(ms: number): string {
+  const totalSeconds = Math.ceil(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
+}
 
 export function LockScreen() {
   const {
@@ -33,14 +40,14 @@ export function LockScreen() {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
-  const [attempts, setAttempts] = useState(0);
-  const [cooldownUntil, setCooldownUntil] = useState(0);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [isBiometricBusy, setIsBiometricBusy] = useState(false);
   const biometricTriedRef = useRef(false);
   const submittingRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const biometricEnabled = Boolean(settings?.biometricEnabled) && biometricAvailable;
+  const cooldownUntil = settings?.cooldownUntil ?? 0;
 
   // Reset state whenever the screen becomes locked again
   useEffect(() => {
@@ -53,23 +60,18 @@ export function LockScreen() {
     }
   }, [isLocked]);
 
-  // Cooldown ticker
+  // Cooldown ticker; the cooldown itself is persisted in security settings.
   useEffect(() => {
-    if (cooldownUntil <= 0) {
-      setCooldownRemaining(0);
-      return;
-    }
     const tick = () => {
       const remaining = Math.max(0, cooldownUntil - Date.now());
       setCooldownRemaining(remaining);
-      if (remaining === 0) {
-        setCooldownUntil(0);
-        setAttempts(0);
-        setError('');
-      }
+      if (remaining === 0) setError('');
+      return remaining;
     };
-    tick();
-    const id = window.setInterval(tick, 250);
+    if (tick() === 0) return;
+    const id = window.setInterval(() => {
+      if (tick() === 0) window.clearInterval(id);
+    }, 250);
     return () => window.clearInterval(id);
   }, [cooldownUntil]);
 
@@ -88,20 +90,36 @@ export function LockScreen() {
     try {
       const ok = await unlockWithPin(value);
       if (!ok) {
-        const nextAttempts = attempts + 1;
-        setAttempts(nextAttempts);
         setPin('');
         setShake(true);
         window.setTimeout(() => setShake(false), 400);
-        if (nextAttempts >= MAX_ATTEMPTS_BEFORE_COOLDOWN) {
-          setCooldownUntil(Date.now() + COOLDOWN_MS);
-          setError(`Too many attempts. Try again in 30s.`);
-        } else {
-          setError('Incorrect PIN. Try again.');
-        }
+        setError('Incorrect PIN. Try again.');
       }
     } finally {
       submittingRef.current = false;
+    }
+  };
+
+  // Keep keyboard focus inside the lock screen. Events from the reset dialog
+  // (rendered in a portal) are left to that dialog's own focus trap.
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const container = containerRef.current;
+    if (event.key !== 'Tab' || !container || !container.contains(event.target as Node)) return;
+    const focusable = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE));
+    if (focusable.length === 0) {
+      event.preventDefault();
+      container.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || active === container)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
     }
   };
 
@@ -132,14 +150,15 @@ export function LockScreen() {
 
   if (!isReady || !isLocked || !settings) return null;
 
-  const cooldownSeconds = Math.ceil(cooldownRemaining / 1000);
-
   return (
     <div
+      ref={containerRef}
       role="dialog"
       aria-modal="true"
       aria-label="App locked"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-6"
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background p-6"
     >
       <div className="w-full max-w-sm flex flex-col items-center text-center gap-6">
         <div className="w-16 h-16 rounded-2xl bg-accent/10 text-accent flex items-center justify-center">
@@ -183,10 +202,10 @@ export function LockScreen() {
           </InputOTP>
         </div>
 
-        {error && (
-          <p className="text-xs font-medium text-red-500 flex items-center gap-1.5">
+        {(error || cooldownRemaining > 0) && (
+          <p className="text-xs font-medium text-destructive flex items-center gap-1.5" role="alert">
             <ShieldAlert size={14} />
-            {cooldownRemaining > 0 ? `Too many attempts. Try again in ${cooldownSeconds}s.` : error}
+            {cooldownRemaining > 0 ? `Too many attempts. Try again in ${formatCooldown(cooldownRemaining)}.` : error}
           </p>
         )}
 

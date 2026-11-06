@@ -1,6 +1,9 @@
 const SECURITY_STORAGE_KEY = 'financial-clarity:security';
 const DATA_KEY_PREFIX = 'financial-clarity:';
 const DEFAULT_LOCK_TIMEOUT_MS = 30_000;
+const ATTEMPTS_PER_COOLDOWN = 5;
+/** Cooldown after the 1st, 2nd, 3rd, and later rounds of failed attempts. */
+const COOLDOWN_STEPS_MS = [30_000, 60_000, 5 * 60_000, 15 * 60_000] as const;
 
 export interface SecuritySettings {
   pinHash: string;
@@ -8,6 +11,10 @@ export interface SecuritySettings {
   biometricEnabled: boolean;
   lockTimeoutMs: number;
   updatedAt: number;
+  /** Consecutive failed unlock attempts; kept across restarts. Absent means 0. */
+  failedAttempts?: number;
+  /** Epoch ms until which PIN entry is refused. Absent means no cooldown. */
+  cooldownUntil?: number;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -50,10 +57,47 @@ export function loadSecuritySettings(): SecuritySettings | null {
     const raw = localStorage.getItem(SECURITY_STORAGE_KEY);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    return isValidSettings(parsed) ? parsed : null;
+    return isValidSettings(parsed) ? withValidLockout(parsed) : null;
   } catch {
     return null;
   }
+}
+
+// A damaged attempt counter must never disable the lock, so invalid optional
+// lockout fields are dropped instead of rejecting the whole settings object.
+function withValidLockout(settings: SecuritySettings): SecuritySettings {
+  const { failedAttempts, cooldownUntil, ...rest } = settings;
+  const next: SecuritySettings = { ...rest };
+  if (typeof failedAttempts === 'number' && Number.isInteger(failedAttempts) && failedAttempts > 0) {
+    next.failedAttempts = failedAttempts;
+  }
+  if (typeof cooldownUntil === 'number' && Number.isFinite(cooldownUntil) && cooldownUntil > 0) {
+    next.cooldownUntil = cooldownUntil;
+  }
+  return next;
+}
+
+export function isInCooldown(settings: SecuritySettings, now: number): boolean {
+  return (settings.cooldownUntil ?? 0) > now;
+}
+
+/**
+ * Records one failed unlock. Every fifth consecutive failure starts a cooldown
+ * that grows 30 s → 1 min → 5 min → 15 min, then stays at 15 min.
+ */
+export function withFailedAttempt(settings: SecuritySettings, now: number): SecuritySettings {
+  const failedAttempts = (settings.failedAttempts ?? 0) + 1;
+  if (failedAttempts % ATTEMPTS_PER_COOLDOWN !== 0) {
+    return { ...settings, failedAttempts };
+  }
+  const round = failedAttempts / ATTEMPTS_PER_COOLDOWN;
+  const step = COOLDOWN_STEPS_MS[Math.min(round, COOLDOWN_STEPS_MS.length) - 1];
+  return { ...settings, failedAttempts, cooldownUntil: now + step };
+}
+
+export function withoutFailedAttempts(settings: SecuritySettings): SecuritySettings {
+  const { failedAttempts: _attempts, cooldownUntil: _cooldown, ...rest } = settings;
+  return rest;
 }
 
 export type SecurityStorageResult = { ok: true } | { ok: false; message: string };
@@ -110,4 +154,4 @@ export function wipeAllAppData(): void {
   }
 }
 
-export { DEFAULT_LOCK_TIMEOUT_MS, SECURITY_STORAGE_KEY };
+export { ATTEMPTS_PER_COOLDOWN, COOLDOWN_STEPS_MS, DEFAULT_LOCK_TIMEOUT_MS, SECURITY_STORAGE_KEY };

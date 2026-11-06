@@ -107,7 +107,6 @@ test('[CSV-004] CSV import rejects impossible calendar dates', async ({ page }, 
 });
 
 test('[SEC-004] financial content is not rendered while the app is locked', async ({ page }) => {
-  test.fail(true, 'Known defect: routes stay mounted under the lock overlay ("Locked means not rendered", AGENTS.md Â§9)');
   await prepare(page, [
     { id: 'e2e-salary', type: 'income', amount: 50000, categoryId: 'salary', note: 'e2e salary' },
   ]);
@@ -119,7 +118,6 @@ test('[SEC-004] financial content is not rendered while the app is locked', asyn
 });
 
 test('[SEC-005] failed-PIN cooldown survives a reload', async ({ page }) => {
-  test.fail(true, 'Known defect: attempt counter and cooldown live only in React state');
   await prepare(page);
   await enablePin(page, '1234');
   await page.reload();
@@ -133,7 +131,6 @@ test('[SEC-005] failed-PIN cooldown survives a reload', async ({ page }) => {
 });
 
 test('[SEC-006] keyboard focus cannot leave the lock screen', async ({ page }) => {
-  test.fail(true, 'Known defect: lock overlay has no focus trap');
   await prepare(page);
   await enablePin(page, '1234');
   await page.reload();

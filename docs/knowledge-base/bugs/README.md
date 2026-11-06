@@ -9,5 +9,6 @@ File naming: `YYYYMMDD-<short-slug>.md` (date the bug was observed).
 
 ## Index
 
+- [2026-11-06 — Locked app kept financial screens mounted; cooldown reset on restart; no Recents protection](./20261106-app-lock-exposure.md) — fixed
 - [2026-11-06 — CSV round-trip duplicated savings as spending; formula injection; no import preview](./20261106-csv-import-export-safety.md) — fixed
 - [2026-07-05 — Calculator operator keys dismissed keypad in Add/Edit Transaction](./20260705-tx-keypad-dismissal.md) — fixed

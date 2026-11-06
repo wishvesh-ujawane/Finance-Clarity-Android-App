@@ -333,8 +333,13 @@ Note: the app lock (PIN/biometrics) is not part of any backup; set it up again.
 2. Add an expense and an income; Dashboard totals update.
 3. Settings → Security: set a PIN, background the app for over 30 seconds,
    reopen — the lock screen appears.
-4. Settings → Backup & Restore → Connect Google Drive succeeds (§5).
-5. Android Settings → Apps → Fiscal Focus → Permissions shows **no SMS
+4. With the PIN set, open the recent-apps screen: Fiscal Focus shows a blank
+   card, and taking a screenshot is blocked. Disable the PIN: screenshots work
+   again.
+5. On the lock screen, enter a wrong PIN five times, then force-stop and
+   reopen the app — the "Too many attempts" countdown is still running.
+6. Settings → Backup & Restore → Connect Google Drive succeeds (§5).
+7. Android Settings → Apps → Fiscal Focus → Permissions shows **no SMS
    permission**.
 
 ---

@@ -71,6 +71,7 @@ The stack below is mostly what already exists. The recommendation is to **keep i
 | `@capgo/capacitor-native-biometric` | Optional biometric unlock |
 | `@codetrix-studio/capacitor-google-auth` | Google sign-in for Drive authorization only |
 | `@capacitor-firebase/app`, `@capacitor-firebase/crashlytics` | Crash diagnostics, pending privacy review (D9) |
+| Local `ScreenSecurity` plugin (`android/app/.../ScreenSecurityPlugin.java`) | Sets `FLAG_SECURE` while the app lock is enabled (§15.3) |
 
 ### 2.3 Explicitly not used in the MVP
 
@@ -397,7 +398,7 @@ All key names live in one module in `lib/storage/`. No other file contains key s
 |---|---|
 | PIN | Four digits, stored as a salted SHA-256 hash (WebCrypto) in the security settings key. The PIN itself is never stored |
 | Biometrics | Android BiometricPrompt through the native plugin. A convenience option; the PIN is always the fallback |
-| Cooldown | Failed attempts trigger an escalating cooldown. Cooldown state is saved so restarting the app does not reset it |
+| Cooldown | Failed attempts trigger an escalating cooldown. Cooldown state is saved so restarting the app does not reset it. Every fifth consecutive failure starts a cooldown of 30 s, then 1 min, 5 min, and 15 min (maximum); a successful unlock clears the count. PIN and biometric unlock are refused during a cooldown |
 | Background lock | `appStateChange` starts a timer; the app locks when it returns to the foreground after the timeout |
 | Change or disable | Requires the current PIN |
 | Forgotten PIN | Explicit warning that recovery **deletes local data**, then a full local reset |
@@ -596,7 +597,7 @@ If AI is ever approved (Future), it must:
 | Secrets | None in source. Keystore and Firebase config are gitignored |
 | Dependencies | `.npmrc` release-age gate, committed lockfile, pre-release dependency audit, removal of unused packages |
 | Encryption at rest | **Deferred** (PRD FR-11, D7). The app says storage is not encrypted |
-| Recents/screenshot privacy | Hiding app content in the recent-apps screen (`FLAG_SECURE`) is a **pending owner decision**; it also blocks user screenshots |
+| Recents/screenshot privacy | **Owner decision 2026-11-06:** `FLAG_SECURE` is set while the app lock is enabled, so the app is blank in the recent-apps screen and screenshots are blocked. It is cleared when the lock is disabled |
 
 ---
 
@@ -677,7 +678,7 @@ None of these items is authorized by this document alone. Each needs owner appro
 | A5 | Two amount formatters; fonts loaded from Google at runtime | One formatter; bundled fonts | DESIGN G7, G8 |
 | A6 | **Resolved 2026-11-06.** Removed the unused React Query provider, the `@workspace/api-client-react` dependency, 42 unused `components/ui` primitives, the unused `use-mobile` hook, and the 31 packages only they used | Remove | §2.3 |
 | A7 | Backup app version hard-coded to `1.0.0` | Take it from the build version | §13.3 |
-| A8 | Lock screen shares a layer with sheets and the FAB | Lock screen topmost; content not mounted while locked | DESIGN G12; §4.3 |
+| A8 | **Resolved 2026-11-06.** While locked, `App.tsx` renders only the lock screen (no pages, sheets, FAB, navigation, or toasts) | Lock screen topmost; content not mounted while locked | DESIGN G12; §4.3 |
 | A9 | Crash reporting not yet privacy-reviewed | Scrubbed payloads; disclosure; D9 decision | PRD FR-12 |
 | A10 | `FinanceContext` mixes state, rules, and persistence (about 1,400 lines) | Split into `domain/` + `storage/`; same public hook API | §4.2 |
 | A11 | No CI workflow | Minimal PR workflow | §16.2 |

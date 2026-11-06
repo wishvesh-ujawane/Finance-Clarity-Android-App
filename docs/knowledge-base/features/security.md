@@ -2,7 +2,7 @@
 id: feature-security
 title: Security (PIN + biometric lock)
 date: 2026-06-28
-updated: 2026-06-28
+updated: 2026-11-06
 status: current
 scope: [financial-clarity]
 related:
@@ -14,6 +14,9 @@ source-of-truth-files:
   - artifacts/financial-clarity/src/components/LockScreen.tsx
   - artifacts/financial-clarity/src/components/PinSetupDialog.tsx
   - artifacts/financial-clarity/src/lib/biometric.ts
+  - artifacts/financial-clarity/src/lib/security.ts
+  - artifacts/financial-clarity/src/lib/screen-security.ts
+  - artifacts/financial-clarity/android/app/src/main/java/com/bytetobrain/fiscalfocus/ScreenSecurityPlugin.java
 ---
 
 # Security (PIN + biometric lock)
@@ -44,6 +47,17 @@ holds lock state, PIN hash, biometric-enabled flag, and unlock helpers.
   [lib/biometric.ts](../../../artifacts/financial-clarity/src/lib/biometric.ts)
   which wraps the Capacitor biometric plugin.
 - **Unlock** — `LockScreen` accepts PIN entry or biometric prompt.
+- **While locked** — `App.tsx` renders only `LockScreen`: no page, navigation,
+  sheet, FAB, month-end flow, or toast is mounted. Keyboard focus stays inside
+  the lock screen.
+- **Failed attempts** — stored in the security settings as `failedAttempts`
+  and `cooldownUntil`, so restarting the app keeps the cooldown. Every fifth
+  consecutive failure starts a cooldown of 30 s, then 1 min, 5 min, and 15 min
+  (maximum). PIN and biometric unlock are refused during a cooldown. A
+  successful unlock clears both fields.
+- **Recents and screenshots** — while the app lock is enabled, the local
+  `ScreenSecurity` plugin sets Android `FLAG_SECURE`: the app is blank in the
+  recent-apps screen and screenshots are blocked. Disabling the lock clears it.
 
 ## Edge cases
 - Biometric unavailable: option is hidden / disabled and the user can only use

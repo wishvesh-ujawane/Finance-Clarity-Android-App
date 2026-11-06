@@ -49,6 +49,15 @@ function AppLayout() {
   if (!isReady) {
     return <div className="min-h-screen bg-background" />;
   }
+  // Locked means not rendered: no page, sheet, or navigation is mounted until
+  // the user unlocks (ARCHITECTURE §4.3).
+  if (isLocked) {
+    return (
+      <div className="min-h-screen bg-background">
+        <LockScreen />
+      </div>
+    );
+  }
   return (
     <div className="flex min-h-screen bg-background">
       <Navigation />
@@ -67,16 +76,20 @@ function AppLayout() {
           <Route component={NotFound} />
         </Switch>
       </main>
-      {!isLocked && !showOnboarding && <FAB />}
+      {!showOnboarding && <FAB />}
       <TransactionSheet />
       <BudgetSheet />
-      <LockScreen />
-      {!isLocked && !showOnboarding && <MonthEndReviewFlow />}
+      {!showOnboarding && <MonthEndReviewFlow />}
       {showOnboarding && (
         <OnboardingFlow onComplete={() => setNeedsOnboarding(false)} />
       )}
     </div>
   );
+}
+
+function AppToaster() {
+  const { isLocked } = useSecurity();
+  return isLocked ? null : <Toaster />;
 }
 
 function App() {
@@ -92,7 +105,7 @@ function App() {
                 <WouterRouter base={routerBase}>
                   <AppLayout />
                 </WouterRouter>
-                <Toaster />
+                <AppToaster />
               </TooltipProvider>
             </MonthEndReviewProvider>
           </FabProvider>

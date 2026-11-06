@@ -4,13 +4,17 @@ import {
   clearSecuritySettings,
   createSecuritySettings,
   hashPin,
+  isInCooldown,
   isValidPinFormat,
   loadSecuritySettings,
   saveSecuritySettings,
   verifyPin,
   wipeAllAppData,
+  withFailedAttempt,
+  withoutFailedAttempts,
   type SecuritySettings,
 } from '@/lib/security';
+import { setScreenSecure } from '@/lib/screen-security';
 import {
   addBiometryChangeListener,
   describeBiometricAvailability,
@@ -61,6 +65,15 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     setBiometricAvailable(status.isAvailable);
     setBiometricReason(status.reason);
   }, []);
+
+  // Hide app content from Recents and screenshots whenever the app lock is on.
+  const isAppLockEnabled = Boolean(settings);
+  useEffect(() => {
+    if (!isReady) return;
+    // Best effort: in the browser this is unsupported, and on failure the
+    // lock itself still protects the app.
+    void setScreenSecure(isAppLockEnabled);
+  }, [isReady, isAppLockEnabled]);
 
   useEffect(() => {
     void refreshBiometricState();
@@ -231,20 +244,37 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     return true;
   }, [settings]);
 
+  // Lockout state is saved so a restart does not reset the cooldown. If the
+  // save fails, the in-memory state still applies for this session (fail closed).
+  const recordUnlockResult = useCallback((current: SecuritySettings, ok: boolean) => {
+    const hasLockout = current.failedAttempts !== undefined || current.cooldownUntil !== undefined;
+    if (ok && !hasLockout) return;
+    const next = ok ? withoutFailedAttempts(current) : withFailedAttempt(current, Date.now());
+    saveSecuritySettings(next);
+    setSettings(next);
+  }, []);
+
   const unlockWithPin = useCallback(async (pin: string) => {
     if (!settings) return false;
+    if (isInCooldown(settings, Date.now())) return false;
     const ok = await verifyPin(pin, settings);
+    recordUnlockResult(settings, ok);
     if (ok) setIsLocked(false);
     return ok;
-  }, [settings]);
+  }, [settings, recordUnlockResult]);
 
   const unlockWithBiometric = useCallback(async () => {
     if (!settings || !settings.biometricEnabled || !biometricAvailable) return false;
+    if (isInCooldown(settings, Date.now())) return false;
     const ok = await verifyBiometric();
-    if (ok) setIsLocked(false);
-    else void refreshBiometricState();
+    if (ok) {
+      recordUnlockResult(settings, true);
+      setIsLocked(false);
+    } else {
+      void refreshBiometricState();
+    }
     return ok;
-  }, [settings, biometricAvailable, refreshBiometricState]);
+  }, [settings, biometricAvailable, refreshBiometricState, recordUnlockResult]);
 
   const lockNow = useCallback(() => {
     if (settings) setIsLocked(true);
@@ -265,7 +295,7 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     isLocked,
     biometricAvailable,
     biometricReason,
-    isAppLockEnabled: Boolean(settings),
+    isAppLockEnabled,
     setupPin,
     changePin,
     enableBiometric,

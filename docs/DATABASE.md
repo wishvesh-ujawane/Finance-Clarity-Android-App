@@ -207,8 +207,8 @@ The key exists only while a PIN is enabled.
 | `biometricEnabled` | `bool` | No | Allows biometric unlock. The PIN is always the fallback |
 | `lockTimeoutMs` | `int` ≥ 0 | No | How long the app can stay in the background before it locks. Default 30 000 |
 | `updatedAt` | `epoch_ms` | No | Last change |
-| `failedAttempts` | `int` ≥ 0 | Yes | **MVP-cleanup.** Persisted so restarting the app does not reset the cooldown (ARCHITECTURE §9.2). Absent means `0` |
-| `cooldownUntil` | `epoch_ms` | Yes | **MVP-cleanup.** Absent means no active cooldown |
+| `failedAttempts` | `int` ≥ 0 | Yes | **MVP-cleanup; implemented 2026-11-06.** Persisted so restarting the app does not reset the cooldown (ARCHITECTURE §9.2). Absent means `0`. Invalid values are ignored, never treated as "lock disabled" |
+| `cooldownUntil` | `epoch_ms` | Yes | **MVP-cleanup; implemented 2026-11-06.** Absent means no active cooldown |
 
 ### 4.9 `backup_preferences` — Drive backup state (singleton)
 

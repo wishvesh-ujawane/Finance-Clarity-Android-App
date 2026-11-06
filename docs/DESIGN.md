@@ -789,7 +789,7 @@ Recorded so they are fixed deliberately, not copied. None of these is authorized
 | G9 | Safe areas | No safe-area inset handling | Insets respected everywhere (§10) |
 | G10 | Reduced motion | Only confetti respects reduced motion | All motion (§9.4) |
 | G11 | Touch targets | Sheet close/delete icon buttons are 32 px | 48 px hit area (§12.3) |
-| G12 | Layering | Lock screen shares a layer with sheets and the FAB | Lock screen topmost (§4.4) |
+| G12 | Layering | **Resolved 2026-11-06.** Nothing else is rendered while the lock screen is shown | Lock screen topmost (§4.4) |
 | G13 | Hard-coded colors | Raw hex and hsl values in components (hero, sheets, chips, nav) | Semantic tokens only (§2) |
 | G14 | SMS | SMS settings row and route still present | Removed (PRD FR-10, §6.1) |
 | G15 | Disabled submit | Entry submit disables without explaining what's missing | Visible hint (§5.12, §7.2) |

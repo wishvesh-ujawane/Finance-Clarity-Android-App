@@ -2,10 +2,13 @@ import { vi } from 'vitest';
 import {
   clearSecuritySettings,
   createSecuritySettings,
+  isInCooldown,
   isValidPinFormat,
   loadSecuritySettings,
   saveSecuritySettings,
   verifyPin,
+  withFailedAttempt,
+  withoutFailedAttempts,
 } from '../security';
 
 describe('security settings', () => {
@@ -87,5 +90,59 @@ describe('security settings', () => {
       updatedAt: Date.now(),
     }));
     expect(loadSecuritySettings()).toBeNull();
+  });
+});
+
+describe('failed-attempt cooldown', () => {
+  const NOW = 1_800_000_000_000;
+
+  async function failTimes(count: number) {
+    let settings = await createSecuritySettings('1234');
+    for (let i = 0; i < count; i++) settings = withFailedAttempt(settings, NOW);
+    return settings;
+  }
+
+  it('starts no cooldown before the fifth failure', async () => {
+    const settings = await failTimes(4);
+    expect(settings.failedAttempts).toBe(4);
+    expect(settings.cooldownUntil).toBeUndefined();
+    expect(isInCooldown(settings, NOW)).toBe(false);
+  });
+
+  it('escalates 30 s, 1 min, 5 min, then stays at 15 min', async () => {
+    expect((await failTimes(5)).cooldownUntil).toBe(NOW + 30_000);
+    expect((await failTimes(10)).cooldownUntil).toBe(NOW + 60_000);
+    expect((await failTimes(15)).cooldownUntil).toBe(NOW + 5 * 60_000);
+    expect((await failTimes(20)).cooldownUntil).toBe(NOW + 15 * 60_000);
+    expect((await failTimes(25)).cooldownUntil).toBe(NOW + 15 * 60_000);
+  });
+
+  it('reports the cooldown only until it expires', async () => {
+    const settings = await failTimes(5);
+    expect(isInCooldown(settings, NOW + 29_999)).toBe(true);
+    expect(isInCooldown(settings, NOW + 30_000)).toBe(false);
+  });
+
+  it('clears attempts and cooldown after a successful unlock', async () => {
+    const cleared = withoutFailedAttempts(await failTimes(5));
+    expect(cleared.failedAttempts).toBeUndefined();
+    expect(cleared.cooldownUntil).toBeUndefined();
+    expect(cleared.pinHash).toBeTruthy();
+  });
+
+  it('persists the cooldown across a reload', async () => {
+    const settings = await failTimes(5);
+    expect(saveSecuritySettings(settings)).toEqual({ ok: true });
+    expect(loadSecuritySettings()).toEqual(settings);
+  });
+
+  it('keeps the lock when stored attempt fields are damaged', async () => {
+    const settings = await createSecuritySettings('1234');
+    localStorage.setItem('financial-clarity:security', JSON.stringify({
+      ...settings,
+      failedAttempts: 'many',
+      cooldownUntil: null,
+    }));
+    expect(loadSecuritySettings()).toEqual(settings);
   });
 });
