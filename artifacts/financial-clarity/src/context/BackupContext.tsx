@@ -59,6 +59,34 @@ export interface RemoteBackupInfo {
   modifiedTime?: string;
 }
 
+export interface BackupNowOptions {
+  /** Set after the user confirms replacing a Drive backup that has more transactions. */
+  replaceLargerBackup?: boolean;
+}
+
+export type BackupNowResult =
+  | { status: 'done'; counts: BackupCounts }
+  | {
+      status: 'needs-confirmation';
+      /** Null when the Drive backup could not be read. */
+      remoteTransactions: number | null;
+      localTransactions: number;
+      remoteExportedAt?: string;
+    };
+
+const AUTO_BACKUP_PAUSED_MESSAGE =
+  'Auto-backup paused: your Google Drive backup has more transactions than this phone. ' +
+  'Restore from Drive, or tap Backup now to replace it.';
+
+function countBackupTransactions(raw: string): number | null {
+  try {
+    const validation = validateBackup(parseBackup(raw));
+    return validation.ok ? validation.backup.counts.transactions : null;
+  } catch {
+    return null;
+  }
+}
+
 interface BackupPrefs {
   autoBackupEnabled: boolean;
   lastBackupAt: number | null;
@@ -201,7 +229,7 @@ interface BackupContextValue {
   signIn: () => Promise<GoogleUser>;
   signOut: () => Promise<void>;
   checkRemoteBackup: () => Promise<RemoteBackupInfo | null>;
-  backupNow: () => Promise<BackupCounts>;
+  backupNow: (options?: BackupNowOptions) => Promise<BackupNowResult>;
   restoreFromDrive: (info?: RemoteBackupInfo) => Promise<BackupCounts>;
   setAutoBackupEnabled: (enabled: boolean) => void;
   clearError: () => void;
@@ -307,13 +335,47 @@ export function BackupProvider({ children }: { children: ReactNode }) {
     }
   }, [ensureFolder]);
 
-  const backupNow = useCallback(async (): Promise<BackupCounts> => {
+  const backupNow = useCallback(async (options: BackupNowOptions = {}): Promise<BackupNowResult> => {
     setError(null);
     setStatus('backing-up');
     try {
       const folderId = await ensureFolder();
       const existing = await findBackupFile(folderId);
       const backup = buildBackup();
+
+      // Never silently replace a Drive backup that holds more transactions
+      // than this device (for example, after a reinstall).
+      if (existing) {
+        const remote = remoteInfoFromDriveFile(existing);
+        let remoteRaw: string | null = null;
+        let remoteTransactions = remote.counts ? remote.counts.transactions : null;
+        if (remoteTransactions === null) {
+          remoteRaw = await downloadBackup(existing.id);
+          remoteTransactions = countBackupTransactions(remoteRaw);
+        }
+        const wouldShrink = remoteTransactions === null || remoteTransactions > backup.counts.transactions;
+        if (wouldShrink) {
+          if (!options.replaceLargerBackup) {
+            setStatus('idle');
+            return {
+              status: 'needs-confirmation',
+              remoteTransactions,
+              localTransactions: backup.counts.transactions,
+              remoteExportedAt: remote.exportedAt,
+            };
+          }
+          try {
+            const raw = remoteRaw ?? await downloadBackup(existing.id);
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+            await uploadSnapshot(folderId, `finance-clarity-backup.pre-overwrite-${stamp}.json`, raw);
+          } catch (err) {
+            throw new Error(
+              `Couldn\u2019t save a copy of your Drive backup, so it was not replaced. ${humanizeError(err)}`,
+            );
+          }
+        }
+      }
+
       const json = serializeBackup(backup);
       const file = await uploadBackup(json, {
         fileId: existing?.id,
@@ -329,7 +391,7 @@ export function BackupProvider({ children }: { children: ReactNode }) {
       });
       setRemoteBackup(remoteInfoFromDriveFile(file));
       setStatus('idle');
-      return backup.counts;
+      return { status: 'done', counts: backup.counts };
     } catch (err) {
       setStatus('error');
       setError(humanizeError(err));
@@ -431,7 +493,13 @@ export function BackupProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        await backupNow();
+        const result = await backupNow();
+        if (result.status === 'needs-confirmation') {
+          updatePrefs({
+            lastAutoBackupFailedAt: Date.now(),
+            lastAutoBackupError: AUTO_BACKUP_PAUSED_MESSAGE,
+          });
+        }
       } catch (err) {
         updatePrefs({
           lastAutoBackupFailedAt: Date.now(),

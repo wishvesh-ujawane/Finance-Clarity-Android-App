@@ -231,9 +231,9 @@ already registered to the same path on your home PC, then rebuild.
 - Do one manual **Back up now** and confirm the backup appears in Drive.
 - Auto-backup runs at most once every 7 days and only after a successful
   manual backup.
-- Known issue (2026-11-06 audit): **Back up now** replaces the single Drive
-  backup without comparing it with local data. Never tap it on a freshly
-  installed, empty app — restore first.
+- On a freshly installed app, **restore first**. If you tap **Back up now**
+  while Drive holds more transactions than the phone, the app asks before
+  replacing it and saves a `pre-overwrite` copy in the same Drive folder.
 
 ---
 
@@ -318,10 +318,9 @@ wipes all local data. Before switching:
    and confirm the counts. After installing the new build, sign in and
    **Restore**.
 2. **CSV (partial):** CSV holds transactions only — not budgets, recurring
-   rules, savings targets, or custom category settings. Known issue
-   (2026-11-06 audit): re-importing savings or commitment rows creates
-   duplicate categories and counts savings as spending. Use it only as a last
-   resort.
+   rules, savings targets, or custom category settings. Import shows a
+   preview and skips duplicates, so re-importing your own export is safe.
+   Use it only as a fallback to Drive.
 
 Note: the app lock (PIN/biometrics) is not part of any backup; set it up again.
 

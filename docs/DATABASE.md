@@ -556,8 +556,9 @@ These existing migrations that run when data loads stay as they are:
 1. Snapshot the covered keys.
 2. Build the envelope: `schemaVersion`, `appVersion`, `exportedAt` (`iso_ts`), device info, record counts, and the data block.
 3. Compute SHA-256 of the data block. **Automatic** backup is skipped when the hash equals `lastBackupHash`.
-4. Upload to the app's Drive folder using the `drive.file` scope. A failed upload is never retried automatically.
-5. Update `backup_preferences` only after the upload succeeds.
+4. Compare with the existing Drive backup's transaction count (from its metadata, or by downloading it). If Drive has more transactions, or the file cannot be read, stop: a manual backup asks for confirmation and then saves the old file as `finance-clarity-backup.pre-overwrite-<timestamp>.json` before replacing it (aborting if that copy fails); an automatic backup never replaces it and records a "paused" message.
+5. Upload to the app's Drive folder using the `drive.file` scope. A failed upload is never retried automatically.
+6. Update `backup_preferences` only after the upload succeeds.
 
 Automatic backups are attempted at most once every 7 days, and only when the data has changed. **Recovery point:** the last successful backup. No recovery-time target is set.
 

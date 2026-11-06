@@ -18,6 +18,7 @@ source-of-truth-files:
   - artifacts/financial-clarity/src/lib/backupHash.ts
   - artifacts/financial-clarity/src/lib/csv.ts
   - artifacts/financial-clarity/src/components/CsvImportPreviewDialog.tsx
+  - artifacts/financial-clarity/src/components/BackupOverwriteDialog.tsx
 ---
 
 # Backup & Restore
@@ -51,6 +52,13 @@ connection state.
 ## Interactions
 - **Create backup** → produces a downloadable file (and optionally uploads to
   Drive if connected).
+- **Back up now (Drive)** — if the Drive backup has more transactions than
+  this device, or cannot be read,
+  [BackupOverwriteDialog.tsx](../../../artifacts/financial-clarity/src/components/BackupOverwriteDialog.tsx)
+  asks first. On confirm, the current Drive file is saved as
+  `finance-clarity-backup.pre-overwrite-<timestamp>.json`; if that copy fails,
+  nothing is replaced. Auto-backup never replaces a larger backup and shows
+  "Auto-backup paused" instead.
 - **Restore from file** → opens
   [RestorePreviewDialog.tsx](../../../artifacts/financial-clarity/src/components/RestorePreviewDialog.tsx)
   showing a diff summary; user must confirm before the payload overwrites

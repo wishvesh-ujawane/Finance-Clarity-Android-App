@@ -246,8 +246,9 @@ Income, consumption spending, savings contributions, monthly net, carry-forward,
 1. Snapshot the backed-up keys.
 2. Build a backup file: schema version (currently 3), app version, export time, device info, and the data block.
 3. Compute a stable SHA-256 hash of the data block. Skip auto-backup if it has not changed.
-4. Upload to the app's Drive folder using `drive.file` scope.
-5. Record the status in Backup settings.
+4. If the Drive backup holds **more transactions** than the device, or cannot be read, do not upload. Manual backup asks the user; on confirmation, first save the current Drive file as `finance-clarity-backup.pre-overwrite-<timestamp>.json` in the same folder, and abort if that copy fails. Auto-backup never replaces it; it records a "paused" notice instead.
+5. Upload to the app's Drive folder using `drive.file` scope.
+6. Record the status in Backup settings.
 
 **Restore:**
 

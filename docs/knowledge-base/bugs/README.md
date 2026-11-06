@@ -9,6 +9,7 @@ File naming: `YYYYMMDD-<short-slug>.md` (date the bug was observed).
 
 ## Index
 
+- [2026-11-06 — Back up now could replace a larger Drive backup with an empty or smaller one](./20261106-drive-backup-overwrite.md) — fixed
 - [2026-11-06 — Categories with transactions, budgets, or recurring rules could be deleted](./20261106-used-category-deletion.md) — fixed
 - [2026-11-06 — Locked app kept financial screens mounted; cooldown reset on restart; no Recents protection](./20261106-app-lock-exposure.md) — fixed
 - [2026-11-06 — CSV round-trip duplicated savings as spending; formula injection; no import preview](./20261106-csv-import-export-safety.md) — fixed

@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useBackup } from '@/context/BackupContext';
 import { useFinance } from '@/context/FinanceContext';
 import { RestorePreviewDialog } from './RestorePreviewDialog';
+import { BackupOverwriteDialog, type BackupOverwriteDetails } from './BackupOverwriteDialog';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 
 const TESTER_WHATSAPP_PHONE = '918830828911';
@@ -45,6 +46,7 @@ export function BackupSettingsCard() {
   const { transactions, categories, budgets } = useFinance();
   const { toast } = useToast();
   const [restoreOpen, setRestoreOpen] = useState(false);
+  const [overwrite, setOverwrite] = useState<BackupOverwriteDetails | null>(null);
 
   const busy = status === 'signing-in' || status === 'checking' || status === 'backing-up' || status === 'restoring';
 
@@ -58,17 +60,30 @@ export function BackupSettingsCard() {
     }
   };
 
-  const handleBackupNow = async () => {
+  const runBackup = async (replaceLargerBackup: boolean) => {
     try {
-      const counts = await backupNow();
+      const result = await backupNow({ replaceLargerBackup });
+      if (result.status === 'needs-confirmation') {
+        setOverwrite({
+          remoteTransactions: result.remoteTransactions,
+          localTransactions: result.localTransactions,
+          remoteExportedAt: result.remoteExportedAt,
+        });
+        return;
+      }
+      setOverwrite(null);
+      const { counts } = result;
       toast({
         title: 'Backed up to Google Drive',
         description: `${counts.transactions} transactions \u2022 ${counts.categories} categories \u2022 ${counts.budgets} budgets`,
       });
     } catch {
       // Error already in context.
+      setOverwrite(null);
     }
   };
+
+  const handleBackupNow = () => { void runBackup(false); };
 
   const handleOpenRestore = async () => {
     clearError();
@@ -260,6 +275,12 @@ export function BackupSettingsCard() {
         }}
         onConfirm={handleConfirmRestore}
         busy={status === 'restoring'}
+      />
+      <BackupOverwriteDialog
+        details={overwrite}
+        busy={status === 'backing-up'}
+        onCancel={() => setOverwrite(null)}
+        onConfirm={() => { void runBackup(true); }}
       />
     </div>
   );
