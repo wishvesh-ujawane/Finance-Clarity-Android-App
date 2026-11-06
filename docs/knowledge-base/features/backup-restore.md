@@ -2,7 +2,7 @@
 id: feature-backup-restore
 title: Backup & Restore
 date: 2026-06-28
-updated: 2026-06-28
+updated: 2026-11-06
 status: current
 scope: [financial-clarity]
 related:
@@ -17,6 +17,7 @@ source-of-truth-files:
   - artifacts/financial-clarity/src/lib/backup.ts
   - artifacts/financial-clarity/src/lib/backupHash.ts
   - artifacts/financial-clarity/src/lib/csv.ts
+  - artifacts/financial-clarity/src/components/CsvImportPreviewDialog.tsx
 ---
 
 # Backup & Restore
@@ -55,6 +56,17 @@ connection state.
   showing a diff summary; user must confirm before the payload overwrites
   local storage.
 - **Connect Drive** — banner CTA initiates the OAuth / Capacitor flow.
+- **CSV export** — writes Date, Category, Amount, Note, Type. Cells starting
+  with `=`, `+`, `-`, `@`, tab, or carriage return get a leading `'` so
+  spreadsheets do not run them as formulas.
+- **CSV import** — parses the file, skips invalid rows (impossible dates,
+  bad amounts, missing category, unknown type) with their line numbers, and
+  shows [CsvImportPreviewDialog.tsx](../../../artifacts/financial-clarity/src/components/CsvImportPreviewDialog.tsx)
+  with new, duplicate, and invalid counts plus categories it would create.
+  Nothing is written until the user confirms. Expense rows match an existing
+  savings, commitment, expense, or "both" category by name (in that order),
+  so a round-trip keeps savings as savings. Files over 5 MB are refused.
+  CSV holds transactions only and is not a full backup.
 
 ## Edge cases
 - Hash mismatch: restore is blocked and an error surfaces in the preview

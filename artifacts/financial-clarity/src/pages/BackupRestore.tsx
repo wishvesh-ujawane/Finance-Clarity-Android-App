@@ -2,28 +2,13 @@ import { useRef, useState, type ChangeEvent } from 'react';
 import { useLocation } from 'wouter';
 import { ArrowLeft, Download, FileUp, Settings as SettingsIcon } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
-import { buildTransactionsCsv, exportCsvFile, parseTransactionsCsv } from '@/lib/csv';
+import { buildTransactionsCsv, exportCsvFile, parseTransactionsCsv, planCsvImport } from '@/lib/csv';
 import { cn } from '@/lib/utils';
 import { BackupSettingsCard } from '@/components/BackupSettingsCard';
+import { CsvImportPreviewDialog, type CsvImportPreview } from '@/components/CsvImportPreviewDialog';
 
 const IMPORT_COLORS = ['#10B981', '#6366F1', '#F59E0B', '#3B82F6', '#EF4444', '#F97316', '#8B5CF6', '#EC4899'];
-
-function transactionKey(input: {
-  date: string;
-  type: 'income' | 'expense';
-  amount: number;
-  categoryId: string;
-  note?: string;
-}) {
-  return [input.date, input.type, input.amount.toFixed(2), input.categoryId, input.note || ''].join('|');
-}
-
-function countByKey(keys: string[]) {
-  return keys.reduce<Record<string, number>>((counts, key) => {
-    counts[key] = (counts[key] || 0) + 1;
-    return counts;
-  }, {});
-}
+const MAX_CSV_BYTES = 5 * 1024 * 1024;
 
 export default function BackupRestore() {
   const [, setLocation] = useLocation();
@@ -31,6 +16,7 @@ export default function BackupRestore() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [preview, setPreview] = useState<CsvImportPreview | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -52,63 +38,65 @@ export default function BackupRestore() {
 
   const handleImport = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    if (inputRef.current) inputRef.current.value = '';
     if (!file) return;
 
     setError('');
     setMessage('');
-    setIsImporting(true);
+
+    if (file.size > MAX_CSV_BYTES) {
+      setError('This file is larger than 5 MB and was not imported. Your data is unchanged.');
+      return;
+    }
 
     try {
-      const rows = parseTransactionsCsv(await file.text());
-      const categoryByNameAndType = new Map(
-        categories.map(category => [`${category.name.toLowerCase()}|${category.type}`, category])
-      );
-      const categoryById = new Map(categories.map(category => [category.id, category]));
-      const existingCounts = countByKey(transactions.map(transaction => {
-        const category = categoryById.get(transaction.categoryId);
-        return transactionKey(transaction) + `|${category?.name.toLowerCase() || ''}`;
-      }));
-      const seenCounts: Record<string, number> = {};
-      const items = rows.flatMap((row, index) => {
-        const lookupKey = `${row.categoryName.toLowerCase()}|${row.type}`;
-        const bothLookupKey = `${row.categoryName.toLowerCase()}|both`;
-        let category = categoryByNameAndType.get(lookupKey) || categoryByNameAndType.get(bothLookupKey);
+      const { rows, invalidRows } = parseTransactionsCsv(await file.text());
+      if (rows.length === 0 && invalidRows.length === 0) {
+        setError('This CSV has no transaction rows. Your data is unchanged.');
+        return;
+      }
+      setPreview({ fileName: file.name, plan: planCsvImport(rows, transactions, categories), invalidRows });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'The file could not be read.';
+      setError(`${reason} Your data is unchanged.`);
+    }
+  };
 
-        if (!category) {
-          category = addCategory({
-            name: row.categoryName,
-            icon: 'DollarSign',
-            color: IMPORT_COLORS[index % IMPORT_COLORS.length],
-            type: row.type,
-          });
-          categoryByNameAndType.set(lookupKey, category);
-        }
+  const confirmImport = () => {
+    if (!preview || isImporting) return;
+    setIsImporting(true);
+    try {
+      const createdIds = new Map<string, string>();
+      preview.plan.categoriesToCreate.forEach((entry, index) => {
+        const created = addCategory({
+          name: entry.name,
+          icon: 'DollarSign',
+          color: IMPORT_COLORS[index % IMPORT_COLORS.length],
+          type: entry.type,
+        });
+        createdIds.set(entry.key, created.id);
+      });
 
-        const item = {
-          date: row.date,
-          type: row.type,
-          amount: row.amount,
-          categoryId: category.id,
-          note: row.note,
-        };
-        const key = transactionKey(item) + `|${row.categoryName.toLowerCase()}`;
-        const seen = seenCounts[key] || 0;
-        seenCounts[key] = seen + 1;
-
-        if ((existingCounts[key] || 0) > seen) {
-          return [];
-        }
-
-        return [item];
+      const items = preview.plan.items.flatMap(item => {
+        const categoryId = item.categoryId ?? (item.newCategoryKey ? createdIds.get(item.newCategoryKey) : undefined);
+        if (!categoryId) return [];
+        const { date, type, amount, note } = item.row;
+        return [{ date, type, amount, note, categoryId }];
       });
 
       const imported = importTransactions(items);
-      setMessage(`Imported ${imported} transaction${imported === 1 ? '' : 's'}. Skipped ${rows.length - imported} duplicate${rows.length - imported === 1 ? '' : 's'}.`);
+      const skippedDuplicates = preview.plan.duplicateCount;
+      const skippedInvalid = preview.invalidRows.length;
+      const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
+      setMessage(
+        `Imported ${plural(imported, 'transaction')}. Skipped ${plural(skippedDuplicates, 'duplicate')}` +
+        (skippedInvalid > 0 ? ` and ${plural(skippedInvalid, 'invalid row')}.` : '.'),
+      );
+      setPreview(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import failed.');
+      setError(err instanceof Error ? err.message : 'Import failed. Your data is unchanged.');
     } finally {
       setIsImporting(false);
-      if (inputRef.current) inputRef.current.value = '';
     }
   };
 
@@ -139,7 +127,7 @@ export default function BackupRestore() {
           </div>
           <div>
             <p className="text-sm font-bold text-foreground">CSV Backup</p>
-            <p className="text-xs text-muted-foreground">Export or restore records using the same CSV format.</p>
+            <p className="text-xs text-muted-foreground">Transactions only. Not a full backup; use Google Drive backup for budgets, recurring rules, and settings.</p>
           </div>
         </div>
 
@@ -179,6 +167,13 @@ export default function BackupRestore() {
           )}
         </div>
       </div>
+
+      <CsvImportPreviewDialog
+        preview={preview}
+        busy={isImporting}
+        onCancel={() => setPreview(null)}
+        onConfirm={confirmImport}
+      />
     </div>
   );
 }

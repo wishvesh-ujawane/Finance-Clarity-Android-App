@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import { isValidDateStr } from '@/lib/finance-utils';
 import { Category, Transaction } from '@/lib/types';
 
 export interface ImportedTransactionRow {
@@ -11,10 +12,32 @@ export interface ImportedTransactionRow {
   type: 'income' | 'expense';
 }
 
+export interface InvalidCsvRow {
+  /** 1-based line number in the file, counting the header as line 1. */
+  line: number;
+  reason: string;
+}
+
+export interface ParsedTransactionsCsv {
+  rows: ImportedTransactionRow[];
+  invalidRows: InvalidCsvRow[];
+}
+
 const CSV_HEADERS = ['Date', 'Category', 'Amount', 'Note', 'Type'];
 
+// Spreadsheet apps execute cells that start with these characters as formulas.
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
+const GUARDED_FORMULA = /^'[=+\-@\t\r]/;
+
 function escapeCsvCell(value: string | number) {
-  return `"${String(value).replace(/"/g, '""')}"`;
+  const text = String(value);
+  const safe = FORMULA_TRIGGER.test(text) ? `'${text}` : text;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+
+/** Reverses the export-side formula guard so a round-trip keeps the original text. */
+function unguardCell(value: string) {
+  return GUARDED_FORMULA.test(value) ? value.slice(1) : value;
 }
 
 function parseCsvLine(line: string): string[] {
@@ -70,11 +93,14 @@ export function buildTransactionsCsv(transactions: Transaction[], categories: Ca
   return [CSV_HEADERS.join(','), ...rows].join('\n');
 }
 
-export function parseTransactionsCsv(csv: string): ImportedTransactionRow[] {
-  const lines = normalizeLineEndings(csv).split('\n').filter(line => line.trim().length > 0);
-  if (lines.length === 0) return [];
+export function parseTransactionsCsv(csv: string): ParsedTransactionsCsv {
+  const lines = normalizeLineEndings(csv)
+    .split('\n')
+    .map((text, index) => ({ text, line: index + 1 }))
+    .filter(entry => entry.text.trim().length > 0);
+  if (lines.length === 0) return { rows: [], invalidRows: [] };
 
-  const headers = parseCsvLine(lines[0]).map(header => header.trim().toLowerCase());
+  const headers = parseCsvLine(lines[0].text).map(header => header.trim().toLowerCase());
   const dateIndex = headers.indexOf('date');
   const categoryIndex = headers.indexOf('category');
   const amountIndex = headers.indexOf('amount');
@@ -85,29 +111,107 @@ export function parseTransactionsCsv(csv: string): ImportedTransactionRow[] {
     throw new Error('CSV must include Date, Category, Amount, and Type columns.');
   }
 
-  return lines.slice(1).map((line, index) => {
-    const cells = parseCsvLine(line);
+  const rows: ImportedTransactionRow[] = [];
+  const invalidRows: InvalidCsvRow[] = [];
+
+  for (const { text, line } of lines.slice(1)) {
+    const cells = parseCsvLine(text);
     const date = (cells[dateIndex] || '').trim();
-    const categoryName = (cells[categoryIndex] || '').trim();
-    const amount = Number.parseFloat((cells[amountIndex] || '').trim());
-    const note = noteIndex === -1 ? '' : (cells[noteIndex] || '').trim();
+    const categoryName = unguardCell((cells[categoryIndex] || '').trim());
+    const rawAmount = (cells[amountIndex] || '').trim();
+    const amount = /^\d+(\.\d+)?$/.test(rawAmount) ? Number(rawAmount) : Number.NaN;
+    const note = noteIndex === -1 ? '' : unguardCell((cells[noteIndex] || '').trim());
     const type = (cells[typeIndex] || '').trim().toLowerCase();
 
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      throw new Error(`Row ${index + 2} has an invalid date.`);
+    let reason = '';
+    if (!isValidDateStr(date)) reason = 'invalid date';
+    else if (!categoryName) reason = 'missing category';
+    else if (!Number.isFinite(amount) || amount <= 0) reason = 'invalid amount';
+    else if (type !== 'income' && type !== 'expense') reason = 'invalid type';
+
+    if (reason) {
+      invalidRows.push({ line, reason });
+      continue;
     }
-    if (!categoryName) {
-      throw new Error(`Row ${index + 2} is missing a category.`);
+    rows.push({ date, categoryName, amount, note, type: type as 'income' | 'expense' });
+  }
+
+  return { rows, invalidRows };
+}
+
+export interface CsvImportPlan {
+  /** Rows to add, with an existing category id or the key of a category to create. */
+  items: Array<{ row: ImportedTransactionRow; categoryId?: string; newCategoryKey?: string }>;
+  duplicateCount: number;
+  categoriesToCreate: Array<{ key: string; name: string; type: 'income' | 'expense' }>;
+}
+
+// CSV rows only carry "income" or "expense". Expense rows may belong to any
+// outflow category; reserved savings categories are checked first so savings
+// contributions are not re-created as spending.
+const COMPATIBLE_CATEGORY_TYPES: Record<'income' | 'expense', Category['type'][]> = {
+  expense: ['savings', 'commitment', 'expense', 'both'],
+  income: ['income', 'both'],
+};
+
+function duplicateKey(input: { date: string; type: string; amount: number; categoryKey: string; note: string }) {
+  return [input.date, input.type, input.amount.toFixed(2), input.categoryKey, input.note].join('|');
+}
+
+/**
+ * Works out what an import would change, without changing anything.
+ * Rows identical to an existing transaction (same date, type, amount,
+ * category, and note) are counted as duplicates, respecting repeat counts.
+ */
+export function planCsvImport(
+  rows: ImportedTransactionRow[],
+  transactions: Transaction[],
+  categories: Category[],
+): CsvImportPlan {
+  const existingCounts: Record<string, number> = {};
+  for (const transaction of transactions) {
+    const key = duplicateKey({ ...transaction, categoryKey: transaction.categoryId, note: transaction.note || '' });
+    existingCounts[key] = (existingCounts[key] || 0) + 1;
+  }
+
+  const findCategory = (name: string, rowType: 'income' | 'expense') => {
+    const lower = name.toLowerCase();
+    for (const type of COMPATIBLE_CATEGORY_TYPES[rowType]) {
+      const match = categories.find(category => category.type === type && category.name.toLowerCase() === lower);
+      if (match) return match;
     }
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new Error(`Row ${index + 2} has an invalid amount.`);
-    }
-    if (type !== 'income' && type !== 'expense') {
-      throw new Error(`Row ${index + 2} has an invalid type.`);
+    return undefined;
+  };
+
+  const plan: CsvImportPlan = { items: [], duplicateCount: 0, categoriesToCreate: [] };
+  const seenCounts: Record<string, number> = {};
+
+  for (const row of rows) {
+    const category = findCategory(row.categoryName, row.type);
+    let categoryKey: string;
+    if (category) {
+      categoryKey = category.id;
+    } else {
+      categoryKey = `new:${row.type}:${row.categoryName.toLowerCase()}`;
+      if (!plan.categoriesToCreate.some(entry => entry.key === categoryKey)) {
+        plan.categoriesToCreate.push({ key: categoryKey, name: row.categoryName, type: row.type });
+      }
     }
 
-    return { date, categoryName, amount, note, type };
-  });
+    const key = duplicateKey({ ...row, categoryKey });
+    const seen = seenCounts[key] || 0;
+    seenCounts[key] = seen + 1;
+    if ((existingCounts[key] || 0) > seen) {
+      plan.duplicateCount += 1;
+      continue;
+    }
+    plan.items.push(category ? { row, categoryId: category.id } : { row, newCategoryKey: categoryKey });
+  }
+
+  plan.categoriesToCreate = plan.categoriesToCreate.filter(entry =>
+    plan.items.some(item => item.newCategoryKey === entry.key),
+  );
+  return plan;
 }
 
 function webDownloadCsv(filename: string, csv: string) {

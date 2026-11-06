@@ -57,7 +57,6 @@ test.beforeEach(({}, testInfo) => {
 });
 
 test('[CSV-001] CSV export neutralises spreadsheet formula cells', async ({ page }, testInfo) => {
-  test.fail(true, 'Known defect: escapeCsvCell does not neutralise =, +, -, @ (AGENTS.md §9)');
   await prepare(page, [
     { id: 'e2e-formula', type: 'expense', amount: 100, categoryId: 'groceries', note: '=HYPERLINK("http://example.invalid","x")' },
   ]);
@@ -66,7 +65,6 @@ test('[CSV-001] CSV export neutralises spreadsheet formula cells', async ({ page
 });
 
 test('[CSV-002] re-importing an exported CSV does not duplicate savings', async ({ page }, testInfo) => {
-  test.fail(true, 'Known defect: savings rows match no "name|expense" category and are re-created as spending');
   await prepare(page, [
     { id: 'e2e-salary', type: 'income', amount: 50000, categoryId: 'salary', note: 'e2e salary' },
     { id: 'e2e-sip', type: 'expense', amount: 5000, categoryId: 'savings-emergency', note: 'e2e sip' },
@@ -86,7 +84,6 @@ test('[CSV-002] re-importing an exported CSV does not duplicate savings', async 
 });
 
 test('[CSV-003] CSV import shows a preview before changing data', async ({ page }, testInfo) => {
-  test.fail(true, 'Known defect: CSV import applies immediately (AGENTS.md §9, imported files need preview + confirmation)');
   await prepare(page);
   const path = testInfo.outputPath('new.csv');
   fs.writeFileSync(path, 'Date,Category,Amount,Note,Type\n2026-01-15,Groceries,250,e2e row,expense\n');
@@ -99,7 +96,6 @@ test('[CSV-003] CSV import shows a preview before changing data', async ({ page 
 });
 
 test('[CSV-004] CSV import rejects impossible calendar dates', async ({ page }, testInfo) => {
-  test.fail(true, 'Known defect: CSV date check is format-only, so 2026-13-45 is accepted');
   await prepare(page);
   const path = testInfo.outputPath('bad-date.csv');
   fs.writeFileSync(path, 'Date,Category,Amount,Note,Type\n2026-13-45,Groceries,250,e2e bad date,expense\n');
@@ -111,7 +107,7 @@ test('[CSV-004] CSV import rejects impossible calendar dates', async ({ page }, 
 });
 
 test('[SEC-004] financial content is not rendered while the app is locked', async ({ page }) => {
-  test.fail(true, 'Known defect: routes stay mounted under the lock overlay ("Locked means not rendered", AGENTS.md §9)');
+  test.fail(true, 'Known defect: routes stay mounted under the lock overlay ("Locked means not rendered", AGENTS.md Â§9)');
   await prepare(page, [
     { id: 'e2e-salary', type: 'income', amount: 50000, categoryId: 'salary', note: 'e2e salary' },
   ]);
