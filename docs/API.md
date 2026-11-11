@@ -266,6 +266,7 @@ Storage keys are frozen. The full catalogue is in DATABASE §3.
 | `setSavingsGoal` | Both buckets | `{ ok: true }` | As above |
 | `addReconciliation` | `month`, `actualBalance`, `expectedBalance`, optional `adjustmentAmount` and `note` | `{ ok: true, record }` | As above |
 | `reloadFromStorage` | — (used after a restore) | State is re-read | If storage can't be read, state is unchanged and `storageError` is set |
+| `processRecurring` | — (called by `App.tsx` after unlock and on resume) | `{ ok: true, count }` — occurrences added | `{ ok: false, message }` and `storageError`; nothing is saved and cursors do not move |
 
 **Read API (selectors).** `getMonthSummary`, `getTotalIncome`, `getTotalExpenses`, `getTotalSavings`, `getTotalCommitments`, `getTotalDayToDay`, `getCarryForward`, `getNetBalanceToDate`, `getCumulativeNetBalanceThroughEndOf`, `getOutstandingCardBalance`, `getBudgetBreakdown`, `getSpentForCategory`, and `getReconciliationFor`. Each PRD §6 metric has **exactly one** implementation. Pages never re-sum transactions.
 

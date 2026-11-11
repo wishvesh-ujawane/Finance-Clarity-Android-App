@@ -42,6 +42,8 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 | 20 | 4 | Inactive categories are listed last within their type group with an "Inactive" badge instead of DESIGN §13's collapsible Inactive section. | Agent | Smaller change; the collapsible section is noted for Phase 9 design alignment. |
 | 21 | 4 | The month-end budget planner hides inactive categories unless they already have a next-month budget. | Agent | Its `addBudget` result is ignored (existing month-end behavior), so offering an inactive category would fail silently. |
 | 22 | 4 | Active category names are unique ignoring case; adding, renaming, or reactivating into a clash is refused. Inactive categories may share a name. | Agent | DATABASE §6.2 (owner-approved). |
+| 23 | 5 | Recurring generation runs only while unlocked: once after unlock and on every return to the foreground (`visibilitychange`), plus after rule changes. It no longer runs when the data first loads. | Agent | ARCHITECTURE §6.4 and DATABASE §8.2 (no finance writes while locked). Uses the browser `visibilitychange` event so no Capacitor call is added to the context layer. |
+| 24 | 5 | Deleting a generated occurrence still relies on the forward-only cursor; no permanent suppression list is added. | Agent | PRD FR-07 leaves permanent suppression pending; DATABASE §6.3 says the cursor is enough today. **Owner decision still needed.** |
 
 ---
 
@@ -66,3 +68,8 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 
 - **Completed:** `active` flag with domain enforcement (new entries, budgets, recurring rules), built-in categories always active, pickers show active categories only (plus the edited entry's own), "Mark inactive/active" on the Categories screen, "Inactive" badges, local migrations 1 and 2 (with quarantine on budget collisions), backup schema v5 with v4 → v5 migration. ADR 0006. Unit, context, migration, backup, and e2e CAT-003 tests.
 - **Pending:** owner confirmation of the PRD FR-03 picker assumption and of the inactive-category/active-recurring-rule detail (decisions 15–16). **Reason:** the PRD marks both as requiring confirmation; the safest documented behavior is implemented. Collapsible Inactive section (DESIGN §13) left for Phase 9. Unique active category names (DATABASE §6.2) were implemented in this phase.
+
+### Phase 5 — Recurring expense scheduling
+
+- **Completed:** the scheduler is a pure, tested planner (`lib/domain/recurring.ts`); `processRecurring` is single-flight and saves occurrences and cursors together; generation runs only after unlock and on resume; tests cover day 31 in short months, leap and non-leap February, catch-up after time away, repeated runs, interrupted saves, legacy matches, and paused/resumed rules. E2E REC-003. Clamping, paused-month skipping, and occurrence identity were already in place (ADR 0004).
+- **Pending:** permanent suppression of a deleted occurrence (decision 24). **Reason:** PRD FR-07 marks it as an open product decision.

@@ -41,9 +41,22 @@ function normalizeRouterBase(baseUrl: string) {
 function AppLayout({ quarantined }: { quarantined: QuarantineReport[] }) {
   const { isReady, isLocked } = useSecurity();
   const { setSuppressAutoOpen } = useMonthEndReview();
+  const { processRecurring } = useFinance();
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean>(() => !isOnboardingComplete());
 
   const showOnboarding = !isLocked && needsOnboarding;
+
+  // Recurring expenses are generated only while unlocked: once after unlock
+  // and again whenever the app returns to the foreground (ARCHITECTURE §6.4).
+  useEffect(() => {
+    if (!isReady || isLocked) return;
+    processRecurring();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') processRecurring();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [isReady, isLocked, processRecurring]);
 
   // Suppress the month-end review auto-open while the app isn't ready, the
   // lock screen is up, or first-launch onboarding is running.

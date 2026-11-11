@@ -29,7 +29,7 @@ import { createId } from '@/lib/ids';
 import { writeFinanceData, type FinanceStorageKey } from '@/lib/storage/finance-storage';
 import { readFinanceData, type StoredFinanceData } from '@/lib/storage/finance-read';
 import type { FinanceLoad } from '@/lib/storage/startup';
-import { getLastDueMonthBeforeDate, getRecurringOccurrenceDate } from '@/lib/recurring-utils';
+import { getLastDueMonthBeforeDate, planRecurringGeneration } from '@/lib/domain/recurring';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 const SYSTEM_ADJUSTMENT_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
@@ -225,6 +225,11 @@ interface FinanceContextType {
   getMonthSummary: (month?: string) => MonthSummary;
   /** Re-reads all entities from localStorage. Used after a Drive restore. */
   reloadFromStorage: () => void;
+  /**
+   * Adds every due recurring occurrence once and advances rule cursors.
+   * Called by the app shell after unlock and on resume (ARCHITECTURE §6.4).
+   */
+  processRecurring: () => { ok: true; count: number } | { ok: false; message: string };
   /** Monotonic timestamp bumped on every mutation; consumed by auto-backup. */
   lastChangedAt: number;
   /** Set when a background save (for example recurring generation) fails. */
@@ -595,79 +600,48 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
     setLastChangedAt(Date.now());
   }, []);
 
-  // Recurring materializer: for each active recurring expense, generate one
-  // transaction per month from startMonth..currentMonth that hasn't been generated yet.
-  // For the CURRENT month, we wait until today's date reaches the rule's dayOfMonth
-  // before stamping. Future months are never materialized here.
-  useEffect(() => {
-    const today = localDateStr(new Date());
-    const cur = today.slice(0, 7);
-    const pending: { recurringId: string; lastMonth: string; newTx: Omit<Transaction, 'id'>[] }[] = [];
-    const { transactions: currentTransactions, recurringExpenses: currentRules } = latest.current;
-
-    currentRules.forEach(r => {
-      if (!r.active) return;
-      if (!r.startMonth || r.startMonth > cur) return;
-
-      const startFrom = r.lastGeneratedMonth && r.lastGeneratedMonth >= r.startMonth
-        ? addMonths(r.lastGeneratedMonth, 1)
-        : r.startMonth;
-      if (startFrom > cur) return;
-
-      const monthsToGenerate: string[] = [];
-      let m = startFrom;
-      while (m <= cur) {
-        if (getRecurringOccurrenceDate(m, r.dayOfMonth) > today) break;
-        monthsToGenerate.push(m);
-        m = addMonths(m, 1);
+  // Recurring generation (ARCHITECTURE §6.4): the app shell calls this after
+  // unlock and on every resume; rule changes made while unlocked call it too.
+  // Single-flight, and idempotent because occurrence keys block duplicates.
+  const processingRecurring = useRef(false);
+  const processRecurring = useCallback((): { ok: true; count: number } | { ok: false; message: string } => {
+    if (processingRecurring.current) return { ok: true, count: 0 };
+    processingRecurring.current = true;
+    try {
+      const { transactions: currentTransactions, recurringExpenses: currentRules } = latest.current;
+      const plan = planRecurringGeneration(currentRules, currentTransactions, localDateStr(new Date()));
+      if (Object.keys(plan.cursors).length === 0) return { ok: true, count: 0 };
+      const changes: Partial<FinanceData> = {
+        recurringExpenses: currentRules.map(r =>
+          plan.cursors[r.id] ? { ...r, lastGeneratedMonth: plan.cursors[r.id] } : r),
+      };
+      if (plan.occurrences.length > 0) {
+        changes.transactions = [...plan.occurrences.map(t => ({ ...t, id: createId() })), ...currentTransactions];
       }
-      if (monthsToGenerate.length === 0) return;
+      // Transactions and cursors are saved together; on failure nothing changes
+      // and generation is retried on the next resume.
+      const result = commit(changes);
+      if (!result.ok) {
+        const message = `Recurring expenses could not be added. ${result.message}`;
+        setStorageError(message);
+        return { ok: false, message };
+      }
+      return { ok: true, count: plan.occurrences.length };
+    } finally {
+      processingRecurring.current = false;
+    }
+  }, [commit]);
 
-      const newTx: Omit<Transaction, 'id'>[] = [];
-      monthsToGenerate.forEach(monthKey => {
-        const date = getRecurringOccurrenceDate(monthKey, r.dayOfMonth);
-        const note = r.description;
-
-        const exists = currentTransactions.some(t =>
-          t.recurringRuleId === r.id && t.recurringMonth === monthKey
-        );
-        // Legacy generated transactions had no occurrence key. Match their
-        // exact scheduled date once, then the forward-only cursor takes over.
-        const legacyExists = currentTransactions.some(t =>
-          t.recurringRuleId === undefined &&
-          t.type === 'expense' &&
-          t.date === date &&
-          t.amount === r.amount &&
-          (t.note || '').trim().toLowerCase() === note.trim().toLowerCase() &&
-          t.categoryId === r.categoryId
-        );
-        if (exists || legacyExists) return;
-
-        newTx.push({
-          type: 'expense', amount: r.amount, categoryId: r.categoryId, note, date,
-          recurringRuleId: r.id, recurringMonth: monthKey,
-        });
-      });
-
-      pending.push({ recurringId: r.id, lastMonth: monthsToGenerate[monthsToGenerate.length - 1], newTx });
-    });
-
-    if (pending.length === 0) return;
-
-    const allNew: Transaction[] = pending.flatMap(p => p.newTx.map(t => ({ ...t, id: createId() })));
-    const changes: Partial<FinanceData> = {
-      recurringExpenses: currentRules.map(r => {
-        const match = pending.find(p => p.recurringId === r.id);
-        return match ? { ...r, lastGeneratedMonth: match.lastMonth } : r;
-      }),
-    };
-    if (allNew.length > 0) changes.transactions = [...allNew, ...currentTransactions];
-    // Transactions and cursors are saved together; on failure nothing changes
-    // and generation is retried on the next launch.
-    const result = commit(changes);
-    if (!result.ok) setStorageError(`Recurring expenses could not be added. ${result.message}`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recurringExpenses]);
+  // Re-run when rules change (add, edit, resume), but not on the first render:
+  // the app shell runs the first pass once the app is unlocked.
+  const rulesSeen = useRef(false);
+  useEffect(() => {
+    if (!rulesSeen.current) {
+      rulesSeen.current = true;
+      return;
+    }
+    processRecurring();
+  }, [recurringExpenses, processRecurring]);
 
   // Every total below comes from lib/domain/finance-metrics (PRD §6); the
   // context only supplies the selected month and today's date.
@@ -821,7 +795,7 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
       getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getCumulativeNetBalanceThroughEndOf, getOutstandingCardBalance, getReconciliationFor, addReconciliation, getSpentForCategory,
       getTotalCommitments, getTotalDayToDay, getBudgetBreakdown,
       getMonthSummary,
-      reloadFromStorage, lastChangedAt,
+      reloadFromStorage, processRecurring, lastChangedAt,
       storageError, clearStorageError,
     }}>
       {children}

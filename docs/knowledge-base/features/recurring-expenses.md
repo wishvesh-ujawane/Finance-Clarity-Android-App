@@ -2,16 +2,18 @@
 id: feature-recurring-expenses
 title: Recurring Expenses screen
 date: 2026-06-28
-updated: 2026-06-28
+updated: 2026-11-12
 status: current
 scope: [financial-clarity]
 related:
   - ./transactions.md
   - ./settings.md
   - ./fab.md
+  - ../decisions/0004-recurring-occurrence-identity.md
 source-of-truth-files:
   - artifacts/financial-clarity/src/pages/RecurringExpenses.tsx
   - artifacts/financial-clarity/src/context/FinanceContext.tsx
+  - artifacts/financial-clarity/src/lib/domain/recurring.ts
 ---
 
 # Recurring Expenses screen
@@ -43,6 +45,19 @@ Pause-or-Resume / Edit / Delete (with confirmation) buttons.
 ## Edge cases & empty states
 - Empty: plus-icon tile + "No recurring expenses yet".
 - Pause: hides the item from monthly auto-creation without deleting it.
+  Resuming skips months that fell due while paused; an occurrence due on the
+  resume day is still created.
+- Generation runs only while the app is unlocked: once after unlock and on
+  every return to the foreground (`App.tsx` → `processRecurring`). The
+  scheduler is the pure `planRecurringGeneration` in `lib/domain/recurring.ts`.
+- A scheduled day that does not exist in a month uses the month's last day
+  (31 → 30, 28, or 29). After time away, every missed month is added once.
+- Each generated transaction carries `recurringRuleId` + `recurringMonth`
+  (ADR 0004), so repeated runs never duplicate it. A deleted occurrence is not
+  recreated because the cursor has passed it; permanent suppression is still a
+  pending PRD FR-07 decision.
+- The category picker offers active categories only (ADR 0006). A rule whose
+  category became inactive keeps generating.
 
 ## Cross-feature dependencies
 - [transactions.md](./transactions.md) — each active recurring item creates a

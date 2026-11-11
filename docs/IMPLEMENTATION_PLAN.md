@@ -408,3 +408,14 @@ used for implementation is in the previous revision of this file
   assumption and the inactive-category/active-recurring-rule detail (current
   behavior: the rule keeps generating); DESIGN §13 collapsible Inactive
   section (Phase 9).
+
+### Phase 5 — Done (branch `feature/phase-5-recurring-scheduler`)
+
+- Done: pure scheduler `planRecurringGeneration` (`lib/domain/recurring.ts`);
+  single-flight `FinanceContext.processRecurring`; generation only after
+  unlock and on every resume, never while locked; tests for short months,
+  leap years, catch-up, repeated runs, interrupted saves, and legacy matches.
+  E2E REC-003.
+- Open for later phases: permanent suppression of a deleted occurrence is
+  still an open PRD FR-07 decision (the forward-only cursor already prevents
+  re-creation).

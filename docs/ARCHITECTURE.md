@@ -237,7 +237,8 @@ Income, consumption spending, savings contributions, monthly net, carry-forward,
   - generate only if that date is today or earlier.
 - **Idempotency.** Before generating, look for an existing transaction with the same occurrence identity. Running the processor any number of times produces each occurrence at most once, even if the app was interrupted mid-run.
 - **Single-flight.** Only one processing run at a time. All new occurrences and updated rule tracking are saved in one persist-first commit.
-- **Pending (PRD FR-07):** whether deleting a generated occurrence suppresses it permanently. Until that is decided, never recreate a transaction the user deleted. Record suppression in the rule's generation tracking.
+- **Implementation.** The pure planner is `planRecurringGeneration` in `lib/domain/recurring.ts`. `FinanceContext.processRecurring` saves its plan. `App.tsx` calls it once the app is unlocked and on every `visibilitychange` back to visible; rule changes made while unlocked call it too. Nothing is generated while the lock screen is shown (DATABASE §8.2).
+- **Pending (PRD FR-07):** whether deleting a generated occurrence suppresses it permanently. Until that is decided, never recreate a transaction the user deleted. The forward-only cursor already guarantees this; no separate suppression record is kept (DATABASE §6.3).
 
 ### 6.5 Backup and restore (PRD FR-11, existing behavior preserved)
 
