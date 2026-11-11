@@ -8,7 +8,7 @@ import type {
 } from './types';
 import { sha256Hex } from './backupHash';
 
-export const BACKUP_VERSION = 3;
+export const BACKUP_VERSION = 4;
 
 export interface BackupCounts {
   transactions: number;
@@ -92,6 +92,8 @@ export const migrations: Record<number, (b: BackupFile) => BackupFile> = {
       linkedSms: 0,
     },
   }),
+  // v3 -> v4: transactions may carry a stable recurring rule/month identity.
+  3: (b) => ({ ...b, schemaVersion: 4 }),
 };
 
 // ---------------- Validators ----------------
@@ -112,6 +114,9 @@ function isValidTransaction(value: unknown): value is Transaction {
     typeof value.date === 'string' && value.date.length > 0 &&
     (value.paymentMethod === undefined ||
       (typeof value.paymentMethod === 'string' && VALID_PAYMENT_METHODS.has(value.paymentMethod))) &&
+    ((value.recurringRuleId === undefined && value.recurringMonth === undefined) ||
+      (value.type === 'expense' && typeof value.recurringRuleId === 'string' && value.recurringRuleId.length > 0 &&
+        typeof value.recurringMonth === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.recurringMonth))) &&
     (value.sourceSmsFingerprint === undefined || typeof value.sourceSmsFingerprint === 'string') &&
     (value.merchant === undefined || typeof value.merchant === 'string')
   );

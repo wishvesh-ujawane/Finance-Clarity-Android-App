@@ -6,6 +6,9 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-11-11 — decisions/0004-recurring-occurrence-identity.md, bugs/20261111-recurring-paused-months.md — Added stable rule/month occurrence identity, v4 backup migration, and paused-month resume handling; desktop Playwright regression passes.
+2026-11-11 — bugs/20261106-swallowed-storage-writes.md — Completed E3 persist-first finance writes for budgets, recurring rules, and savings targets; forms retain values and surface storage failures.
+2026-11-06 — bugs/20261106-swallowed-storage-writes.md, ARCHITECTURE.md §19 A2 — Added `lib/storage/finance-storage.ts` (typed results, §7.3 order, rollback). Transactions, categories, CSV import, recurring generation, and reconciliation now persist before updating state and show failures. Budgets, recurring rules, savings, and flags follow in E3.
 2026-11-06 — bugs/20261106-drive-backup-overwrite.md, features/backup-restore.md — Back up now asks before replacing a Drive backup with more transactions (or an unreadable one) and saves a `pre-overwrite` copy first; auto-backup pauses instead of replacing. Fixes audit F-05.
 2026-11-06 — bugs/20261106-used-category-deletion.md, features/categories.md — `deleteCategory` refuses reserved categories and any category used by transactions, budgets, or recurring rules, returning a typed result; the page hides Delete and explains why. Fixes audit F-07.
 2026-11-06 — bugs/20261106-app-lock-exposure.md, features/security.md — Nothing but the lock screen renders while locked; focus is trapped; failed attempts and an escalating cooldown (30 s → 1 min → 5 min → 15 min) persist in security settings; `FLAG_SECURE` is set while the app lock is on (owner decision). Fixes audit F-04, F-09, F-13.

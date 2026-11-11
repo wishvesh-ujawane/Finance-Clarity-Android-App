@@ -3,6 +3,8 @@ import { useLocation } from 'wouter';
 import { ArrowLeft, Download, FileUp, Settings as SettingsIcon } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { buildTransactionsCsv, exportCsvFile, parseTransactionsCsv, planCsvImport } from '@/lib/csv';
+import { createId } from '@/lib/ids';
+import type { Category } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { BackupSettingsCard } from '@/components/BackupSettingsCard';
 import { CsvImportPreviewDialog, type CsvImportPreview } from '@/components/CsvImportPreviewDialog';
@@ -12,7 +14,7 @@ const MAX_CSV_BYTES = 5 * 1024 * 1024;
 
 export default function BackupRestore() {
   const [, setLocation] = useLocation();
-  const { transactions, categories, addCategory, importTransactions } = useFinance();
+  const { transactions, categories, importTransactions } = useFinance();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -66,16 +68,14 @@ export default function BackupRestore() {
     if (!preview || isImporting) return;
     setIsImporting(true);
     try {
-      const createdIds = new Map<string, string>();
-      preview.plan.categoriesToCreate.forEach((entry, index) => {
-        const created = addCategory({
-          name: entry.name,
-          icon: 'DollarSign',
-          color: IMPORT_COLORS[index % IMPORT_COLORS.length],
-          type: entry.type,
-        });
-        createdIds.set(entry.key, created.id);
-      });
+      const newCategories: Category[] = preview.plan.categoriesToCreate.map((entry, index) => ({
+        id: createId(),
+        name: entry.name,
+        icon: 'DollarSign',
+        color: IMPORT_COLORS[index % IMPORT_COLORS.length],
+        type: entry.type,
+      }));
+      const createdIds = new Map(preview.plan.categoriesToCreate.map((entry, index) => [entry.key, newCategories[index].id]));
 
       const items = preview.plan.items.flatMap(item => {
         const categoryId = item.categoryId ?? (item.newCategoryKey ? createdIds.get(item.newCategoryKey) : undefined);
@@ -84,17 +84,20 @@ export default function BackupRestore() {
         return [{ date, type, amount, note, categoryId }];
       });
 
-      const imported = importTransactions(items);
+      // Categories and transactions are saved together, or not at all.
+      const result = importTransactions(items, newCategories);
+      setPreview(null);
+      if (!result.ok) {
+        setError(`Nothing was imported. ${result.message}`);
+        return;
+      }
       const skippedDuplicates = preview.plan.duplicateCount;
       const skippedInvalid = preview.invalidRows.length;
       const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
       setMessage(
-        `Imported ${plural(imported, 'transaction')}. Skipped ${plural(skippedDuplicates, 'duplicate')}` +
+        `Imported ${plural(result.count, 'transaction')}. Skipped ${plural(skippedDuplicates, 'duplicate')}` +
         (skippedInvalid > 0 ? ` and ${plural(skippedInvalid, 'invalid row')}.` : '.'),
       );
-      setPreview(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import failed. Your data is unchanged.');
     } finally {
       setIsImporting(false);
     }

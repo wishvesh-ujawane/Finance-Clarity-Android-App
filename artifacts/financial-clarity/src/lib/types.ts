@@ -10,6 +10,10 @@ export interface Transaction {
   date: string;
   /** Optional payment method metadata retained by backup and restore. */
   paymentMethod?: PaymentMethod;
+  /** Rule that generated this recurring expense, when applicable. */
+  recurringRuleId?: string;
+  /** Month represented by this recurring occurrence (`YYYY-MM`). */
+  recurringMonth?: string;
   /** Legacy provenance field retained for transaction and backup compatibility. */
   sourceSmsFingerprint?: string;
   /** Optional merchant / payee retained with legacy transactions. */

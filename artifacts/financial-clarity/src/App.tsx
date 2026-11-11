@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Switch, Route, Router as WouterRouter } from 'wouter';
 import { Toaster } from '@/components/ui/toaster';
+import { toast } from '@/hooks/use-toast';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { FinanceProvider } from '@/context/FinanceContext';
+import { FinanceProvider, useFinance } from '@/context/FinanceContext';
 import { SecurityProvider, useSecurity } from '@/context/SecurityContext';
 import { BackupProvider } from '@/context/BackupContext';
 import { FabProvider } from '@/context/FabContext';
@@ -92,6 +93,17 @@ function AppToaster() {
   return isLocked ? null : <Toaster />;
 }
 
+/** Shows background save failures (for example recurring generation) as a toast. */
+function StorageErrorNotifier() {
+  const { storageError, clearStorageError } = useFinance();
+  useEffect(() => {
+    if (!storageError) return;
+    toast({ variant: 'destructive', title: 'Couldn\u2019t save', description: storageError });
+    clearStorageError();
+  }, [storageError, clearStorageError]);
+  return null;
+}
+
 function App() {
   const routerBase = normalizeRouterBase(import.meta.env.BASE_URL);
 
@@ -106,6 +118,7 @@ function App() {
                   <AppLayout />
                 </WouterRouter>
                 <AppToaster />
+                <StorageErrorNotifier />
               </TooltipProvider>
             </MonthEndReviewProvider>
           </FabProvider>

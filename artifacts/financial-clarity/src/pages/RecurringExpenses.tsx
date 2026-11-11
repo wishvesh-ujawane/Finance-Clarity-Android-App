@@ -59,6 +59,7 @@ export default function RecurringExpenses() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [saveError, setSaveError] = useState('');
 
   const resetForm = () => {
     setForm({ ...EMPTY_FORM, categoryId: eligibleCategories[0]?.id || '' });
@@ -82,14 +83,23 @@ export default function RecurringExpenses() {
 
     if (editingId) {
       const existing = recurringExpenses.find(r => r.id === editingId);
-      updateRecurring(editingId, {
+      const result = updateRecurring(editingId, {
         ...payload,
         lastGeneratedMonth: existing?.lastGeneratedMonth,
       });
+      if (!result.ok) {
+        setSaveError(result.message);
+        return;
+      }
     } else {
-      addRecurring(payload);
+      const result = addRecurring(payload);
+      if (!result.ok) {
+        setSaveError(result.message);
+        return;
+      }
     }
     resetForm();
+    setSaveError('');
   };
 
   const startEdit = (id: string) => {
@@ -110,6 +120,7 @@ export default function RecurringExpenses() {
   const beginAdd = () => {
     setEditingId(null);
     setForm({ ...EMPTY_FORM, categoryId: eligibleCategories[0]?.id || '' });
+    setSaveError('');
     setShowForm(true);
   };
 
@@ -139,6 +150,7 @@ export default function RecurringExpenses() {
       <p className="text-sm text-muted-foreground mb-4">
         Active recurring items automatically add a transaction every month on the chosen day.
       </p>
+      {saveError && <p className="mb-4 text-sm text-destructive" role="alert" data-testid="recurring-save-error">{saveError}</p>}
 
       <AnimatePresence initial={false}>
         {showForm && (
@@ -299,7 +311,10 @@ export default function RecurringExpenses() {
                 <div className="flex gap-2 mt-3">
                   <button
                     data-testid={`recurring-toggle-${r.id}`}
-                    onClick={() => toggleRecurringActive(r.id)}
+                    onClick={() => {
+                      const result = toggleRecurringActive(r.id);
+                      setSaveError(result.ok ? '' : result.message);
+                    }}
                     className="flex-1 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors inline-flex items-center justify-center gap-1.5"
                   >
                     <Power size={12} /> {r.active ? 'Pause' : 'Resume'}
@@ -329,7 +344,10 @@ export default function RecurringExpenses() {
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel><X size={12} className="inline mr-1" />Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => deleteRecurring(r.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                        <AlertDialogAction onClick={() => {
+                          const result = deleteRecurring(r.id);
+                          setSaveError(result.ok ? '' : result.message);
+                        }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>

@@ -24,6 +24,7 @@ export function BudgetSheet() {
 
   const [newCatId, setNewCatId] = useState('');
   const [newLimit, setNewLimit] = useState('');
+  const [saveError, setSaveError] = useState('');
 
   const currentMonthBudgets = useMemo(
     () => budgets.filter(b => b.month === selectedMonth),
@@ -64,7 +65,11 @@ export function BudgetSheet() {
   const handleSave = () => {
     const limitValue = parseCurrencyInput(newLimit);
     if (!newCatId || limitValue <= 0) return;
-    addBudget({ categoryId: newCatId, limit: limitValue, month: selectedMonth });
+    const result = addBudget({ categoryId: newCatId, limit: limitValue, month: selectedMonth });
+    if (!result.ok) {
+      setSaveError(result.message);
+      return;
+    }
     closeBudgetSheet();
   };
 
@@ -75,6 +80,7 @@ export function BudgetSheet() {
           <SheetTitle>New Budget</SheetTitle>
           <SheetDescription>Set a monthly limit for {formatMonthLabel(selectedMonth)}.</SheetDescription>
         </SheetHeader>
+        {saveError && <p className="mt-3 text-sm text-destructive" role="alert" data-testid="budget-save-error">{saveError}</p>}
         <motion.div
           key={isBudgetSheetOpen ? 'open' : 'closed'}
           initial={{ opacity: 0, y: 8 }}
@@ -97,7 +103,7 @@ export function BudgetSheet() {
                 <select
                   data-testid="budget-category-select"
                   value={newCatId}
-                  onChange={e => setNewCatId(e.target.value)}
+                  onChange={e => { setNewCatId(e.target.value); setSaveError(''); }}
                   className="w-full px-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
                 >
                   <option value="">Select a category</option>
@@ -113,7 +119,7 @@ export function BudgetSheet() {
                     type="number"
                     placeholder="0"
                     value={newLimit}
-                    onChange={e => setNewLimit(e.target.value)}
+                    onChange={e => { setNewLimit(e.target.value); setSaveError(''); }}
                     className="w-full pl-8 pr-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
                   />
                 </div>

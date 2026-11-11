@@ -14,9 +14,10 @@ export default function SavingsGoals() {
   const [emergencyMonthlyInput, setEmergencyMonthlyInput] = useState(String(savingsGoal.emergency.monthly || ''));
   const [emergencyAnnualInput, setEmergencyAnnualInput] = useState(String(savingsGoal.emergency.annual || ''));
   const [goalSavedMessage, setGoalSavedMessage] = useState('');
+  const [saveError, setSaveError] = useState('');
 
   const handleSaveGoal = () => {
-    setSavingsGoal({
+    const result = setSavingsGoal({
       goal: {
         monthly: parseCurrencyInput(goalMonthlyInput),
         annual: parseCurrencyInput(goalAnnualInput),
@@ -26,6 +27,12 @@ export default function SavingsGoals() {
         annual: parseCurrencyInput(emergencyAnnualInput),
       },
     });
+    if (!result.ok) {
+      setGoalSavedMessage('');
+      setSaveError(result.message);
+      return;
+    }
+    setSaveError('');
     setGoalSavedMessage('Savings goals saved.');
     setTimeout(() => setGoalSavedMessage(''), 2500);
   };
@@ -163,6 +170,7 @@ export default function SavingsGoals() {
           {goalSavedMessage && (
             <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">{goalSavedMessage}</p>
           )}
+          {saveError && <p className="text-xs font-medium text-destructive" role="alert" data-testid="savings-save-error">{saveError}</p>}
         </div>
       </div>
     </div>

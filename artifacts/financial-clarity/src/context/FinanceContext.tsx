@@ -1,10 +1,35 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { Transaction, Category, Budget, RecurringExpense, SavingsGoal, SAVINGS_CATEGORY_IDS, SYSTEM_ADJUSTMENT_CATEGORY_IDS, MonthReconciliation } from '@/lib/types';
-import { currentMonth, localDateStr, isConsumptionExpense } from '@/lib/finance-utils';
+import { addMonths, currentMonth, localDateStr, isConsumptionExpense } from '@/lib/finance-utils';
 import { canDeleteCategory, type CategoryDeleteCheck } from '@/lib/category-rules';
+import { createId } from '@/lib/ids';
+import { writeFinanceData, type FinanceStorageKey } from '@/lib/storage/finance-storage';
+import { getLastDueMonthBeforeDate, getRecurringOccurrenceDate } from '@/lib/recurring-utils';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 const SYSTEM_ADJUSTMENT_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
+
+/** Result of a finance write: state changes only when the save succeeded. */
+export type FinanceWriteResult = { ok: true } | { ok: false; message: string };
+export type DeleteCategoryResult = CategoryDeleteCheck | { ok: false; reason: 'storage'; message: string };
+
+interface FinanceData {
+  transactions: Transaction[];
+  categories: Category[];
+  budgets: Budget[];
+  recurringExpenses: RecurringExpense[];
+  reconciliations: MonthReconciliation[];
+  savingsGoal: SavingsGoal;
+}
+
+const STORAGE_KEY_FOR: Record<keyof FinanceData, FinanceStorageKey> = {
+  transactions: 'transactions',
+  categories: 'categories',
+  budgets: 'budgets',
+  recurringExpenses: 'recurring',
+  reconciliations: 'reconciliations',
+  savingsGoal: 'savingsGoal',
+};
 
 /**
  * Canonical per-month summary. Single source of truth for screen-level totals.
@@ -104,22 +129,26 @@ interface FinanceContextType {
   savingsGoal: SavingsGoal;
   /** Month-End Review reconciliation records (one per month, at most). */
   reconciliations: MonthReconciliation[];
-  addTransaction: (t: Omit<Transaction, 'id'>) => void;
-  importTransactions: (items: Omit<Transaction, 'id'>[]) => number;
-  updateTransaction: (id: string, updates: Omit<Transaction, 'id'>) => void;
-  deleteTransaction: (id: string) => void;
-  addCategory: (c: Omit<Category, 'id'>) => Category;
-  updateCategory: (id: string, updates: Omit<Category, 'id'>) => void;
-  deleteCategory: (id: string) => CategoryDeleteCheck;
-  addBudget: (b: Omit<Budget, 'id'>) => void;
-  updateBudget: (id: string, limit: number) => void;
-  deleteBudget: (id: string) => void;
-  transferBudgetsToMonth: (fromMonth: string, toMonth: string) => number;
-  addRecurring: (r: Omit<RecurringExpense, 'id' | 'lastGeneratedMonth'>) => void;
-  updateRecurring: (id: string, updates: Omit<RecurringExpense, 'id'>) => void;
-  deleteRecurring: (id: string) => void;
-  toggleRecurringActive: (id: string) => void;
-  setSavingsGoal: (goal: SavingsGoal) => void;
+  addTransaction: (t: Omit<Transaction, 'id'>) => FinanceWriteResult;
+  /** Adds transactions and any new categories they use in one all-or-nothing save. */
+  importTransactions: (
+    items: Omit<Transaction, 'id'>[],
+    newCategories?: Category[],
+  ) => { ok: true; count: number } | { ok: false; message: string };
+  updateTransaction: (id: string, updates: Omit<Transaction, 'id'>) => FinanceWriteResult;
+  deleteTransaction: (id: string) => FinanceWriteResult;
+  addCategory: (c: Omit<Category, 'id'>) => { ok: true; category: Category } | { ok: false; message: string };
+  updateCategory: (id: string, updates: Omit<Category, 'id'>) => FinanceWriteResult;
+  deleteCategory: (id: string) => DeleteCategoryResult;
+  addBudget: (b: Omit<Budget, 'id'>) => FinanceWriteResult;
+  updateBudget: (id: string, limit: number) => FinanceWriteResult;
+  deleteBudget: (id: string) => FinanceWriteResult;
+  transferBudgetsToMonth: (fromMonth: string, toMonth: string) => { ok: true; count: number } | { ok: false; message: string };
+  addRecurring: (r: Omit<RecurringExpense, 'id' | 'lastGeneratedMonth'>) => FinanceWriteResult;
+  updateRecurring: (id: string, updates: Omit<RecurringExpense, 'id'>) => FinanceWriteResult;
+  deleteRecurring: (id: string) => FinanceWriteResult;
+  toggleRecurringActive: (id: string) => FinanceWriteResult;
+  setSavingsGoal: (goal: SavingsGoal) => FinanceWriteResult;
   selectedMonth: string;
   setSelectedMonth: (m: string) => void;
   isSheetOpen: boolean;
@@ -176,7 +205,7 @@ interface FinanceContextType {
     expectedBalance: number;
     adjustmentAmount?: number;
     note?: string;
-  }) => MonthReconciliation;
+  }) => { ok: true; record: MonthReconciliation } | { ok: false; message: string };
   getSpentForCategory: (categoryId: string, month: string) => number;
   /** Canonical per-month summary — use this from all screens. */
   getMonthSummary: (month?: string) => MonthSummary;
@@ -184,6 +213,9 @@ interface FinanceContextType {
   reloadFromStorage: () => void;
   /** Monotonic timestamp bumped on every mutation; consumed by auto-backup. */
   lastChangedAt: number;
+  /** Set when a background save (for example recurring generation) fails. */
+  storageError: string | null;
+  clearStorageError: () => void;
 
 }
 
@@ -228,6 +260,9 @@ function isValidTransaction(value: unknown): value is Transaction {
     value.date.length > 0 &&
     (value.paymentMethod === undefined ||
       (typeof value.paymentMethod === 'string' && VALID_PAYMENT_METHODS.has(value.paymentMethod))) &&
+    ((value.recurringRuleId === undefined && value.recurringMonth === undefined) ||
+      (value.type === 'expense' && typeof value.recurringRuleId === 'string' && value.recurringRuleId.length > 0 &&
+        typeof value.recurringMonth === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.recurringMonth))) &&
     (value.sourceSmsFingerprint === undefined || typeof value.sourceSmsFingerprint === 'string') &&
     (value.merchant === undefined || typeof value.merchant === 'string')
   );
@@ -318,31 +353,6 @@ function loadArrayFromStorage<T>(key: string, fallback: T[], isValid: (value: un
   }
 }
 
-function saveToStorage<T>(key: string, value: T): void {
-  try {
-    if (skippedInitialStorageWrites.has(key)) {
-      skippedInitialStorageWrites.delete(key);
-      return;
-    }
-    localStorage.setItem(getStorageKey(key), JSON.stringify(value));
-  } catch {
-    // ignore
-  }
-}
-
-function createId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function addOneMonth(month: string): string {
-  const [y, m] = month.split('-').map(Number);
-  const d = new Date(y, m, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
 export function FinanceProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>(() =>
     loadArrayFromStorage('transactions', [], isValidTransaction).map(t => ({ ...t, note: t.note || '' }))
@@ -400,16 +410,51 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [sheetInitialMode, setSheetInitialMode] = useState<'expense' | 'income' | 'save' | null>(null);
   const [isBudgetSheetOpen, setIsBudgetSheetOpen] = useState(false);
   const [lastChangedAt, setLastChangedAt] = useState<number>(0);
+  const [storageError, setStorageError] = useState<string | null>(null);
 
-  useEffect(() => { saveToStorage('transactions', transactions); setLastChangedAt(Date.now()); }, [transactions]);
-  useEffect(() => { saveToStorage('categories', categories); setLastChangedAt(Date.now()); }, [categories]);
-  useEffect(() => { saveToStorage('budgets', budgets); setLastChangedAt(Date.now()); }, [budgets]);
-  useEffect(() => { saveToStorage('recurring', recurringExpenses); setLastChangedAt(Date.now()); }, [recurringExpenses]);
-  useEffect(() => { saveToStorage('reconciliations', reconciliations); setLastChangedAt(Date.now()); }, [reconciliations]);
-  useEffect(() => {
-    try { localStorage.setItem(getStorageKey('savings-goal'), JSON.stringify(savingsGoal)); } catch { /* ignore */ }
+  // Latest committed data, so consecutive writes in one event never build on
+  // stale state. Synced from React state on every render.
+  const latest = useRef<FinanceData>({ transactions, categories, budgets, recurringExpenses, reconciliations, savingsGoal });
+  latest.current = { transactions, categories, budgets, recurringExpenses, reconciliations, savingsGoal };
+
+  // Persist first (ARCHITECTURE §6.2): write storage, then update React state
+  // only if every write succeeded. Multi-key writes roll back together.
+  const commit = useCallback((changes: Partial<FinanceData>): FinanceWriteResult => {
+    const storageChanges: Partial<Record<FinanceStorageKey, unknown>> = {};
+    for (const key of Object.keys(changes) as Array<keyof FinanceData>) {
+      storageChanges[STORAGE_KEY_FOR[key]] = changes[key];
+    }
+    const result = writeFinanceData(storageChanges);
+    if (!result.ok) return { ok: false, message: result.message };
+
+    latest.current = { ...latest.current, ...changes };
+    if (changes.transactions) setTransactions(changes.transactions);
+    if (changes.categories) setCategories(changes.categories);
+    if (changes.budgets) setBudgets(changes.budgets);
+    if (changes.recurringExpenses) setRecurringExpenses(changes.recurringExpenses);
+    if (changes.reconciliations) setReconciliations(changes.reconciliations);
+    if (changes.savingsGoal) setSavingsGoalState(changes.savingsGoal);
     setLastChangedAt(Date.now());
-  }, [savingsGoal]);
+    return { ok: true };
+  }, []);
+
+  const clearStorageError = useCallback(() => setStorageError(null), []);
+
+  // On launch, store the normalised data that was just read (unless the key was
+  // quarantined). A failure here loses nothing: the same values are rebuilt
+  // from storage on the next launch.
+  useEffect(() => {
+    const initial: Partial<Record<FinanceStorageKey, unknown>> = {};
+    for (const key of ['transactions', 'categories'] as const) {
+      if (skippedInitialStorageWrites.has(key)) {
+        skippedInitialStorageWrites.delete(key);
+        continue;
+      }
+      initial[key] = latest.current[key];
+    }
+    writeFinanceData(initial);
+    setLastChangedAt(Date.now());
+  }, []);
 
   // One-time backfill: for legacy SavingsGoal entries with a target but no createdAt,
   // anchor pace at the earliest savings transaction in that category (else today).
@@ -425,108 +470,113 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
       return earliest ?? today;
     };
-    setSavingsGoalState(prev => ({
-      goal: needsBackfill(prev.goal) ? { ...prev.goal, createdAt: earliestFor('savings-goal') } : prev.goal,
-      emergency: needsBackfill(prev.emergency) ? { ...prev.emergency, createdAt: earliestFor('savings-emergency') } : prev.emergency,
-    }));
+    const previousSavingsGoal = latest.current.savingsGoal;
+    const updatedSavingsGoal: SavingsGoal = {
+      goal: needsBackfill(previousSavingsGoal.goal) ? { ...previousSavingsGoal.goal, createdAt: earliestFor('savings-goal') } : previousSavingsGoal.goal,
+      emergency: needsBackfill(previousSavingsGoal.emergency) ? { ...previousSavingsGoal.emergency, createdAt: earliestFor('savings-emergency') } : previousSavingsGoal.emergency,
+    };
+    const result = commit({ savingsGoal: updatedSavingsGoal });
+    if (!result.ok) setStorageError(result.message);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const addTransaction = useCallback((t: Omit<Transaction, 'id'>) => {
-    setTransactions(prev => [{ ...t, id: createId() }, ...prev]);
-  }, []);
+  const addTransaction = useCallback((t: Omit<Transaction, 'id'>): FinanceWriteResult =>
+    commit({ transactions: [{ ...t, id: createId() }, ...latest.current.transactions] }),
+  [commit]);
 
-  const importTransactions = useCallback((items: Omit<Transaction, 'id'>[]) => {
-    if (items.length === 0) return 0;
-    setTransactions(prev => [
-      ...items.map(t => ({ ...t, id: createId() })),
-      ...prev,
-    ]);
-    return items.length;
-  }, []);
+  const importTransactions = useCallback((
+    items: Omit<Transaction, 'id'>[],
+    newCategories: Category[] = [],
+  ): { ok: true; count: number } | { ok: false; message: string } => {
+    if (items.length === 0 && newCategories.length === 0) return { ok: true, count: 0 };
+    const changes: Partial<FinanceData> = {
+      transactions: [...items.map(t => ({ ...t, id: createId() })), ...latest.current.transactions],
+    };
+    if (newCategories.length > 0) {
+      // Savings type is reserved for the two hardcoded categories.
+      const safe = newCategories.map(c => (c.type === 'savings' ? { ...c, type: 'expense' as const } : c));
+      changes.categories = [...latest.current.categories, ...safe];
+    }
+    const result = commit(changes);
+    return result.ok ? { ok: true, count: items.length } : result;
+  }, [commit]);
 
-  const updateTransaction = useCallback((id: string, updates: Omit<Transaction, 'id'>) => {
-    setTransactions(prev => prev.map(t => t.id === id ? { ...updates, id } : t));
-  }, []);
+  const updateTransaction = useCallback((id: string, updates: Omit<Transaction, 'id'>): FinanceWriteResult =>
+    commit({ transactions: latest.current.transactions.map(t => t.id === id ? { ...updates, id } : t) }),
+  [commit]);
 
-  const deleteTransaction = useCallback((id: string) => {
-    setTransactions(prev => prev.filter(t => t.id !== id));
-  }, []);
+  const deleteTransaction = useCallback((id: string): FinanceWriteResult =>
+    commit({ transactions: latest.current.transactions.filter(t => t.id !== id) }),
+  [commit]);
 
-  const addCategory = useCallback((c: Omit<Category, 'id'>): Category => {
+  const addCategory = useCallback((c: Omit<Category, 'id'>): { ok: true; category: Category } | { ok: false; message: string } => {
     // Savings type is reserved for the two hardcoded categories.
     const safeType: Category['type'] = c.type === 'savings' ? 'expense' : c.type;
     const newCat: Category = { ...c, type: safeType, id: createId() };
-    setCategories(prev => [...prev, newCat]);
-    return newCat;
-  }, []);
+    const result = commit({ categories: [...latest.current.categories, newCat] });
+    return result.ok ? { ok: true, category: newCat } : result;
+  }, [commit]);
 
-  const updateCategory = useCallback((id: string, updates: Omit<Category, 'id'>) => {
-    setCategories(prev => prev.map(c => {
-      if (c.id !== id) return c;
-      // For hardcoded savings categories, force type='savings' to preserve invariant.
-      if (SAVINGS_CATEGORY_ID_SET.has(id)) {
-        return { ...updates, type: 'savings', id };
-      }
-      // Disallow promoting a non-savings category to 'savings' via update.
-      const safeType: Category['type'] = updates.type === 'savings' ? c.type : updates.type;
-      return { ...updates, type: safeType, id };
-    }));
-  }, []);
+  const updateCategory = useCallback((id: string, updates: Omit<Category, 'id'>): FinanceWriteResult =>
+    commit({
+      categories: latest.current.categories.map(c => {
+        if (c.id !== id) return c;
+        // For hardcoded savings categories, force type='savings' to preserve invariant.
+        if (SAVINGS_CATEGORY_ID_SET.has(id)) {
+          return { ...updates, type: 'savings', id };
+        }
+        // Disallow promoting a non-savings category to 'savings' via update.
+        const safeType: Category['type'] = updates.type === 'savings' ? c.type : updates.type;
+        return { ...updates, type: safeType, id };
+      }),
+    }),
+  [commit]);
 
-  const deleteCategory = useCallback((id: string): CategoryDeleteCheck => {
-    const check = canDeleteCategory(id, { transactions, budgets, recurringExpenses });
+  const deleteCategory = useCallback((id: string): DeleteCategoryResult => {
+    const check = canDeleteCategory(id, latest.current);
     if (!check.ok) return check;
-    setCategories(prev => prev.filter(c => c.id !== id));
-    return check;
-  }, [transactions, budgets, recurringExpenses]);
+    const result = commit({ categories: latest.current.categories.filter(c => c.id !== id) });
+    return result.ok ? check : { ok: false, reason: 'storage', message: result.message };
+  }, [commit]);
 
-  const addBudget = useCallback((b: Omit<Budget, 'id'>) => {
-    setBudgets(prev => {
-      const month = b.month || selectedMonth;
-      const existing = prev.find(x => x.categoryId === b.categoryId && x.month === month);
-      if (existing) {
-        return prev.map(x => x.id === existing.id ? { ...x, limit: b.limit, month } : x);
-      }
-      return [...prev, { ...b, month, id: createId() }];
-    });
-  }, [selectedMonth]);
+  const addBudget = useCallback((b: Omit<Budget, 'id'>): FinanceWriteResult => {
+    const month = b.month || selectedMonth;
+    const currentBudgets = latest.current.budgets;
+    const existing = currentBudgets.find(x => x.categoryId === b.categoryId && x.month === month);
+    const next = existing
+      ? currentBudgets.map(x => x.id === existing.id ? { ...x, limit: b.limit, month } : x)
+      : [...currentBudgets, { ...b, month, id: createId() }];
+    return commit({ budgets: next });
+  }, [selectedMonth, commit]);
 
-  const updateBudget = useCallback((id: string, limit: number) => {
-    setBudgets(prev => prev.map(b => b.id === id ? { ...b, limit } : b));
-  }, []);
+  const updateBudget = useCallback((id: string, limit: number): FinanceWriteResult =>
+    commit({ budgets: latest.current.budgets.map(b => b.id === id ? { ...b, limit } : b) }),
+  [commit]);
 
-  const deleteBudget = useCallback((id: string) => {
-    setBudgets(prev => prev.filter(b => b.id !== id));
-  }, []);
+  const deleteBudget = useCallback((id: string): FinanceWriteResult =>
+    commit({ budgets: latest.current.budgets.filter(b => b.id !== id) }),
+  [commit]);
 
   const transferBudgetsToMonth = useCallback((fromMonth: string, toMonth: string) => {
-    if (fromMonth === toMonth) return 0;
+    if (fromMonth === toMonth) return { ok: true as const, count: 0 };
 
-    const sourceBudgets = budgets.filter(b => b.month === fromMonth);
-    if (sourceBudgets.length === 0) return 0;
+    const currentBudgets = latest.current.budgets;
+    const sourceBudgets = currentBudgets.filter(b => b.month === fromMonth);
+    if (sourceBudgets.length === 0) return { ok: true as const, count: 0 };
 
-    setBudgets(prev => {
-      const next = [...prev];
-      sourceBudgets.forEach(source => {
-        const existingIndex = next.findIndex(b => b.month === toMonth && b.categoryId === source.categoryId);
-        if (existingIndex >= 0) {
-          next[existingIndex] = { ...next[existingIndex], limit: source.limit, month: toMonth };
-        } else {
-          next.push({
-            id: createId(),
-            categoryId: source.categoryId,
-            limit: source.limit,
-            month: toMonth,
-          });
-        }
-      });
-
-      return next;
+    const next = [...currentBudgets];
+    sourceBudgets.forEach(source => {
+      const existingIndex = next.findIndex(b => b.month === toMonth && b.categoryId === source.categoryId);
+      if (existingIndex >= 0) {
+        next[existingIndex] = { ...next[existingIndex], limit: source.limit, month: toMonth };
+      } else {
+        next.push({ id: createId(), categoryId: source.categoryId, limit: source.limit, month: toMonth });
+      }
     });
 
-    return sourceBudgets.length;
-  }, [budgets]);
+    const result = commit({ budgets: next });
+    return result.ok ? { ok: true as const, count: sourceBudgets.length } : result;
+  }, [commit]);
 
   const openSheet = useCallback((initialMode?: 'expense' | 'income' | 'save') => {
     setEditingTransaction(null);
@@ -554,23 +604,48 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setIsBudgetSheetOpen(false);
   }, []);
 
-  const addRecurring = useCallback((r: Omit<RecurringExpense, 'id' | 'lastGeneratedMonth'>) => {
-    setRecurringExpenses(prev => [...prev, { ...r, id: createId() }]);
-  }, []);
+  const addRecurring = useCallback((r: Omit<RecurringExpense, 'id' | 'lastGeneratedMonth'>): FinanceWriteResult =>
+    commit({ recurringExpenses: [...latest.current.recurringExpenses, { ...r, id: createId() }] }),
+  [commit]);
 
-  const updateRecurring = useCallback((id: string, updates: Omit<RecurringExpense, 'id'>) => {
-    setRecurringExpenses(prev => prev.map(r => r.id === id ? { ...updates, id } : r));
-  }, []);
+  const updateRecurring = useCallback((id: string, updates: Omit<RecurringExpense, 'id'>): FinanceWriteResult => {
+    const previous = latest.current.recurringExpenses.find(r => r.id === id);
+    const nextRule: RecurringExpense = { ...updates, id };
+    if (previous?.lastGeneratedMonth && (!nextRule.lastGeneratedMonth || nextRule.lastGeneratedMonth < previous.lastGeneratedMonth)) {
+      nextRule.lastGeneratedMonth = previous.lastGeneratedMonth;
+    }
+    if (previous && !previous.active && nextRule.active) {
+      const skippedThrough = getLastDueMonthBeforeDate(nextRule, localDateStr(new Date()));
+      nextRule.lastGeneratedMonth = previous.lastGeneratedMonth &&
+        (!skippedThrough || previous.lastGeneratedMonth > skippedThrough)
+        ? previous.lastGeneratedMonth
+        : skippedThrough;
+    }
+    return commit({ recurringExpenses: latest.current.recurringExpenses.map(r => r.id === id ? nextRule : r) });
+  }, [commit]);
 
-  const deleteRecurring = useCallback((id: string) => {
-    setRecurringExpenses(prev => prev.filter(r => r.id !== id));
-  }, []);
+  const deleteRecurring = useCallback((id: string): FinanceWriteResult =>
+    commit({ recurringExpenses: latest.current.recurringExpenses.filter(r => r.id !== id) }),
+  [commit]);
 
-  const toggleRecurringActive = useCallback((id: string) => {
-    setRecurringExpenses(prev => prev.map(r => r.id === id ? { ...r, active: !r.active } : r));
-  }, []);
+  const toggleRecurringActive = useCallback((id: string): FinanceWriteResult => {
+    const today = localDateStr(new Date());
+    return commit({
+      recurringExpenses: latest.current.recurringExpenses.map(r => {
+        if (r.id !== id) return r;
+        const active = !r.active;
+        if (!active) return { ...r, active };
+        const skippedThrough = getLastDueMonthBeforeDate(r, today);
+        const lastGeneratedMonth = r.lastGeneratedMonth &&
+          (!skippedThrough || r.lastGeneratedMonth > skippedThrough)
+          ? r.lastGeneratedMonth
+          : skippedThrough;
+        return { ...r, active, lastGeneratedMonth };
+      }),
+    });
+  }, [commit]);
 
-  const setSavingsGoal = useCallback((goal: SavingsGoal) => {
+  const setSavingsGoal = useCallback((goal: SavingsGoal): FinanceWriteResult => {
     // Stamp createdAt on newly-active entries so pace can be anchored from creation.
     const today = localDateStr(new Date());
     const stamp = (next: SavingsGoal['goal'], prev: SavingsGoal['goal']): SavingsGoal['goal'] => {
@@ -582,31 +657,29 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
       return next;
     };
-    setSavingsGoalState(prev => ({
-      goal: stamp(goal.goal, prev.goal),
-      emergency: stamp(goal.emergency, prev.emergency),
-    }));
-  }, []);
+    const previous = latest.current.savingsGoal;
+    const next: SavingsGoal = {
+      goal: stamp(goal.goal, previous.goal),
+      emergency: stamp(goal.emergency, previous.emergency),
+    };
+    return commit({ savingsGoal: next });
+  }, [commit]);
 
   const reloadFromStorage = useCallback(() => {
     // Re-read all five entities from localStorage. Used after a Drive restore.
     const txns = loadArrayFromStorage('transactions', [], isValidTransaction).map(t => ({ ...t, note: t.note || '' }));
-    setTransactions(txns);
-
     const storedCats = loadArrayFromStorage('categories', [], isValidCategory);
-    setCategories(storedCats.length === 0 ? DEFAULT_CATEGORIES : ensureRequiredCategories(storedCats));
-
+    const cats = storedCats.length === 0 ? DEFAULT_CATEGORIES : ensureRequiredCategories(storedCats);
     const storedBudgets = loadArrayFromStorage('budgets', [], isValidBudget).map(b => ({ ...b, month: b.month || currentMonth() }));
-    setBudgets(storedBudgets);
+    const storedRecurring = loadArrayFromStorage('recurring', [], isValidRecurring);
+    const storedReconciliations = loadArrayFromStorage('reconciliations', [], isValidReconciliation);
 
-    setRecurringExpenses(loadArrayFromStorage('recurring', [], isValidRecurring));
-    setReconciliations(loadArrayFromStorage('reconciliations', [], isValidReconciliation));
-
+    let restoredSavingsGoal: SavingsGoal;
     try {
       const raw = localStorage.getItem(getStorageKey('savings-goal'));
       const empty: SavingsGoal = { goal: { monthly: 0, annual: 0 }, emergency: { monthly: 0, annual: 0 } };
       if (!raw) {
-        setSavingsGoalState(empty);
+        restoredSavingsGoal = empty;
       } else {
         const parsed = JSON.parse(raw) as unknown;
         const validEntry = (v: unknown): v is { monthly: number; annual: number; createdAt?: string } =>
@@ -620,19 +693,33 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           return out;
         };
         if (isObject(parsed) && (validEntry(parsed.goal) || validEntry(parsed.emergency))) {
-          setSavingsGoalState({
+          restoredSavingsGoal = {
             goal: pickEntry(parsed.goal),
             emergency: pickEntry(parsed.emergency),
-          });
+          };
         } else if (isObject(parsed) && validEntry(parsed)) {
-          setSavingsGoalState({ goal: pickEntry(parsed), emergency: { monthly: 0, annual: 0 } });
+          restoredSavingsGoal = { goal: pickEntry(parsed), emergency: { monthly: 0, annual: 0 } };
         } else {
-          setSavingsGoalState(empty);
+          restoredSavingsGoal = empty;
         }
       }
     } catch {
-      // ignore
+      restoredSavingsGoal = { goal: { monthly: 0, annual: 0 }, emergency: { monthly: 0, annual: 0 } };
     }
+    latest.current = {
+      transactions: txns,
+      categories: cats,
+      budgets: storedBudgets,
+      recurringExpenses: storedRecurring,
+      reconciliations: storedReconciliations,
+      savingsGoal: restoredSavingsGoal,
+    };
+    setTransactions(txns);
+    setCategories(cats);
+    setBudgets(storedBudgets);
+    setRecurringExpenses(storedRecurring);
+    setReconciliations(storedReconciliations);
+    setSavingsGoalState(restoredSavingsGoal);
     setLastChangedAt(Date.now());
   }, []);
 
@@ -641,48 +728,53 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // For the CURRENT month, we wait until today's date reaches the rule's dayOfMonth
   // before stamping. Future months are never materialized here.
   useEffect(() => {
-    const cur = currentMonth();
-    const todayDay = new Date().getDate();
+    const today = localDateStr(new Date());
+    const cur = today.slice(0, 7);
     const pending: { recurringId: string; lastMonth: string; newTx: Omit<Transaction, 'id'>[] }[] = [];
+    const { transactions: currentTransactions, recurringExpenses: currentRules } = latest.current;
 
-    recurringExpenses.forEach(r => {
+    currentRules.forEach(r => {
       if (!r.active) return;
       if (!r.startMonth || r.startMonth > cur) return;
 
       const startFrom = r.lastGeneratedMonth && r.lastGeneratedMonth >= r.startMonth
-        ? addOneMonth(r.lastGeneratedMonth)
+        ? addMonths(r.lastGeneratedMonth, 1)
         : r.startMonth;
       if (startFrom > cur) return;
 
       const monthsToGenerate: string[] = [];
       let m = startFrom;
       while (m <= cur) {
-        // Current month: only materialize once today has reached the rule's day-of-month.
-        if (m === cur && todayDay < r.dayOfMonth) break;
+        if (getRecurringOccurrenceDate(m, r.dayOfMonth) > today) break;
         monthsToGenerate.push(m);
-        m = addOneMonth(m);
+        m = addMonths(m, 1);
       }
       if (monthsToGenerate.length === 0) return;
 
       const newTx: Omit<Transaction, 'id'>[] = [];
       monthsToGenerate.forEach(monthKey => {
-        const [y, mm] = monthKey.split('-').map(Number);
-        const daysInMonth = new Date(y, mm, 0).getDate();
-        const day = Math.min(r.dayOfMonth, daysInMonth);
-        const date = `${monthKey}-${String(day).padStart(2, '0')}`;
+        const date = getRecurringOccurrenceDate(monthKey, r.dayOfMonth);
         const note = r.description;
 
-        // Dedupe: skip if same description+amount already exists in this month
-        const exists = transactions.some(t =>
+        const exists = currentTransactions.some(t =>
+          t.recurringRuleId === r.id && t.recurringMonth === monthKey
+        );
+        // Legacy generated transactions had no occurrence key. Match their
+        // exact scheduled date once, then the forward-only cursor takes over.
+        const legacyExists = currentTransactions.some(t =>
+          t.recurringRuleId === undefined &&
           t.type === 'expense' &&
-          t.date.startsWith(monthKey) &&
+          t.date === date &&
           t.amount === r.amount &&
           (t.note || '').trim().toLowerCase() === note.trim().toLowerCase() &&
           t.categoryId === r.categoryId
         );
-        if (exists) return;
+        if (exists || legacyExists) return;
 
-        newTx.push({ type: 'expense', amount: r.amount, categoryId: r.categoryId, note, date });
+        newTx.push({
+          type: 'expense', amount: r.amount, categoryId: r.categoryId, note, date,
+          recurringRuleId: r.id, recurringMonth: monthKey,
+        });
       });
 
       pending.push({ recurringId: r.id, lastMonth: monthsToGenerate[monthsToGenerate.length - 1], newTx });
@@ -691,13 +783,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     if (pending.length === 0) return;
 
     const allNew: Transaction[] = pending.flatMap(p => p.newTx.map(t => ({ ...t, id: createId() })));
-    if (allNew.length > 0) {
-      setTransactions(prev => [...allNew, ...prev]);
-    }
-    setRecurringExpenses(prev => prev.map(r => {
-      const match = pending.find(p => p.recurringId === r.id);
-      return match ? { ...r, lastGeneratedMonth: match.lastMonth } : r;
-    }));
+    const changes: Partial<FinanceData> = {
+      recurringExpenses: currentRules.map(r => {
+        const match = pending.find(p => p.recurringId === r.id);
+        return match ? { ...r, lastGeneratedMonth: match.lastMonth } : r;
+      }),
+    };
+    if (allNew.length > 0) changes.transactions = [...allNew, ...currentTransactions];
+    // Transactions and cursors are saved together; on failure nothing changes
+    // and generation is retried on the next launch.
+    const result = commit(changes);
+    if (!result.ok) setStorageError(`Recurring expenses could not be added. ${result.message}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recurringExpenses]);
 
@@ -830,10 +926,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       expectedBalance: number;
       adjustmentAmount?: number;
       note?: string;
-    }): MonthReconciliation => {
+    }): { ok: true; record: MonthReconciliation } | { ok: false; message: string } => {
       const { month, actualBalance, expectedBalance, adjustmentAmount, note } = input;
 
       let adjustmentTxnId: string | undefined;
+      let adjustment: Transaction | undefined;
       if (adjustmentAmount !== undefined && adjustmentAmount !== 0) {
         // Last calendar day of `month`.
         const [yStr, mStr] = month.split('-').map(Number);
@@ -842,7 +939,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const amt = Math.abs(adjustmentAmount);
         const id = createId();
         adjustmentTxnId = id;
-        const tx: Transaction = adjustmentAmount > 0
+        adjustment = adjustmentAmount > 0
           ? {
               id,
               type: 'expense',
@@ -859,7 +956,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
               note: note || 'Over-logged reversal (reconciled)',
               date: dateIso,
             };
-        setTransactions(prev => [tx, ...prev]);
       }
 
       const record: MonthReconciliation = {
@@ -869,11 +965,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         adjustmentTxnId,
         reconciledAt: Date.now(),
       };
-      // Replace any existing record for the month (allow re-reconcile).
-      setReconciliations(prev => [record, ...prev.filter(r => r.month !== month)]);
-      return record;
+      // Replace any existing record for the month (allow re-reconcile). The
+      // adjustment transaction is saved before the record (DATABASE §7.3).
+      const changes: Partial<FinanceData> = {
+        reconciliations: [record, ...latest.current.reconciliations.filter(r => r.month !== month)],
+      };
+      if (adjustment) changes.transactions = [adjustment, ...latest.current.transactions];
+      const result = commit(changes);
+      return result.ok ? { ok: true, record } : result;
     },
-    [],
+    [commit],
   );
 
   const getSpentForCategory = useCallback((categoryId: string, month: string) => {
@@ -950,6 +1051,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       getTotalCommitments, getTotalDayToDay, getBudgetBreakdown,
       getMonthSummary,
       reloadFromStorage, lastChangedAt,
+      storageError, clearStorageError,
     }}>
       {children}
     </FinanceContext.Provider>

@@ -25,6 +25,7 @@ export default function Budgets() {
   } = useFinance();
 
   const [transferMessage, setTransferMessage] = useState('');
+  const [operationError, setOperationError] = useState('');
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
   const [highlightedCatId, setHighlightedCatId] = useState<string | null>(null);
   const [usedUpAccordionValue, setUsedUpAccordionValue] = useState<string>('');
@@ -81,10 +82,16 @@ export default function Budgets() {
   }, [transactions, selectedCategoryId, selectedMonth]);
 
   const handleTransferBudgets = () => {
-    const transferred = transferBudgetsToMonth(selectedMonth, targetMonth);
+    setOperationError('');
+    const result = transferBudgetsToMonth(selectedMonth, targetMonth);
+    if (!result.ok) {
+      setTransferMessage('');
+      setOperationError(result.message);
+      return;
+    }
     setTransferMessage(
-      transferred > 0
-        ? `Transferred ${transferred} budget${transferred === 1 ? '' : 's'} to ${formatMonthLabel(targetMonth)}.`
+      result.count > 0
+        ? `Transferred ${result.count} budget${result.count === 1 ? '' : 's'} to ${formatMonthLabel(targetMonth)}.`
         : `No budgets found for ${formatMonthLabel(selectedMonth)}.`
     );
   };
@@ -92,7 +99,12 @@ export default function Budgets() {
   const handleEditBudgetSave = (id: string) => {
     const val = parseCurrencyInput(editLimit);
     if (val <= 0) return;
-    updateBudget(id, val);
+    const result = updateBudget(id, val);
+    if (!result.ok) {
+      setOperationError(result.message);
+      return;
+    }
+    setOperationError('');
     setEditingBudgetId(null);
   };
 
@@ -238,7 +250,11 @@ export default function Budgets() {
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => { deleteBudget(b.id); setEditingBudgetId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                    <AlertDialogAction onClick={() => {
+                      const result = deleteBudget(b.id);
+                      if (result.ok) setEditingBudgetId(null);
+                      else setOperationError(result.message);
+                    }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
@@ -294,6 +310,7 @@ export default function Budgets() {
       {transferMessage && (
         <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mb-4">{transferMessage}</p>
       )}
+      {operationError && <p className="mb-4 text-sm text-destructive" role="alert" data-testid="budget-operation-error">{operationError}</p>}
 
       {/* Summary */}
       {budgetsWithData.length > 0 && (
@@ -487,7 +504,11 @@ export default function Budgets() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => { deleteBudget(b.id); setEditingBudgetId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                              <AlertDialogAction onClick={() => {
+                                const result = deleteBudget(b.id);
+                                if (result.ok) setEditingBudgetId(null);
+                                else setOperationError(result.message);
+                              }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>

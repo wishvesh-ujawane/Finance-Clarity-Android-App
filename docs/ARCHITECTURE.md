@@ -244,7 +244,7 @@ Income, consumption spending, savings contributions, monthly net, carry-forward,
 **Backup:**
 
 1. Snapshot the backed-up keys.
-2. Build a backup file: schema version (currently 3), app version, export time, device info, and the data block.
+2. Build a backup file: schema version (currently 4), app version, export time, device info, and the data block.
 3. Compute a stable SHA-256 hash of the data block. Skip auto-backup if it has not changed.
 4. If the Drive backup holds **more transactions** than the device, or cannot be read, do not upload. Manual backup asks the user; on confirmation, first save the current Drive file as `finance-clarity-backup.pre-overwrite-<timestamp>.json` in the same folder, and abort if that copy fails. Auto-backup never replaces it; it records a "paused" notice instead.
 5. Upload to the app's Drive folder using `drive.file` scope.
@@ -673,9 +673,9 @@ None of these items is authorized by this document alone. Each needs owner appro
 | ID | Gap in current code | Target | Source |
 |---|---|---|---|
 | A1 | SMS screens, parsers, native reader, route, and `READ_SMS` permission still present | Remove completely; keep legacy SMS keys readable for backups | PRD FR-10 |
-| A2 | `saveToStorage` ignores errors; writes happen after state changes | Persist first, typed results, visible failures | PRD §9; §6.2 |
-| A3 | **Partly resolved 2026-11-06:** deletion is blocked in the mutation for reserved categories and for categories used by transactions, budgets, or recurring rules (`lib/category-rules.ts`). Still missing: category active/inactive status | Domain-enforced usage rule, `active` flag, local migration, backup schema v4 | PRD FR-03 |
-| A4 | Recurring rules lack D4 behavior | Occurrence identity, short-month clamp, skip paused months, idempotent catch-up | PRD FR-07; §6.4 |
+| A2 | **Resolved 2026-11-11:** finance mutations, including budgets, recurring rules, and savings targets, persist first and surface failures; multi-key writes roll back | Persist first, typed results, visible failures | PRD §9; §6.2 |
+| A3 | **Partly resolved 2026-11-06:** deletion is blocked in the mutation for reserved categories and for categories used by transactions, budgets, or recurring rules (`lib/category-rules.ts`). Still missing: category active/inactive status | Domain-enforced usage rule, `active` flag, local migration, backup schema v5 | PRD FR-03 |
+| A4 | **Resolved 2026-11-11:** recurring occurrences have stable rule/month identity; due dates clamp to month-end; resuming skips past paused periods; catch-up is idempotent | Occurrence identity, short-month clamp, skip paused months, idempotent catch-up | PRD FR-07; §6.4 |
 | A5 | Two amount formatters; fonts loaded from Google at runtime | One formatter; bundled fonts | DESIGN G7, G8 |
 | A6 | **Resolved 2026-11-06.** Removed the unused React Query provider, the `@workspace/api-client-react` dependency, 42 unused `components/ui` primitives, the unused `use-mobile` hook, and the 31 packages only they used | Remove | §2.3 |
 | A7 | Backup app version hard-coded to `1.0.0` | Take it from the build version | §13.3 |

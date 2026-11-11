@@ -119,6 +119,7 @@ export function TransactionSheet() {
   const [newCatIcon, setNewCatIcon] = useState('DollarSign');
   const [newCatColor, setNewCatColor] = useState('#10B981');
   const [newCatType, setNewCatType] = useState<'income' | 'expense'>('expense');
+  const [saveError, setSaveError] = useState('');
 
   // Amount input: `amount` state stays raw (no commas); the input shows a
   // formatted display with Indian-style grouping. Cursor position must be
@@ -182,6 +183,7 @@ export function TransactionSheet() {
         setPaymentMethod(undefined);
       }
       setShowNewCat(false);
+      setSaveError('');
     }
   }, [isSheetOpen, editingTransaction, sheetInitialMode]);
 
@@ -215,12 +217,15 @@ export function TransactionSheet() {
       sourceSmsFingerprint: isEditing ? editingTransaction?.sourceSmsFingerprint : undefined,
     };
 
-    if (isEditing && editingTransaction) {
-      updateTransaction(editingTransaction.id, payload);
-    } else {
-      addTransaction(payload);
-    }
+    const result = isEditing && editingTransaction
+      ? updateTransaction(editingTransaction.id, payload)
+      : addTransaction(payload);
 
+    // Keep the sheet open with the entered values when the save fails.
+    if (!result.ok) {
+      setSaveError(result.message);
+      return;
+    }
     closeSheet();
   }, [amount, categoryId, mode, note, date, paymentMethod, isEditing, editingTransaction, addTransaction, updateTransaction, closeSheet]);
 
@@ -248,13 +253,18 @@ export function TransactionSheet() {
 
   const handleCreateCategory = useCallback(() => {
     if (!newCatName.trim()) return;
-    const cat = addCategory({
+    const result = addCategory({
       name: newCatName.trim(),
       icon: newCatIcon,
       color: newCatColor,
       type: newCatType,
     });
-    setCategoryId(cat.id);
+    if (!result.ok) {
+      setSaveError(result.message);
+      return;
+    }
+    setSaveError('');
+    setCategoryId(result.category.id);
     setShowNewCat(false);
     setNewCatName('');
     setNewCatIcon('DollarSign');
@@ -269,7 +279,11 @@ export function TransactionSheet() {
 
   const handleDelete = () => {
     if (!editingTransaction) return;
-    deleteTransaction(editingTransaction.id);
+    const result = deleteTransaction(editingTransaction.id);
+    if (!result.ok) {
+      setSaveError(result.message);
+      return;
+    }
     handleClose();
   };
 
@@ -612,6 +626,11 @@ export function TransactionSheet() {
               </div>
 
               {/* Submit */}
+              {saveError && (
+                <p className="text-xs font-medium text-destructive" role="alert" data-testid="transaction-save-error">
+                  {saveError}
+                </p>
+              )}
               <motion.button
                 data-testid="submit-transaction"
                 onClick={handleSubmit}

@@ -54,6 +54,7 @@ export default function Categories() {
     addCategory, updateCategory, deleteCategory,
   } = useFinance();
   const [deleteError, setDeleteError] = useState('');
+  const [addError, setAddError] = useState('');
 
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState('');
@@ -80,12 +81,16 @@ export default function Categories() {
 
   const saveEditCat = () => {
     if (!editingCatId || !editCatName.trim()) return;
-    updateCategory(editingCatId, {
+    const result = updateCategory(editingCatId, {
       name: editCatName.trim(),
       icon: editCatIcon,
       color: editCatColor,
       type: editCatType,
     });
+    if (!result.ok) {
+      setDeleteError(result.message);
+      return;
+    }
     setEditingCatId(null);
   };
 
@@ -94,16 +99,21 @@ export default function Categories() {
     setNewCatIcon('DollarSign');
     setNewCatColor('#10B981');
     setNewCatType('expense');
+    setAddError('');
   };
 
   const handleAddCategory = () => {
     if (!newCatName.trim()) return;
-    addCategory({
+    const result = addCategory({
       name: newCatName.trim(),
       icon: newCatIcon,
       color: newCatColor,
       type: newCatType,
     });
+    if (!result.ok) {
+      setAddError(result.message);
+      return;
+    }
     resetNewCat();
     setShowAddCat(false);
   };
@@ -287,6 +297,8 @@ export default function Categories() {
                                           const result = deleteCategory(cat.id);
                                           if (result.ok) {
                                             setEditingCatId(null);
+                                          } else if (result.reason === 'storage') {
+                                            setDeleteError(result.message);
                                           } else {
                                             setDeleteError(`${describeCategoryDeleteBlock(result)} Nothing was deleted.`);
                                           }
@@ -446,6 +458,9 @@ export default function Categories() {
               </motion.div>
             )}
           </AnimatePresence>
+          {addError && (
+            <p className="text-xs font-medium text-destructive pt-3" role="alert" data-testid="new-category-error">{addError}</p>
+          )}
           <div className="flex gap-2 pt-4 border-t border-border">
             <button
               onClick={() => { setShowAddCat(false); resetNewCat(); }}

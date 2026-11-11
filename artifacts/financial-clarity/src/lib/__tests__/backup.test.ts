@@ -1,7 +1,7 @@
 /**
  * Tests for backup schema versions and migrations.
  * - Phase 1: added Transaction.paymentMethod (v1 -> v2).
- * - v3 backups retain their legacy SMS data block for compatibility only.
+ * - v3 backups migrate to v4 recurring occurrence identity support.
  */
 
 import { beforeEach, describe, it, expect } from 'vitest';
@@ -13,8 +13,8 @@ beforeEach(() => {
 });
 
 describe('Backup schema versioning', () => {
-  it('current BACKUP_VERSION is 3', () => {
-    expect(BACKUP_VERSION).toBe(3);
+  it('current BACKUP_VERSION is 4', () => {
+    expect(BACKUP_VERSION).toBe(4);
   });
 
   it('accepts a valid v3 backup with an empty SMS block', () => {
@@ -65,7 +65,7 @@ describe('Backup schema versioning', () => {
     const result = validateBackup(v3Backup);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.backup.schemaVersion).toBe(3);
+      expect(result.backup.schemaVersion).toBe(4);
       expect(result.backup.data.transactions[0].paymentMethod).toBe('credit-card');
       expect(result.backup.data.transactions[0].merchant).toBe('Reliance Fresh');
       expect(result.backup.data.transactions[0].sourceSmsFingerprint).toBe('sha256-abc123');
@@ -175,7 +175,7 @@ describe('Backup schema versioning', () => {
     }
   });
 
-  it('migrates a v1 backup up to v3 (adds paymentMethod support + empty SMS block)', () => {
+  it('migrates a v1 backup up to v4 (adds paymentMethod support + empty SMS block)', () => {
     const v1Backup: unknown = {
       schemaVersion: 1,
       appVersion: '1.0.0',
@@ -213,18 +213,18 @@ describe('Backup schema versioning', () => {
     const result = validateBackup(v1Backup);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.backup.schemaVersion).toBe(3);
+      expect(result.backup.schemaVersion).toBe(4);
       expect(result.backup.data.transactions).toHaveLength(2);
       expect(result.backup.data.transactions[0].id).toBe('tx-001');
       expect(result.backup.data.transactions[1].id).toBe('tx-002');
-      // v3 migration adds an empty sms block.
+      // v3 migration adds an empty SMS block; v4 adds optional occurrence keys.
       expect(result.backup.data.sms).toBeDefined();
       expect(result.backup.data.sms.pendingSms).toEqual([]);
       expect(result.backup.data.sms.lastScanMs).toBe(0);
     }
   });
 
-  it('migrates a v2 backup up to v3 (adds empty SMS block)', () => {
+  it('migrates a v2 backup up to v4 (adds SMS compatibility and occurrence support)', () => {
     const existingLegacySms = {
       pending: '[{"rawBody":"keep existing legacy record"}]',
       dismissed: '["keep-this-fingerprint"]',
@@ -266,7 +266,7 @@ describe('Backup schema versioning', () => {
     const result = validateBackup(v2Backup);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.backup.schemaVersion).toBe(3);
+      expect(result.backup.schemaVersion).toBe(4);
       expect(result.backup.data.transactions[0].paymentMethod).toBe('credit-card');
       expect(result.backup.data.sms.pendingSms).toEqual([]);
       expect(result.backup.data.sms.dismissedSmsFingerprints).toEqual([]);
@@ -282,9 +282,9 @@ describe('Backup schema versioning', () => {
     }
   });
 
-  it('rejects a backup with schemaVersion > current (v4)', () => {
+  it('rejects a backup with schemaVersion > current (v5)', () => {
     const futureBackup: unknown = {
-      schemaVersion: 4,
+      schemaVersion: 5,
       appVersion: '2.0.0',
       exportedAt: '2027-01-01T00:00:00.000Z',
       device: { platform: 'android' },
@@ -309,7 +309,7 @@ describe('Backup schema versioning', () => {
     }
   });
 
-  it('accepts v1 transactions without paymentMethod (migrates cleanly to v3)', () => {
+  it('accepts v1 transactions without optional metadata (migrates cleanly to v4)', () => {
     const v1Backup: unknown = {
       schemaVersion: 1,
       appVersion: '1.0.0',
@@ -340,9 +340,22 @@ describe('Backup schema versioning', () => {
     const result = validateBackup(v1Backup);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.backup.schemaVersion).toBe(3);
+      expect(result.backup.schemaVersion).toBe(4);
       expect(result.backup.data.transactions[0].paymentMethod).toBeUndefined();
       expect(result.backup.data.sms.pendingSms).toEqual([]);
     }
+  });
+
+  it('accepts paired recurring occurrence identity and rejects a partial pair', () => {
+    const backup = buildBackup();
+    backup.data.transactions.push({
+      id: 'recurring-tx', type: 'expense', amount: 100, categoryId: 'rent', note: 'Rent',
+      date: '2026-11-01', recurringRuleId: 'rule-1', recurringMonth: '2026-11',
+    });
+    backup.counts.transactions = 1;
+    expect(validateBackup(backup).ok).toBe(true);
+
+    backup.data.transactions[0].recurringMonth = undefined;
+    expect(validateBackup(backup)).toMatchObject({ ok: false, reason: 'invalid-data' });
   });
 });

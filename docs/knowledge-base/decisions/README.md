@@ -14,3 +14,4 @@ Rules:
 ## Index
 
 - [0001-knowledge-base-bootstrap.md](./0001-knowledge-base-bootstrap.md) — Introduce the App Oracle subagent and the committed knowledge base.
+- [0004-recurring-occurrence-identity.md](./0004-recurring-occurrence-identity.md) — Give generated recurring transactions stable rule/month identity; backup schema v4.

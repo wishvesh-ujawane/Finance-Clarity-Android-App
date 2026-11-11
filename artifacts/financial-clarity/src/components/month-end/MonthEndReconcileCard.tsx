@@ -30,6 +30,7 @@ export function MonthEndReconcileCard({ reviewMonth, onContinue, onBack, onSkip 
     existing ? String(existing.actualBalance) : '',
   );
   const [confirmed, setConfirmed] = useState(!!existing);
+  const [saveError, setSaveError] = useState('');
 
   const parsed = useMemo(() => parseCurrencyInput(input), [input]);
   const hasInput = input.trim().length > 0 && Number.isFinite(parsed);
@@ -44,22 +45,32 @@ export function MonthEndReconcileCard({ reviewMonth, onContinue, onBack, onSkip 
 
   const handleLogAdjustment = () => {
     if (!hasInput) return;
-    addReconciliation({
+    const result = addReconciliation({
       month: reviewMonth,
       actualBalance: parsed,
       expectedBalance: expected,
       adjustmentAmount: gap,
     });
+    if (!result.ok) {
+      setSaveError(result.message);
+      return;
+    }
+    setSaveError('');
     setConfirmed(true);
   };
 
   const handleMarkReconciled = () => {
     if (!hasInput) return;
-    addReconciliation({
+    const result = addReconciliation({
       month: reviewMonth,
       actualBalance: parsed,
       expectedBalance: expected,
     });
+    if (!result.ok) {
+      setSaveError(result.message);
+      return;
+    }
+    setSaveError('');
     setConfirmed(true);
   };
 
@@ -174,6 +185,12 @@ export function MonthEndReconcileCard({ reviewMonth, onContinue, onBack, onSkip 
               </div>
             </div>
           </div>
+        )}
+
+        {saveError && (
+          <p className="mt-4 text-xs font-medium text-destructive" role="alert" data-testid="reconcile-save-error">
+            {saveError}
+          </p>
         )}
 
         {confirmed && (
