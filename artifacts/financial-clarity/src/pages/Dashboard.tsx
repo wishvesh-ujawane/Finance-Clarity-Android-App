@@ -14,6 +14,7 @@ import {
   addMonths, formatAmount, formatDateLabel, formatMonthLabel, localDateStr,
 } from '@/lib/finance-utils';
 import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
+import { consumptionBetween } from '@/lib/domain/finance-metrics';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 
@@ -56,13 +57,9 @@ export default function Dashboard() {
   );
 
   // Today's spend + avg per day (current month: through today; past months: through last day of month)
-  // Excludes savings-category transactions — those are transfers, not spend.
+  // Consumption only (PRD §6): savings contributions and card bill payments are not spend.
   const { todaySpend, avgPerDay } = useMemo(() => {
-    const today = isCurrentMonth
-      ? monthTransactions
-          .filter(t => t.type === 'expense' && !SAVINGS_CATEGORY_ID_SET.has(t.categoryId) && t.date === todayKey)
-          .reduce((s, t) => s + t.amount, 0)
-      : 0;
+    const today = isCurrentMonth ? consumptionBetween(monthTransactions, todayKey, todayKey) : 0;
     const [yStr, mStr] = selectedMonth.split('-').map(Number);
     const monthLastDay = new Date(yStr, mStr, 0).getDate();
     const days = isCurrentMonth ? Math.max(1, new Date().getDate()) : monthLastDay;

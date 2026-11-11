@@ -1,12 +1,14 @@
-import { isConsumptionExpense } from '@/lib/finance-utils';
+import { addMonths, currentMonth, localDateStr } from '@/lib/domain/periods';
+import {
+  consumptionBetween,
+  consumptionByCategory,
+  totalConsumption,
+  totalIncome,
+  type MetricTransaction,
+} from '@/lib/domain/finance-metrics';
+import { formatMonthShort } from '@/lib/format';
 
-type Txn = { id: string; type: 'income' | 'expense'; amount: number; date: string; categoryId: string };
-
-export function shiftMonth(month: string, offset: number) {
-  const [year, monthNum] = month.split('-').map(Number);
-  const shifted = new Date(year, monthNum - 1 + offset, 1);
-  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}`;
-}
+export const shiftMonth = addMonths;
 
 export function getLastNMonths(endMonth: string, count: number): string[] {
   const months: string[] = [];
@@ -16,10 +18,7 @@ export function getLastNMonths(endMonth: string, count: number): string[] {
   return months;
 }
 
-export function monthLabel(month: string) {
-  const [year, monthNum] = month.split('-').map(Number);
-  return new Date(year, monthNum - 1).toLocaleDateString('en-IN', { month: 'short' });
-}
+export const monthLabel = formatMonthShort;
 
 export function getBudgetPill(pct: number) {
   if (pct > 100) {
@@ -31,31 +30,14 @@ export function getBudgetPill(pct: number) {
   return { label: 'On track', className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' };
 }
 
-export function getMonthTotal<T extends Txn>(transactions: T[], month: string, type: 'expense' | 'income') {
-  return transactions
-    .filter(t => t.type === type && t.date.startsWith(month))
-    .filter(t => type === 'income' || isConsumptionExpense(t))
-    .reduce((sum, t) => sum + t.amount, 0);
+/** Income, or consumption spending for `'expense'` (PRD §6). */
+export function getMonthTotal(transactions: readonly MetricTransaction[], month: string, type: 'expense' | 'income') {
+  return type === 'income' ? totalIncome(transactions, month) : totalConsumption(transactions, month);
 }
 
-export function getExpenseMapForMonth<T extends Txn>(transactions: T[], month: string) {
-  const map: Record<string, number> = {};
-  transactions
-    .filter(t => t.type === 'expense' && t.date.startsWith(month))
-    .filter(isConsumptionExpense)
-    .forEach(t => {
-      map[t.categoryId] = (map[t.categoryId] || 0) + t.amount;
-    });
-  return map;
-}
+export const getExpenseMapForMonth = consumptionByCategory;
 
-export function getMonthKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
-
-export function parseLocalDate(dateStr: string) {
-  return new Date(`${dateStr}T00:00:00`);
-}
+export const getMonthKey = currentMonth;
 
 export function startOfWeekMonday(date: Date) {
   const day = date.getDay();
@@ -71,14 +53,7 @@ export function addDays(date: Date, days: number) {
   return next;
 }
 
-export function getDateRangeExpenseTotal<T extends Txn>(transactions: T[], start: Date, end: Date) {
-  const startAt = start.getTime();
-  const endAt = end.getTime();
-  return transactions
-    .filter(isConsumptionExpense)
-    .filter(t => {
-      const time = parseLocalDate(t.date).getTime();
-      return time >= startAt && time <= endAt;
-    })
-    .reduce((sum, t) => sum + t.amount, 0);
+/** Consumption dated from `start` to `end`, both inclusive local days. */
+export function getDateRangeExpenseTotal(transactions: readonly MetricTransaction[], start: Date, end: Date) {
+  return consumptionBetween(transactions, localDateStr(start), localDateStr(end));
 }

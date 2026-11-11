@@ -347,3 +347,49 @@ implement the persist-first, typed-result storage path for one representative
 finance mutation. This small, independently verifiable foundation establishes
 the durability contract needed by migrations, categories, recurring
 generation, and later feature work without starting a broad refactor.
+
+## Implementation status
+
+The owner authorized implementing every phase on 2026-11-12 ("run the loop
+and complete all the phases"). Each phase is committed on its own branch,
+stacked on the previous phase because `main` does not contain the earlier
+phases yet. Decisions taken during implementation are logged in
+[audits/2026-11-12-phases-implementation-review.md](./audits/2026-11-12-phases-implementation-review.md).
+
+Note: the 2026-11-11 "Updated Docs" commit removed some lines from the phase
+descriptions above (several bullets now end mid-sentence). The full wording
+used for implementation is in the previous revision of this file
+(`git show 34c68ef^:docs/IMPLEMENTATION_PLAN.md`).
+
+### Phase 1 — Done (branch `chore/phase-1-sms-removal-verification`)
+
+- Done: confirmed SMS screens, routes, parsers, native plugin, `READ_SMS`, and
+  SMS-only dependencies are gone; legacy SMS keys and backup blocks stay
+  readable. Added a Vitest guard for the manifest, `MainActivity`, and npm
+  dependencies, and e2e NAV-002 for the removed route.
+- Open: the merged release manifest has not been inspected (no Android SDK
+  on the development machine). Carried to Phase 10.
+
+### Phase 2 — Done (branch `feature/phase-2-storage-boundaries`)
+
+- Done: one key catalogue (`lib/storage/keys.ts`) and one validator set
+  (`lib/storage/schemas.ts`); quarantine with dedupe, savings goal included,
+  and a dismissible notice; startup storage check with full-screen errors;
+  local migration runner (`storage-version`); typed `applyBackup`. ADR 0005.
+- Open: non-finance modules (security, onboarding, month-end review, Google
+  profile cache, backup preferences) still call `localStorage` directly and
+  ignore write errors (owner chose keys-only). Local migrations 1 and 2 were
+  deferred to Phase 4 with backup v5.
+
+### Phase 3 — Done (branch `feature/phase-3-domain-metrics`)
+
+- Done: every PRD §6 metric in `lib/domain/finance-metrics.ts`; period helpers
+  in `lib/domain/periods.ts`; formatters in `lib/format.ts` (display, full,
+  chart; no paise). `FinanceContext`, Dashboard, and the shared Analysis totals
+  use them. Fixed card bill payments being counted as spending in Analysis,
+  budget "spent", and Dashboard "today's spend". Cross-screen consistency test.
+- Open for later phases: Transactions list totals (Phase 6); Analysis-only
+  figures — safe-to-spend balance, weekday heatmap, daily spend, burndown,
+  known future expenses (Phase 7); switching list and card amounts to the
+  compact display format (Phase 9); the month-end snapshot still counts card
+  bill payments (pending D8).

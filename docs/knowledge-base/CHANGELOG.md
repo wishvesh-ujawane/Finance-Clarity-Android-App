@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-11-12 — bugs/20261106-card-bill-double-count.md; ARCHITECTURE.md §2.1, §4.2, §19 A5, A12; DESIGN.md §15 G8; AGENTS.md §5 — Phase 3: PRD §6 metrics in `lib/domain/finance-metrics.ts`, period helpers in `lib/domain/periods.ts`, formatters in `lib/format.ts`; selectors, Dashboard, and shared Analysis totals use them; card bill payments no longer counted as spending on Analysis, budget spent, or today's spend.
 2026-11-11 — decisions/0005-storage-startup-and-migrations.md; DATABASE.md §3, §4.10, §6.1, §10.1; ARCHITECTURE.md §6.1, §6.2, §8.2–§8.4; API.md §4.1, §5.1, G17; DESIGN.md §5.4 — Phase 2: one key catalogue and validator set in `lib/storage/`, quarantine with dedupe and a visible notice, startup storage check with full-screen errors, local migration runner (no steps yet), typed `applyBackup` result.
 2026-11-11 — ARCHITECTURE.md §19 A1, DESIGN.md §15 G14, testing.md SMS-001/NAV-002/QA-002 — Phase 1: confirmed SMS code, route, native wiring, permission, and dependencies are gone; added a Vitest release-config guard and e2e NAV-002 for the removed route. Merged release manifest check still needs a machine with the Android SDK.
 2026-11-11 — AGENTS.md §1.1, §1.3, §8–§10, §12, §14; ARCHITECTURE.md §10–§11; API.md — Registered API.md as a source of truth (takes over ARCHITECTURE §10/§11 contract details); agent rules now cite API.md for internal contracts, external calls, error codes, configuration, and privacy.

@@ -55,7 +55,7 @@ The stack below is mostly what already exists. The recommendation is to **keep i
 | Charts | Recharts | Existing Analysis charts |
 | Motion | Framer Motion | Existing sheets and swipes; must respect reduced motion (DESIGN §9.4) |
 | Icons | lucide-react (+ local brand icons) | One icon set (DESIGN §4.5) |
-| Dates | Shared helpers in `finance-utils.ts` (`currentMonth`, `addMonths`, `localDateStr`) | Month math, short months, local-date handling. No date library |
+| Dates | Shared helpers in `lib/domain/periods.ts` (`currentMonth`, `addMonths`, `localDateStr`, `monthOf`, `lastDateOfMonth`) | Month math, short months, local-date handling. No date library |
 | Toasts | Radix toast (`components/ui/toast`, `hooks/use-toast`) | Persistent toasts for background operations (DESIGN §8.2) |
 | Image export | html-to-image | Analysis Overview image share (PRD FR-08) |
 | Fonts | Manrope + Inter, **bundled locally** | Works offline; no runtime call to Google Fonts (DESIGN G7) |
@@ -159,7 +159,7 @@ Keep the existing contexts and give each a clear owner role:
 
 Rules:
 
-- **Derived values come from domain selectors**, memoized in the context, for example "summary for period P". A metric from PRD §6 is computed in exactly one function. Pages must not re-sum transactions themselves.
+- **Derived values come from domain selectors**, memoized in the context, for example "summary for period P". A metric from PRD §6 is computed in exactly one function in `lib/domain/finance-metrics.ts`, using the period helpers in `lib/domain/periods.ts`. Pages must not re-sum transactions themselves.
 - Each action returns a success or failure result to its caller. A sheet or form decides how to show that result (DESIGN §7.3).
 - **MVP-cleanup:** `FinanceContext` is about 1,400 lines. Move its calculations and rules into `lib/domain/` and its persistence into `lib/storage/`. Keep its public hook API unchanged so pages are unaffected.
 
@@ -680,14 +680,14 @@ None of these items is authorized by this document alone. Each needs owner appro
 | A2 | **Resolved 2026-11-11:** finance mutations, including budgets, recurring rules, and savings targets, persist first and surface failures; multi-key writes roll back | Persist first, typed results, visible failures | PRD §9; §6.2 |
 | A3 | **Partly resolved 2026-11-06:** deletion is blocked in the mutation for reserved categories and for categories used by transactions, budgets, or recurring rules (`lib/category-rules.ts`). Still missing: category active/inactive status | Domain-enforced usage rule, `active` flag, local migration, backup schema v5 | PRD FR-03 |
 | A4 | **Resolved 2026-11-11:** recurring occurrences have stable rule/month identity; due dates clamp to month-end; resuming skips past paused periods; catch-up is idempotent | Occurrence identity, short-month clamp, skip paused months, idempotent catch-up | PRD FR-07; §6.4 |
-| A5 | Two amount formatters; fonts loaded from Google at runtime | One formatter; bundled fonts | DESIGN G7, G8 |
+| A5 | **Formatter part done 2026-11-12:** one formatter module (`lib/format.ts`) with `formatAmount` (display), `formatAmountFull` (full precision), and `formatAmountShort` (charts); display never shows paise. Still open: most screens call the full-precision alias `formatINR` where DESIGN §4.6 wants compact display (planned for Phase 9); fonts still load from Google at runtime | One formatter; bundled fonts | DESIGN G7, G8 |
 | A6 | **Resolved 2026-11-06.** Removed the unused React Query provider, the `@workspace/api-client-react` dependency, 42 unused `components/ui` primitives, the unused `use-mobile` hook, and the 31 packages only they used | Remove | §2.3 |
 | A7 | Backup app version hard-coded to `1.0.0` | Take it from the build version | §13.3 |
 | A8 | **Resolved 2026-11-06.** While locked, `App.tsx` renders only the lock screen (no pages, sheets, FAB, navigation, or toasts) | Lock screen topmost; content not mounted while locked | DESIGN G12; §4.3 |
 | A9 | Crash reporting not yet privacy-reviewed | Scrubbed payloads; disclosure; D9 decision | PRD FR-12 |
 | A10 | `FinanceContext` mixes state, rules, and persistence (about 1,400 lines) | Split into `domain/` + `storage/`; same public hook API | §4.2 |
 | A11 | No CI workflow | Minimal PR workflow | §16.2 |
-| A12 | Pages and components re-sum transactions with their own filters (Dashboard "today's spend" counts card bill payments; the Transactions total counts savings and card payments) | Shared selectors for every displayed total; cross-screen consistency test | AGENTS §5; PRD §6 |
+| A12 | **Mostly resolved 2026-11-12:** every PRD §6 metric has one implementation in `lib/domain/finance-metrics.ts`; `FinanceContext`, Dashboard, and the shared Analysis totals use it, and a cross-screen consistency test covers them. Still open: Transactions list totals (Phase 6); Analysis-only figures such as the safe-to-spend balance, weekday heatmap, daily spend, budget burndown, and known future expenses (Phase 7); the month-end review snapshot, which still counts card bill payments (pending D8) | Shared selectors for every displayed total; cross-screen consistency test | AGENTS §5; PRD §6 |
 | A13 | Capacitor modules imported both statically and dynamically, so the dynamic imports split nothing | One import style per module | Audit 2026-06-28 |
 | A14 | File names that break AGENTS §4 (`backupHash.ts`, `googleAuth.ts`, `googleDrive.ts`, `not-found.tsx`) | Rename when the file is next changed | AGENTS §3.2, §4 |
 | A15 | Drive client logs the request URL and raw response body on errors | Log method, status, and Drive reason only | §14.4 |

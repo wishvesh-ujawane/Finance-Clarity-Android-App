@@ -114,9 +114,9 @@ Hard rules:
 
 - **UI:** build new screens from existing components in `src/components/` and `src/components/ui/`, following DESIGN §5. A new component or design token needs a short rationale added to DESIGN.md in the same change (DESIGN §14).
 - **Styling:** use only semantic tokens from `index.css` and the Tailwind theme. **No raw hex, hsl, or Tailwind palette colors** in components (DESIGN §2, G13).
-- **Money formatting:** use the canonical `formatAmount` formatter in `lib/finance-utils.ts` (DESIGN §4.6). Do not add another formatter, and do not use `formatINR` in new code.
-- **Dates and months:** use the shared helpers (`currentMonth`, `addMonths`, `localDateStr`, and others in `finance-utils.ts`). Do not hand-roll month math, and do not add a date library.
-- **Financial metrics:** every PRD §6 metric has **exactly one implementation** in shared domain code. Pages must not re-sum transactions. Add a selector or reuse an existing one.
+- **Money formatting:** use the canonical formatters in `lib/format.ts` (DESIGN §4.6): `formatAmount` for display, `formatAmountFull` where exact values are confirmed, and `formatAmountShort` on charts only. Do not add another formatter, and do not use the deprecated `formatINR` or `formatShortINR` aliases in new code.
+- **Dates and months:** use the shared helpers in `lib/domain/periods.ts` (`currentMonth`, `addMonths`, `localDateStr`, `monthOf`, `lastDateOfMonth`, and others). Do not hand-roll month math, and do not add a date library.
+- **Financial metrics:** every PRD §6 metric has **exactly one implementation** in `lib/domain/finance-metrics.ts`. Pages must not re-sum transactions. Add a function there or reuse an existing one.
 - **State:** use the existing contexts (`FinanceContext`, `SecurityContext`, `BackupContext`, `MonthEndReviewContext`, `FabContext`). Do not add Redux, Zustand, or another state library.
 - **Forms:** use controlled React state with the shared entity validators. Do not add a form library. Keep entered values on any error (DESIGN §7).
 - **Validation:** one validator (a TypeScript type guard) per entity, shared by forms, storage reads, backup restore, and CSV import (DATABASE §6.1). Do not add a schema library.

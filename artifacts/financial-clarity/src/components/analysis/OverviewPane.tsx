@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { cn } from '@/lib/utils';
 import { formatINR, formatMonthYear, getMonthOverMonthChange, formatDateLabel, isConsumptionExpense, addMonths, localDateStr, type MoMChange } from '@/lib/finance-utils';
 import { getBudgetPill, getDateRangeExpenseTotal, addDays, startOfWeekMonday } from '@/lib/analysis-utils';
-import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
+import { categorySpent, consumptionByCategoryBetween, isSavingsContribution } from '@/lib/domain/finance-metrics';
 import type { AnalysisShared } from './useAnalysisShared';
 
 interface Props {
@@ -114,19 +114,12 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
     return 'Pick a date range';
   }, [spendPeriod, selectedMonth, previousMonth, spendPeriodRange]);
 
-  // Category spending aggregated across the selected period. Excludes savings
-  // transfers (not spend) so the donut matches the "Day-to-day + Commitments"
-  // bucket semantics used elsewhere.
+  // Consumption by category across the selected period (PRD §6), so the
+  // donut matches the "Day-to-day + Commitments" totals used elsewhere.
   const spendPeriodBreakdown = useMemo(() => {
     const { start, end } = spendPeriodRange;
     if (!start || !end || start > end) return { rows: [] as Array<{ categoryId: string; name: string; icon: string; color: string; amount: number; pct: number }>, total: 0 };
-    const map: Record<string, number> = {};
-    for (const t of transactions) {
-      if (t.type !== 'expense') continue;
-      if (SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number])) continue;
-      if (t.date < start || t.date > end) continue;
-      map[t.categoryId] = (map[t.categoryId] || 0) + t.amount;
-    }
+    const map = consumptionByCategoryBetween(transactions, start, end);
     const total = Object.values(map).reduce((s, v) => s + v, 0);
     const rows = Object.entries(map)
       .map(([categoryId, amount]) => {
@@ -180,9 +173,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
       .filter(b => b.month === selectedMonth)
       .map(b => {
         const category = categories.find(c => c.id === b.categoryId);
-        const spent = transactions
-          .filter(t => t.type === 'expense' && t.categoryId === b.categoryId && t.date.startsWith(selectedMonth))
-          .reduce((sum, t) => sum + t.amount, 0);
+        const spent = categorySpent(transactions, b.categoryId, selectedMonth);
         const usagePct = b.limit > 0 ? (spent / b.limit) * 100 : 0;
         return {
           id: b.id,
@@ -196,16 +187,12 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
       .slice(0, 5);
   }, [budgets, selectedMonth, categories, transactions]);
 
-  // Day-to-day expense transactions (excludes commitments and savings) for the
-  // "Expenses this month" tile drill-down, sorted newest first.
+  // Day-to-day expense transactions (consumption outside commitments) for the
+  // "Expenses this month" tile drill-down, sorted newest first. Uses the same
+  // rule as the tile total so the listed items add up to it.
   const dayToDayTransactions = useMemo(() => {
     return monthlyTransactions
-      .filter(t => {
-        if (t.type !== 'expense') return false;
-        if (commitmentCategoryIds.has(t.categoryId)) return false;
-        if (SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number])) return false;
-        return true;
-      })
+      .filter(t => isConsumptionExpense(t) && !commitmentCategoryIds.has(t.categoryId))
       .map(t => {
         const category = categories.find(c => c.id === t.categoryId);
         return {
@@ -222,7 +209,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
   // sorted newest first.
   const commitmentTransactions = useMemo(() => {
     return monthlyTransactions
-      .filter(t => t.type === 'expense' && commitmentCategoryIds.has(t.categoryId))
+      .filter(t => isConsumptionExpense(t) && commitmentCategoryIds.has(t.categoryId))
       .map(t => {
         const category = categories.find(c => c.id === t.categoryId);
         return {
@@ -239,7 +226,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
   // sorted newest first.
   const savingsTransactions = useMemo(() => {
     return monthlyTransactions
-      .filter(t => t.type === 'expense' && SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number]))
+      .filter(isSavingsContribution)
       .map(t => {
         const category = categories.find(c => c.id === t.categoryId);
         return {

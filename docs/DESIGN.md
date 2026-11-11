@@ -787,7 +787,7 @@ Recorded so they are fixed deliberately, not copied. None of these is authorized
 | G5 | Thresholds | Spending warns at 75%; savings bars warn at 70% | Single 75% threshold (§5.9) |
 | G6 | Period selector | Dashboard uses arrow stepper; Analysis uses picker sheet | One combined component (§5.3) |
 | G7 | Fonts | Inter and Manrope loaded from Google Fonts at runtime; Inter 700 used but not loaded | Bundled fonts; Inter max 600 (§3.1) |
-| G8 | Amount formatting | Two formatters in use (`formatINR` and the canonical `formatAmount`) | One canonical formatter (§4.6) |
+| G8 | Amount formatting | One formatter module (`lib/format.ts`, 2026-11-12) with display, full, and chart variants; no paise. Most screens still use the full-precision variant through the deprecated `formatINR` alias | One canonical formatter (§4.6) |
 | G9 | Safe areas | No safe-area inset handling | Insets respected everywhere (§10) |
 | G10 | Reduced motion | Only confetti respects reduced motion | All motion (§9.4) |
 | G11 | Touch targets | Sheet close/delete icon buttons are 32 px | 48 px hit area (§12.3) |
