@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-12
 **Scope:** Implementation of [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md) Phases 1–10, run as one loop at the owner's request.
-**Status:** In progress. Updated at the end of each phase.
+**Status:** Complete for code that can be verified on this machine. Device, release-artifact, and owner-decision items remain open (see "Final summary").
 
 This report records what each phase completed, what is still open and why,
 and every decision taken along the way. The per-phase summary also lives in
@@ -70,6 +70,11 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 | 48 | 9 | Drive errors no longer log the URL or raw body, and Drive's message text is never shown; a generic "Drive request failed (status)" is used. | Agent | ARCHITECTURE §14.4, API §6.2.5 (A15 / G5). |
 | 49 | 9 | Crashlytics scrubbing, permissions/privacy disclosures, consent, and Play Data safety were reviewed but not changed. | Agent | PRD D9 is pending owner review; the plan says not to claim readiness. |
 | 50 | 9 | Not done: one combined period selector (G6), semantic tokens everywhere (G13), a Content Security Policy, the collapsible Inactive section on Categories, DESIGN §4.6 row styling for savings and card payments. | Agent | Each is a larger design change best reviewed separately; listed for follow-up. |
+| 51 | 10 | CI runs on `pull_request` only: frozen-lockfile install → typecheck → Vitest → web build. | Agent | ARCHITECTURE §16.2 defines exactly this minimal workflow. |
+| 52 | 10 | CI does not run Playwright or build the APK. | Agent | §16.2 excludes device farms and deployment; Playwright needs browser downloads on every run. E2E stays a local pre-release step (BUILD_AND_DEPLOY "Continuous Integration"). |
+| 53 | 10 | GitHub Actions are pinned to major tags (`actions/checkout@v4`, `pnpm/action-setup@v4`, `actions/setup-node@v4`), Node 24, pnpm from `packageManager`; the workflow uses no secrets and read-only `contents` permission. | Agent | Official actions; Node 24 matches BUILD_AND_DEPLOY. SHA pinning is stricter and can be adopted if the owner prefers. |
+| 54 | 10 | Added UPG-001 (browser test seeding pre-migration storage) as the automated stand-in for "install over the previous release". | Agent | A real upgrade install needs a device; this proves the migrations keep and show existing records and are idempotent. |
+| 55 | 10 | PRD §14 release checks are recorded in testing.md "Release verification" with automated evidence and the manual step still needed; no check is reported as passed unless it ran. | Agent | AGENTS §11; the plan says not to claim release readiness. |
 
 ---
 
@@ -119,3 +124,60 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 
 - **Completed:** "Fiscal Focus" branding (G1); bundled fonts, no Google Fonts requests (G7); compact amount display outside month-end (G8); 11 px minimum text and 60% white on navy (G3); worded status chips (G4); single 75% threshold (G5); safe areas (G9); reduced motion (G10); 48 px hit areas on the entry sheet's icon buttons (G11); disabled-submit hint (G15); Red 600 destructive token and 600-level entry fills (G2, partly); Drive logs without URL or server text (A15). Lock-screen isolation was already done (A8). E2E DSN-001.
 - **Pending:** G2 (other 500-level fills), G6 (one period selector), G13 (semantic tokens instead of raw colors), Content Security Policy, collapsible Inactive section, DESIGN §4.6 row styling, Crashlytics scrubbing (A9) and Play Store privacy/Data safety review. **Reason:** G6/G13/CSP and row styling are broad visual changes that need their own review and a device check; A9 and the store review depend on the pending D9 decision. Device checks (TalkBack, 130% text, keyboard-open forms, safe areas) need a phone.
+
+### Phase 10 — Release verification and minimal CI
+
+- **Completed:** `.github/workflows/ci.yml` (pull requests: frozen-lockfile install, typecheck, Vitest, web build), ARCHITECTURE A11 resolved; UPG-001 upgrade test (pre-migration storage → version 2, all records kept and shown, second launch changes nothing); PRD §14 release checklist in [testing.md](../testing.md) "Release verification" mapping each check to its automated evidence and the manual step still needed; BUILD_AND_DEPLOY "Continuous Integration" section.
+- **Final local checks (2026-11-12):** `pnpm run typecheck` pass; Vitest 249/249 (33 files); Playwright 56 passed, 8 skipped (desktop-only audit cases on the mobile project); `pnpm run build` pass (main chunk 1,236.62 kB). The CI workflow has not run on GitHub yet because nothing was pushed.
+- **Pending:** every manual PRD §14 step (offline restart, closed-app recurring catch-up, merged release manifest, upgrade install over the previous release, 130% text and keyboard, TalkBack, real Drive back up → reinstall → restore) and the Play Store privacy/Data safety review. **Reason:** this machine has no Android SDK, device, or test Google account, and D9 is pending.
+
+---
+
+## Final summary
+
+### Branches and commits
+
+Each branch is built on the one before it. Merge in this order; nothing has been pushed.
+
+| Phase | Branch | Commit |
+|---|---|---|
+| 1 | `chore/phase-1-sms-removal-verification` | `60fe3a5` (owner) |
+| 2 | `feature/phase-2-storage-boundaries` | `6b672ed` (owner) |
+| 3 | `feature/phase-3-domain-metrics` | `5febf89` |
+| 4 | `feature/phase-4-category-status` | `1861e01` |
+| 5 | `feature/phase-5-recurring-scheduler` | `9c73aac` |
+| 6 | `feature/phase-6-core-journeys` | `3b56ac8` |
+| 7 | `feature/phase-7-analysis` | `5aa15a6` |
+| 8 | `feature/phase-8-backup-csv-share` | `f0152fb` |
+| 9 | `feature/phase-9-shell-design-a11y` | `6340002` |
+| 10 | `feature/phase-10-release-ci` | see `git log` on the branch |
+
+### Completed vs pending
+
+| Phase | Status | Still open | Why it is open |
+|---|---|---|---|
+| 1 SMS removal | Done | Merged release manifest check | No Android SDK here |
+| 2 Storage | Done | Non-finance modules write `localStorage` directly | Owner chose keys-only (decision 4) |
+| 3 Metrics | Done | Month-end snapshot counts card bill payments | D8 pending |
+| 4 Categories | Done | Confirm picker rule and inactive-category recurring rule | PRD FR-03 says "requires confirmation" (decisions 15–16) |
+| 5 Recurring | Done | Permanent suppression of a deleted occurrence | PRD FR-07 pending (decision 24) |
+| 6 Journeys | Done | Offline restart on a device | Manual check |
+| 7 Analysis | Done | Month-end fixes (snapshot, ignored budget save results) | D8 pending (decision 36) |
+| 8 Backup/CSV/share | Done | Download size guard, blocking pre-restore copy, real Drive recovery | API marks them Proposed; D7 defers; needs a device and account |
+| 9 Design/a11y | Done in part | G2 remainder, G6, G13, CSP, collapsible Inactive section, §4.6 row styling, A9 Crashlytics scrubbing | Broad visual changes need their own review; A9 depends on D9 |
+| 10 Release/CI | Done in part | All manual PRD §14 device steps; Play privacy/Data safety | Needs a device, release build, Google account, and D9 |
+
+Other documented gaps not covered by the plan's phases and left untouched: ARCHITECTURE A10 (split `FinanceContext`), A13, A14, A16 (main bundle about 1.24 MB; code splitting).
+
+### Owner decisions needed
+
+1. **PRD FR-03:** confirm that pickers hide inactive categories except on an edited entry's own category, and what happens to an active recurring rule whose category becomes inactive (today: it keeps generating).
+2. **PRD FR-07:** should deleting a generated occurrence suppress it permanently?
+3. **PRD D8 / FR-09:** approve month-end changes (stop counting card bill payments in the snapshot, report budget save failures, move to the compact formatter).
+4. **PRD D9:** Crashlytics scrubbing and consent, privacy disclosures, and the Play Data safety answers.
+5. **PRD D7:** backup download size guard and whether the pre-restore safety copy must block a restore.
+6. **CI:** keep actions pinned by major tag or switch to commit SHAs (decision 53).
+
+### Manual checks for the owner
+
+Follow testing.md "Release verification" items 1, 4–8, and 10 on a phone with a release build: airplane-mode add and restart, recurring catch-up after the app stays closed across a due date, `gradlew :app:processReleaseMainManifest` shows no `READ_SMS`, install over the previous release, 130% font size and keyboard-open forms, a TalkBack pass, safe areas on a notched or gesture-nav phone, and Drive back up → reinstall → restore.

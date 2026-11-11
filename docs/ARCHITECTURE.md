@@ -687,7 +687,7 @@ None of these items is authorized by this document alone. Each needs owner appro
 | A8 | **Resolved 2026-11-06.** While locked, `App.tsx` renders only the lock screen (no pages, sheets, FAB, navigation, or toasts) | Lock screen topmost; content not mounted while locked | DESIGN G12; §4.3 |
 | A9 | Crash reporting not yet privacy-reviewed | Scrubbed payloads; disclosure; D9 decision | PRD FR-12 |
 | A10 | `FinanceContext` mixes state, rules, and persistence (about 1,400 lines) | Split into `domain/` + `storage/`; same public hook API | §4.2 |
-| A11 | No CI workflow | Minimal PR workflow | §16.2 |
+| A11 | **Resolved 2026-11-12.** `.github/workflows/ci.yml` runs on pull requests: frozen-lockfile install → typecheck → Vitest → web build | Minimal PR workflow | §16.2 |
 | A12 | **Mostly resolved 2026-11-12:** every PRD §6 metric has one implementation in `lib/domain/finance-metrics.ts`; `FinanceContext`, Dashboard, and the shared Analysis totals use it, and a cross-screen consistency test covers them. Still open: the month-end review snapshot, which still counts card bill payments (pending D8). Transactions list totals (Phase 6) and the Analysis-only figures — safe-to-spend, weekday heatmap, daily spend, burndown, known future expenses, Trends savings rate (Phase 7) — use the shared rules since 2026-11-12 | Shared selectors for every displayed total; cross-screen consistency test | AGENTS §5; PRD §6 |
 | A13 | Capacitor modules imported both statically and dynamically, so the dynamic imports split nothing | One import style per module | Audit 2026-06-28 |
 | A14 | File names that break AGENTS §4 (`backupHash.ts`, `googleAuth.ts`, `googleDrive.ts`, `not-found.tsx`) | Rename when the file is next changed | AGENTS §3.2, §4 |

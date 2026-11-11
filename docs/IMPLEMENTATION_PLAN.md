@@ -465,3 +465,17 @@ used for implementation is in the previous revision of this file
   (semantic tokens), a Content Security Policy, the collapsible Inactive
   section, savings/card-payment row styling; Crashlytics scrubbing and the
   privacy/Data safety review (pending D9); device accessibility walkthrough.
+
+### Phase 10 — Done in part (branch `feature/phase-10-release-ci`)
+
+- Done: minimal pull-request CI (`.github/workflows/ci.yml`: frozen-lockfile
+  install, typecheck, Vitest, web build), ARCHITECTURE A11 resolved; E2E
+  UPG-001 (upgrade from pre-migration storage); PRD §14 release checklist in
+  `docs/testing.md` "Release verification". Final local run: typecheck pass,
+  Vitest 249/249, Playwright 56 passed / 8 skipped, build pass.
+- Open: every manual device step in the release checklist (offline restart,
+  recurring catch-up, merged release manifest, upgrade install, 130% text,
+  TalkBack, real Drive restore) and the Play privacy/Data safety review
+  (pending D9). This machine has no Android SDK or device.
+- Final review, decision log, and owner decisions still needed:
+  [2026-11-12 phases implementation review](./audits/2026-11-12-phases-implementation-review.md).
