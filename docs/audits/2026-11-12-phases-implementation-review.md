@@ -48,6 +48,14 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 | 26 | 6 | "Transfer to {month}" is renamed "Copy to {month}", and the confirmation lists each new budget, each replaced limit (old → new), untouched target budgets, and skipped inactive categories. | Agent | PRD FR-05: copying is not a money transfer and overwrite consequences must be confirmed. |
 | 27 | 6 | Budget copy skips a source budget whose category is inactive unless the target month already has that budget (then its limit is updated). | Agent | Consistent with decision 15: no new budgets in inactive categories. |
 | 28 | 6 | Added a busy guard to the transaction sheet's submit button; the budget sheet needs none because adding a budget replaces the same category/month. | Agent | DESIGN §7.3. A double tap previously saved two transactions (bug 20261112-transaction-double-submit). |
+| 29 | 6 | Amended the local, unpushed Phase 6 commit to restore LF line endings in one doc, and moved the then-empty Phase 7 branch to the amended commit. | Agent | Keep diffs reviewable; no published history was rewritten. |
+| 30 | 7 | "Daily Safe to Spend" uses the spendable balance: income − consumption − savings contributions through today. Before, it subtracted every expense, so card bill payments were counted twice. | Agent | PRD §6 consumption rule; keeps the existing intent that money set aside for savings is not spendable. |
+| 31 | 7 | Known future spending in the projection counts consumption and savings dated after today, not card bill payments. | Agent | Same rule as decision 30. |
+| 32 | 7 | The projection is shown only when there is at least one earlier month of entries; otherwise "Insufficient history". | Agent | PRD FR-08 and AGENTS §8: no misleading forecasts. One prior month is the smallest basis for "average income". |
+| 33 | 7 | The Trends "Monthly savings rate" uses savings contributions ÷ income, the same as Overview. It used (income − spending) ÷ income. | Agent | One definition per metric (AGENTS §5). This changes the chart's values. |
+| 34 | 7 | The day-to-day pace chart uses the day-to-day budget only (savings budgets were included) and leaves out recurring entries by their stored rule ID instead of amount matching. | Agent | PRD §6 buckets; ADR 0004 replaced fuzzy matching with occurrence identity. Pre-v4 recurring entries without an ID now count as day-to-day spend. |
+| 35 | 7 | Budget suggestions skip inactive categories, ask before replacing existing limits, and report the first save failure with how many were saved. | Agent | PRD FR-08 ("confirm before suggestions overwrite existing budget limits"), decision 15, AGENTS §8. |
+| 36 | 7 | Month-end review code was not changed. | Agent | PRD FR-09 / D8 pending. |
 
 ---
 
@@ -82,3 +90,8 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 
 - **Completed:** Transactions "Spending" tile and day totals use consumption; budget copy explains every overwrite and copies limits only (`lib/domain/budgets.ts`); transaction delete confirmation names the entry; double-submit guard (fixed a real double-save bug). Dashboard metrics and budget progress already used shared selectors after Phases 3–4; savings targets remain separate from monthly savings budgets (no change needed); save errors keep form values (Phase 2 / A2). E2E TXN-002 and BUD-002.
 - **Pending:** offline save-and-restart and device checks (Phase 10, manual). Visual treatment of savings and card-payment rows (DESIGN §4.6 colors and labels) is left for Phase 9.
+
+### Phase 7 — Analysis and month-end preservation
+
+- **Completed:** Overview, Planning, and Trends use the shared PRD §6 rules (`lib/domain/analysis.ts`): spendable balance, future outflow, weekday and daily consumption, day-to-day pace, one savings-rate definition. Projection shows "Insufficient history" without an earlier month. Budget suggestions confirm before replacing limits and report failures. Existing zero-base guards (week-over-week, month-over-month) kept. E2E ANA-001 and ANA-002.
+- **Pending:** month-end review still counts card bill payments in its snapshot and ignores its budget save results. **Reason:** month-end is pending owner review (D8); the plan forbids changing it until a proposal is approved.

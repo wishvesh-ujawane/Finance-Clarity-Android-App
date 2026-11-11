@@ -430,3 +430,14 @@ used for implementation is in the previous revision of this file
   and BUD-002.
 - Open for later phases: DESIGN §4.6 row styling for savings and card
   payments (Phase 9); offline restart and device checks (Phase 10).
+
+### Phase 7 — Done (branch `feature/phase-7-analysis`)
+
+- Done: Analysis uses the PRD §6 rules for safe-to-spend, projection, known
+  future spending, weekday and daily spend, the day-to-day pace chart, and the
+  savings rate (`lib/domain/analysis.ts`); "Insufficient history" instead of a
+  projection without an earlier month; budget suggestions confirm before
+  replacing limits and report save failures. Month-end code unchanged. E2E
+  ANA-001 and ANA-002.
+- Open for later phases: month-end review snapshot and budget step (pending
+  D8 proposal); Analysis image share failure is still only logged (Phase 8).

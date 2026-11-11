@@ -5,8 +5,8 @@ import { CategoryIcon } from '@/components/CategoryIcon';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { formatINR, formatMonthYear, formatShortINR } from '@/lib/finance-utils';
-import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
 import { getLastNMonths, monthLabel } from '@/lib/analysis-utils';
+import { consumptionByDay, consumptionByWeekday, dayToDayPaceByDay } from '@/lib/domain/analysis';
 import type { AnalysisShared } from './useAnalysisShared';
 
 interface Props {
@@ -15,12 +15,13 @@ interface Props {
 
 export default function TrendsPane({ shared }: Props) {
   const {
-    finance: { transactions, categories, budgets, selectedMonth, recurringExpenses, getMonthSummary, openEditSheet },
+    finance: { categories, selectedMonth, getMonthSummary, openEditSheet },
     today,
     currentMonthKey,
     daysInSelectedMonth,
     monthlyTransactions,
     commitmentCategoryIds,
+    monthlyDayToDayBudgetTotal,
   } = shared;
 
   const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null);
@@ -59,28 +60,20 @@ export default function TrendsPane({ shared }: Props) {
       if (!summary.hasData || summary.totalIncome <= 0) {
         return { month: monthLabel(month), raw: month, rate: null as number | null };
       }
-      const rate = Math.max(-100, Math.min(100, ((summary.totalIncome - summary.totalExpenses) / summary.totalIncome) * 100));
+      // Same definition as the Overview tab: savings contributions / income.
+      const rate = Math.max(0, Math.min(100, summary.savingsRate));
       return { month: monthLabel(month), raw: month, rate: Number(rate.toFixed(1)) };
     });
   }, [last6Months, getMonthSummary]);
 
   const weekdayHeatmap = useMemo(() => {
     const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const totals = [0, 0, 0, 0, 0, 0, 0];
-    const topByCategory: Record<number, Record<string, number>> = {};
-    monthlyTransactions.filter(t => t.type === 'expense').forEach(t => {
-      const d = new Date(`${t.date}T00:00:00`);
-      const jsDay = d.getDay();
-      const idx = jsDay === 0 ? 6 : jsDay - 1;
-      totals[idx] += t.amount;
-      if (!topByCategory[idx]) topByCategory[idx] = {};
-      topByCategory[idx][t.categoryId] = (topByCategory[idx][t.categoryId] || 0) + t.amount;
-    });
+    const { totals, byCategory: topByCategory } = consumptionByWeekday(monthlyTransactions, selectedMonth);
     const max = Math.max(...totals, 0);
     return labels.map((label, idx) => {
       let topCat: { name: string; amount: number } | null = null;
       const cats = topByCategory[idx];
-      if (cats) {
+      if (Object.keys(cats).length > 0) {
         const [catId, amt] = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
         const c = categories.find(cc => cc.id === catId);
         topCat = { name: c?.name || 'Unknown', amount: amt };
@@ -93,18 +86,12 @@ export default function TrendsPane({ shared }: Props) {
         topCategory: topCat,
       };
     });
-  }, [monthlyTransactions, categories]);
+  }, [monthlyTransactions, categories, selectedMonth]);
 
-  const dailySpend = useMemo(() => {
-    const map: Record<number, { total: number; txns: typeof transactions }> = {};
-    monthlyTransactions.filter(t => t.type === 'expense').forEach(t => {
-      const day = parseInt(t.date.slice(-2), 10);
-      if (!map[day]) map[day] = { total: 0, txns: [] };
-      map[day].total += t.amount;
-      map[day].txns.push(t);
-    });
-    return map;
-  }, [monthlyTransactions]);
+  const dailySpend = useMemo(
+    () => consumptionByDay(monthlyTransactions, selectedMonth),
+    [monthlyTransactions, selectedMonth],
+  );
 
   const maxDailySpend = useMemo(() => {
     let max = 0;
@@ -142,33 +129,13 @@ export default function TrendsPane({ shared }: Props) {
   const getCategoryById = (id: string) => categories.find(c => c.id === id);
 
   const burndownData = useMemo(() => {
-    const dayToDayBudget = budgets
-      .filter(b => b.month === selectedMonth && !commitmentCategoryIds.has(b.categoryId))
-      .reduce((s, b) => s + b.limit, 0);
+    // Day-to-day budget only (no commitment or savings budgets), paced
+    // against day-to-day consumption without recurring bills.
+    const dayToDayBudget = monthlyDayToDayBudgetTotal;
 
     if (dayToDayBudget <= 0) return { points: [], dayToDayBudget: 0, crossoverDay: null as number | null };
 
-    const activeRecurringForMonth = recurringExpenses.filter(r => r.active);
-    const recurringMatches = new Set<string>();
-    for (const t of monthlyTransactions) {
-      if (t.type !== 'expense') continue;
-      for (const r of activeRecurringForMonth) {
-        if (t.categoryId !== r.categoryId) continue;
-        if (Math.abs(t.amount - r.amount) > 1) continue;
-        recurringMatches.add(t.id);
-        break;
-      }
-    }
-
-    const dayToDayTxByDay: Record<number, number> = {};
-    monthlyTransactions
-      .filter(t => t.type === 'expense' && !commitmentCategoryIds.has(t.categoryId))
-      .filter(t => !SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number]))
-      .filter(t => !recurringMatches.has(t.id))
-      .forEach(t => {
-        const day = parseInt(t.date.slice(-2), 10);
-        dayToDayTxByDay[day] = (dayToDayTxByDay[day] || 0) + t.amount;
-      });
+    const dayToDayTxByDay = dayToDayPaceByDay(monthlyTransactions, commitmentCategoryIds, selectedMonth);
 
     const maxDay = selectedMonth === currentMonthKey ? today.getDate() : daysInSelectedMonth;
     let cumulative = 0;
@@ -192,7 +159,7 @@ export default function TrendsPane({ shared }: Props) {
       }
     }
     return { points, dayToDayBudget, crossoverDay };
-  }, [budgets, selectedMonth, monthlyTransactions, commitmentCategoryIds, recurringExpenses, currentMonthKey, today, daysInSelectedMonth]);
+  }, [monthlyDayToDayBudgetTotal, selectedMonth, monthlyTransactions, commitmentCategoryIds, currentMonthKey, today, daysInSelectedMonth]);
 
   return (
     <>
