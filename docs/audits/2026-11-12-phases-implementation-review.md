@@ -150,7 +150,7 @@ Each branch is built on the one before it. Merge in this order; nothing has been
 | 7 | `feature/phase-7-analysis` | `5aa15a6` |
 | 8 | `feature/phase-8-backup-csv-share` | `f0152fb` |
 | 9 | `feature/phase-9-shell-design-a11y` | `6340002` |
-| 10 | `feature/phase-10-release-ci` | see `git log` on the branch |
+| 10 | `feature/phase-10-release-ci` | `56ce1a9` |
 
 ### Completed vs pending
 
