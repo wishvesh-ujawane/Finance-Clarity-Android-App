@@ -426,6 +426,8 @@ All key names live in one module in `lib/storage/`. No other file contains key s
 
 ## 10. API Architecture
 
+> Detailed contracts for this section now live in [API.md](./API.md) (§2–§9, §12). This section keeps the summary. If the two disagree, API.md wins for contract details (AGENTS.md §1.3).
+
 ### 10.1 MVP: no first-party API
 
 The app makes no calls to any server owned by the project.
@@ -467,6 +469,8 @@ Prerequisites: ADR, privacy review, Data safety update, and owner approval.
 ---
 
 ## 11. External Services
+
+> Allowed destinations, configuration, and data leaving the device are specified in [API.md](./API.md) §1.1, §10, and §11.
 
 | Service | Purpose | Data leaving the device | Required? | If unavailable | Status |
 |---|---|---|---|---|---|

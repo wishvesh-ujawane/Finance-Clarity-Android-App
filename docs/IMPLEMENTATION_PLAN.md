@@ -37,21 +37,15 @@ the API boundary is described in ARCHITECTURE §10.
   permanently before implementing that edge behavior.
 - Keep month-end redesign and privacy/store disclosures as separate decision
   gates; do not silently expand either.
-
 **Likely files/modules:** No application files. Record decisions through the
 repository's documented process if approved.
-
 **Dependencies/prerequisites:** Owner decisions and implementation approval.
-
 **Database/API changes:** None.
-
 **Tests required:** None.
 
 **Completion criteria:** Scope is explicitly authorized, and any unresolved
-decision required by an upcoming phase is resolved or explicitly excluded.
 
 ## Phase 1 — Characterize the app and remove SMS
-
 **Goal:** Establish a testable baseline and remove the explicitly out-of-scope
 SMS capability without disturbing historical finance data.
 
@@ -61,15 +55,9 @@ SMS capability without disturbing historical finance data.
   dedicated dependencies.
 - Remove SMS screens, routes, scanning and approval flows, parsers, native
   reader/plugin wiring, SMS permissions, and dependencies used only by SMS.
-- Preserve financial transactions and legacy SMS backup data. Do not purge
-  old keys or transaction metadata.
-- Remove unused React Query/API-client wiring only after confirming it is
   unused; do not add replacement infrastructure.
-
 **Likely files/modules:** `artifacts/financial-clarity/src/App.tsx`; related
-`src/pages/`, `src/components/`, and `src/lib/` modules; package manifests;
 Android manifest/plugin configuration; SMS tests and fixtures.
-
 **Dependencies/prerequisites:** Phase 0 authorization; inspect current tests
 and release manifest before removal.
 
@@ -92,18 +80,12 @@ storage boundaries for later behavior changes.
 **Features/tasks**
 
 - Centralize storage keys, schemas, reads/writes, and migration execution in
-  the target storage layer.
 - Return typed success/failure results; persist before committing finance
-  state.
 - Preserve state and form values on failed writes, and surface actionable
-  errors.
 - Quarantine invalid stored data rather than dropping or overwriting it.
-- Add ordered, forward-only, idempotent migrations with rollback for multi-key
   writes; write the storage version last.
 
-**Likely files/modules:** New or consolidated modules under
 `artifacts/financial-clarity/src/lib/storage/`; finance persistence in
-`src/context/FinanceContext.tsx`; shared entity types and schemas under
 `src/lib/`.
 
 **Dependencies/prerequisites:** Phase 1 baseline. Keep existing keys, IDs, and
@@ -133,12 +115,8 @@ across screens.
 - Centralize date/month boundaries and shared period selectors.
 - Preserve the current money representation and date-only financial semantics.
 - Consolidate amount/date formatting into canonical helpers.
-- Extract domain logic incrementally from the existing context while
-  preserving its public hook API.
 
-**Likely files/modules:** `src/lib/domain/`; `src/lib/format.ts` or the
 existing shared formatter module; `src/lib/types.ts`; and
-`src/context/FinanceContext.tsx`.
 
 **Dependencies/prerequisites:** Phase 2 storage boundary. Do not change
 financial definitions beyond PRD §6.
@@ -166,13 +144,9 @@ references and old data.
   details.
 - Implement the documented local migration so existing categories default to
   active.
-- Implement the backup migration for category status and preserve refusal of
   newer backup schemas.
 - Preserve reserved-category protections and stable IDs.
-
-**Likely files/modules:** Category domain mutations and schemas; category
 management and transaction/budget/recurring pickers; local and backup
-migration modules; category tests.
 
 **Dependencies/prerequisites:** Phases 2–3. Resolve the pending interaction
 between inactive categories and active recurring rules before implementing
@@ -196,12 +170,8 @@ users and supported backups migrate safely.
 behavior without duplicates or unexpected backfill.
 
 **Features/tasks**
-
 - Clamp scheduled days to the month's last day.
 - Skip paused months and process due active occurrences after app reopen/resume.
-- Use rule ID plus occurrence month as identity; make repeated processing
-  idempotent and single-flight.
-- Persist generated transactions and cursor changes safely, preserving
   generated entries when a rule is edited or deleted.
 - Implement occurrence-deletion behavior only after the open product decision
   is resolved.
@@ -227,12 +197,8 @@ persisted state.
 ## Phase 6 — Integrate transaction, dashboard, budget, and savings journeys
 
 **Goal:** Apply shared domain and storage rules consistently to core daily-use
-screens.
-
 **Features/tasks**
-
 - Align transaction creation/editing/search/filtering and destructive
-  confirmation with the PRD and design requirements.
 - Use shared selectors for Dashboard metrics and budget progress.
 - Keep spending and savings budgets distinct; implement limit-only budget
   copying with explicit overwrite details.
@@ -259,16 +225,10 @@ across screens, budget copying changes limits only, and destructive/overwrite
 actions describe their effects.
 
 ## Phase 7 — Align Analysis and preserve month-end behavior
-
 **Goal:** Make analysis trustworthy while keeping month-end behavior within
-its approved scope.
 
-**Features/tasks**
 
-- Use shared selectors for Overview, Planning, and Trends.
 - Guard insufficient-history cases and avoid invalid percentages or
-  unsupported forecasts.
-- Ensure estimates state their basis and budget suggestions require overwrite
   confirmation.
 - Preserve the current month-end flow and accounting behavior; apply only
   separately approved design/accessibility fixes.
@@ -296,15 +256,10 @@ unintentionally changed.
 **Goal:** Maintain recovery and export behavior while supporting approved
 migrations and surfacing failures.
 
-**Features/tasks**
 
-- Keep current Drive backup coverage, restore preview/confirmation, rollback,
   and old-backup compatibility.
-- Include documented schema migrations while retaining legacy SMS
   compatibility data without restoring SMS functionality.
-- Keep CSV scoped to transactions, validate imports, report skipped/invalid
   counts, and preserve formula escaping.
-- Surface native share/export failures visibly; derive backup app version
   from build metadata rather than a hard-coded value.
 
 **Likely files/modules:** Backup and CSV modules; `BackupContext`; Google
@@ -332,12 +287,8 @@ clearly reported.
 accessibility, and privacy requirements.
 
 **Features/tasks**
-
-- Enforce launch priority and ensure financial screens are not rendered while
   locked; make the lock screen topmost.
-- Align routes/navigation and branding with Fiscal Focus while preserving
   package IDs, storage keys, and backup paths.
-- Apply semantic tokens, bundled fonts, canonical formatters, safe areas,
   reduced-motion behavior, touch targets, keyboard-safe forms, TalkBack
   labels, and required empty/error states.
 - Review Crashlytics, permissions, privacy disclosures, consent, and Play
@@ -363,16 +314,11 @@ privacy/store questions are reported.
 
 ## Phase 10 — Release verification and CI
 
-**Goal:** Verify the MVP end-to-end on Android builds and prevent regressions.
 
-**Features/tasks**
 
 - Add the minimal documented PR workflow: frozen-lockfile install,
-  typecheck, tests, and web build.
 - Verify offline persistence across restart, metric consistency, category
-  restrictions, recurring idempotency, backup recovery, and upgrade-install
   data retention.
-- Inspect the release artifact for SMS code/permission and confirm only
   expected permissions are present.
 - Run the documented Android device checks at default and 130% text size,
   including TalkBack, keyboard-open forms, and airplane-mode use.

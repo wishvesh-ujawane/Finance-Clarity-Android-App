@@ -8,13 +8,14 @@ These rules apply to every coding agent working in this repository, for every ta
 
 ### 1.1 Core documents
 
-These four files in [docs/](./docs/), plus this file at the repository root, are the project's main documents. Read the relevant parts before you plan or write code:
+These five files in [docs/](./docs/), plus this file at the repository root, are the project's main documents. Read the relevant parts before you plan or write code:
 
 | Document | Governs |
 |---|---|
 | [docs/PRD.md](./docs/PRD.md) | Product scope, functional requirements, the financial baseline (§6), owner decisions (§15) |
 | [docs/DESIGN.md](./docs/DESIGN.md) | UX, design tokens, components, states, accessibility, terminology |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Layers, data flow, folder structure, security, error handling, API and plugin contracts (§10), testing, deployment |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Layers, data flow, folder structure, security, error handling, testing, deployment. §10 and §11 keep only the summary; detailed contracts live in API.md |
+| [docs/API.md](./docs/API.md) | Internal contracts (context actions, storage layer, platform adapters), result envelope and error codes, Google Sign-In and Drive contracts, backup and CSV file contracts, allowed network destinations, retries and quotas, environment configuration, data leaving the device |
 | [docs/DATABASE.md](./docs/DATABASE.md) | On-device data model, storage keys, constraints, migrations, sensitive data |
 | [AGENTS.md](./AGENTS.md) | How the coding agent works: process, code rules, and change discipline (this file). Stays at the root so coding tools can find it |
 | [docs/IMPLEMENTATION_PLAN.md](./docs/IMPLEMENTATION_PLAN.md) | Proposed implementation sequence only; subordinate to the core documents and not authorization to implement |
@@ -28,7 +29,7 @@ This file replaces all earlier agent definitions and instruction files. No other
 The owner will add more project documents over time. When a new document is introduced:
 
 1. **Register it** by adding a row to the table in §1.1 that states what it governs. A document that is not registered there is reference material, not a source of truth.
-2. **Set its precedence** in §1.3, and state which existing document sections it takes over (for example, a future API document would take over ARCHITECTURE §10).
+2. **Set its precedence** in §1.3, and state which existing document sections it takes over (for example, API.md takes over the detailed contract content of ARCHITECTURE §10 and §11).
 3. **Remove overlap.** Point the older document to the new one instead of keeping two copies of the same rule. Report any conflict to the owner rather than choosing a winner yourself.
 4. **Update this file's references** (rules that cite the older section) in the same change.
 
@@ -36,11 +37,11 @@ Do not create new top-level project documents on your own. Add one only when the
 
 ### 1.3 Precedence and conflicts
 
-**Precedence:** PRD (scope) → DESIGN (UX) → ARCHITECTURE (structure) → DATABASE (data). AGENTS.md governs process and working rules, not product behavior. The implementation plan is sequencing guidance only; it cannot change scope, resolve pending decisions, or authorize implementation. If two documents disagree, or the code disagrees with a document:
+**Precedence:** PRD (scope) → DESIGN (UX) → ARCHITECTURE (structure) → API (integration contracts) → DATABASE (data). API.md is authoritative for the contract details it took over from ARCHITECTURE §10 and §11; ARCHITECTURE still wins on layers, structure, and principles. AGENTS.md governs process and working rules, not product behavior. The implementation plan is sequencing guidance only; it cannot change scope, resolve pending decisions, or authorize implementation. If two documents disagree, or the code disagrees with a document:
 
 - **Report the gap.** Do not resolve it silently.
-- **Do not treat existing code as precedent.** Known gaps are listed in DESIGN §15, ARCHITECTURE §19, and DATABASE.
-- **Respect the labels.** Items marked **Approved change** or **MVP-cleanup** are not authorized for implementation unless the owner asks for them. Items marked **Pending review**, **Deferred**, or **Future** must not be implemented.
+- **Do not treat existing code as precedent.** Known gaps are listed in DESIGN §15, ARCHITECTURE §19, API §13, and DATABASE.
+- **Respect the labels.** Items marked **Approved change** or **MVP-cleanup** are not authorized for implementation unless the owner asks for them. Items marked **Proposed** (for example the result envelope and error codes in API §4) must not be used in code until the owner confirms them. Items marked **Pending review**, **Deferred**, or **Future** must not be implemented.
 
 ---
 
@@ -127,7 +128,7 @@ Hard rules:
 - **Use pnpm only.** Never use npm or yarn, and never commit `package-lock.json` or `yarn.lock`.
 - **Prefer what already exists:** platform APIs (`Intl`, WebCrypto), existing packages, then a small local helper. Add a new package only when none of these works.
 - **Every new runtime dependency** needs a written reason (what it does, why existing options are not enough, its size, and its maintenance status), and owner approval before you install it.
-- **New external services, Android permissions, or Capacitor plugins** need an ADR and owner approval (ARCHITECTURE §20).
+- **New external services, network destinations, SDKs, OAuth scopes, Android permissions, or Capacitor plugins** need an ADR and owner approval (ARCHITECTURE §20, API §14).
 - **Never weaken the supply-chain policy:** keep `minimumReleaseAge: 1440` in `pnpm-workspace.yaml`, and do not add entries to `minimumReleaseAgeExclude` without an ADR.
 - **Commit `pnpm-lock.yaml`** together with any manifest change. Do not edit the lockfile by hand.
 - Use the `catalog:` versions in `pnpm-workspace.yaml` where a package is already catalogued.
@@ -157,13 +158,14 @@ Hard rules:
 
 ## 8. Error Handling
 
-Follow ARCHITECTURE §14 and DESIGN §8.
+Follow ARCHITECTURE §14, API §4 and §12, and DESIGN §8.
 
 - **Never report success before the data is durably saved** or the remote operation has finished.
 - **Persist first:** validate → apply domain rules → write to storage → update React state **only if the write succeeded** (ARCHITECTURE §6.2).
 - **Never swallow errors.** Do not use empty `catch` blocks, and do not catch an error only to log it when the user needs to know about it.
-- **Errors are returned as values** at the storage and platform boundaries. Contexts turn them into user-facing messages using the error taxonomy (ARCHITECTURE §14.2).
-- **Every message says** what happened, whether data is safe, and what to do next.
+- **Errors are returned as values** at the storage and platform boundaries. Contexts turn them into user-facing messages using the error taxonomy (ARCHITECTURE §14.2, API §4.2).
+- **Every message says** what happened, whether data is safe, and what to do next. Messages never contain financial data, emails, tokens, file contents, or raw server text (API §4.1).
+- **A user cancel is not an error.** Closing the account picker or share sheet returns to idle without an error message (API §4.2).
 - **Keep form values** after validation or save errors. Submit buttons go busy immediately and ignore repeated taps.
 - **Multi-key writes** take a snapshot first and roll back on failure, in the order given in DATABASE §7.3.
 - **Corrupt data is quarantined**, never silently dropped or overwritten (DATABASE §6.1).
@@ -176,12 +178,12 @@ Follow ARCHITECTURE §14 and DESIGN §8.
 
 - **Never commit secrets:** keystores, `keystore.properties`, `google-services.json`, `.env*` files with real values, tokens, or passwords. Check `git diff --cached` before every commit.
 - **Never print, log, or paste secrets** into chat, commits, issues, or files.
-- **Never put secrets in client configuration.** Anything prefixed `VITE_` is compiled into the public bundle. The client needs no secrets.
-- **Treat all financial data as sensitive** (DATABASE §9.1). Never log amounts, notes, merchants, category names, emails, PIN hashes, tokens, or backup contents. Diagnostics carry error codes and operation names only.
+- **Never put secrets in client configuration.** Anything prefixed `VITE_` is compiled into the public bundle. The client needs no secrets, and a Google client secret must never appear in the repo, the bundle, or `.env*` files (API §10).
+- **Treat all financial data as sensitive** (DATABASE §9.1, API §11). Never log amounts, notes, merchants, category names, emails, PIN hashes, tokens, backup contents, full request URLs, or raw Drive error bodies. Diagnostics carry error codes and operation names only.
 - **Crashlytics:** send scrubbed payloads only, and never set a user ID from the Google email.
 - **The PIN** is stored only as a salted hash. Never store, log, or export the PIN or its hash.
-- **OAuth tokens** are managed by the plugin. Never write them to app storage or logs.
-- **Use least privilege:** Google scope stays `drive.file`. Do not add Android permissions. `READ_SMS` is being removed and must never be added back.
+- **OAuth tokens** are managed by the plugin and held in memory only. Never write them to app storage or logs (API §3.4).
+- **Use least privilege:** Google scopes stay `profile`, `email`, and `drive.file` (API §3.4). Do not add Android permissions. `READ_SMS` is being removed and must never be added back.
 - **Keep** `android:allowBackup="false"`.
 - **Never render** user or imported data as raw HTML. Escape CSV cells that start with `=`, `+`, `-`, or `@`.
 - **Treat imported files** (backup JSON, CSV) as untrusted: check size limits, validate the schema, check the version, show a preview, and require explicit confirmation.
@@ -210,15 +212,25 @@ Follow ARCHITECTURE §14 and DESIGN §8.
 - **Do not store derived totals.** Compute them with memoized domain selectors.
 - **Recurring generation** must follow the invariants in DATABASE §6.3: an occurrence key, a forward-only cursor, short-month clamping, skipped paused months, and no duplicates.
 
-### 10.2 External APIs (ARCHITECTURE §10)
+### 10.2 Internal contracts (API §5)
 
-- **Google Drive is the only remote API.** Access it only through the `googleDrive` platform adapter.
+- **Pages and components** reach data and services only through the context hooks (`useFinance`, `useSecurity`, `useBackup`, `useMonthEndReview`, `useFab`) listed in API §2.
+- **Keep context actions, storage functions, and adapter signatures stable.** If one must change, update API §5 in the same change and update every caller.
+- **Validate at every boundary** as listed in API §4.3, and use the data formats in API §4.4.
+- **Respect the concurrency guards** in API §4.5: one backup, restore, or remote check at a time, single-flight recurring processing, and an all-or-nothing CSV import.
+
+### 10.3 External APIs and integrations (API §1, §6–§12)
+
+- **Use only the allowed network destinations** in API §1.1. Do not add any new destination, SDK, or remote config.
+- **Google Drive is the only remote API.** Access it only through the `googleDrive` platform adapter, and follow the Drive and backup file contracts in API §6.
 - **Every request** has a timeout and returns a typed result. The adapter never throws to the UI.
-- **Retry only idempotent operations** (list, download, folder lookup) with exponential backoff on 429 and 5xx. Never retry uploads blindly.
+- **Retry only idempotent operations** (list, download, folder lookup) with exponential backoff on 429 and 5xx, following API §9.3. Never retry uploads blindly; re-check the remote state first.
 - **On 401,** refresh the token silently once, then show a "reconnect Google" state.
 - **Detect offline state** before a call, and keep local use working.
+- **Respect app-side throttling** for auto-backup and PIN attempts (API §9.2).
 - **Native plugins** are reached only through platform adapters. Adapters check that the capability exists and return a typed "unsupported" result in the browser.
-- **Do not add** any new network destination, SDK, or remote config.
+- **The app has no inbound endpoints,** webhooks, Drive push notifications, or deep links (API §8). Do not add them.
+- **Configuration** is fixed at build time and documented in API §10. Do not add environment variables without updating that section.
 
 ---
 
@@ -250,7 +262,7 @@ Follow ARCHITECTURE §14 and DESIGN §8.
 
 ## 12. Documentation
 
-- **Update related documentation in the same change.** This includes the core documents (§1.1), any documents registered later, build docs, and code comments, whenever behavior, structure, data, or contracts change.
+- **Update related documentation in the same change.** This includes the core documents (§1.1), any documents registered later, build docs, and code comments, whenever behavior, structure, data, or contracts change. Update API.md whenever a context action, adapter, result shape, error code, external call, or configuration value changes.
 - **Do not edit PRD decisions** (PRD §15) or approval labels without explicit owner approval.
 - **Knowledge base** (`docs/knowledge-base/`):
   - The former "App Oracle" agent and its single-writer rule are **retired**. Where older documents (for example ARCHITECTURE §7.1 and §20, and `docs/knowledge-base/README.md`) say "only the App Oracle edits the knowledge base", the coding agent now makes those updates directly under the rules below.
@@ -288,7 +300,7 @@ A change is done only when **all** of the following are true:
 - [ ] It traces to a requirement, an owner request, or a documented gap, and stays within approved scope.
 - [ ] Existing code and patterns were inspected and reused.
 - [ ] The layer rules (§3.2), the single-implementation rule for metrics, and the persist-first rule are respected.
-- [ ] No new dependency, permission, service, or storage key was added without approval.
+- [ ] No new dependency, permission, service, network destination, OAuth scope, or storage key was added without approval.
 - [ ] `pnpm run typecheck` passes, and relevant tests are added or updated and pass.
 - [ ] No secrets or sensitive data appear in code, logs, fixtures, or commits.
 - [ ] Related documentation and knowledge-base entries are updated.
