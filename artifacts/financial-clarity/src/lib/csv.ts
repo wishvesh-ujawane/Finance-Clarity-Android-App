@@ -239,7 +239,7 @@ export async function exportCsvFile(filename: string, csv: string) {
     const { uri } = await Filesystem.getUri({ path, directory: Directory.Cache });
     await Share.share({
       title: filename,
-      text: 'Financial Clarity CSV export',
+      text: 'Fiscal Focus CSV export',
       files: [uri],
       dialogTitle: 'Export CSV',
     });

@@ -24,7 +24,8 @@ export function getBudgetPill(pct: number) {
   if (pct > 100) {
     return { label: 'Over budget', className: 'bg-red-500/15 text-red-600 dark:text-red-400' };
   }
-  if (pct >= 80) {
+  // One warning threshold everywhere (DESIGN §5.9, G5).
+  if (pct >= 75) {
     return { label: 'Watch', className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' };
   }
   return { label: 'On track', className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' };

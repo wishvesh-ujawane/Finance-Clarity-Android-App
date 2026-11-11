@@ -330,7 +330,7 @@ export function TransactionSheet() {
                         <button
                           data-testid="delete-transaction-in-sheet"
                           aria-label="Delete transaction"
-                          className="w-8 h-8 rounded-full bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive/15 transition-colors"
+                          className="w-8 h-8 rounded-full bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive/15 transition-colors relative before:absolute before:-inset-2 before:content-['']"
                         >
                           <Trash2 size={15} />
                         </button>
@@ -366,7 +366,7 @@ export function TransactionSheet() {
                     data-testid="sheet-close"
                     aria-label="Close transaction sheet"
                     onClick={handleClose}
-                    className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+                    className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors relative before:absolute before:-inset-2 before:content-['']"
                   >
                     <X size={16} />
                   </button>
@@ -378,10 +378,10 @@ export function TransactionSheet() {
                 {(['expense', 'income', 'save'] as const).map(t => {
                   const label = t === 'save' ? 'Save' : t;
                   const activeBg = t === 'expense'
-                    ? 'bg-red-500 text-white shadow'
+                    ? 'bg-red-600 text-white shadow'
                     : t === 'income'
-                      ? 'bg-emerald-500 text-white shadow'
-                      : 'bg-sky-500 text-white shadow';
+                      ? 'bg-emerald-600 text-white shadow'
+                      : 'bg-sky-600 text-white shadow';
                   return (
                     <button
                       key={t}
@@ -548,7 +548,7 @@ export function TransactionSheet() {
                         />
 
                         <div>
-                          <p className="text-[10px] text-muted-foreground mb-1.5 font-medium">Type</p>
+                          <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Type</p>
                           <div className="flex gap-1.5">
                             {(['expense', 'income'] as const).map(t => (
                               <button
@@ -566,7 +566,7 @@ export function TransactionSheet() {
                         </div>
 
                         <div>
-                          <p className="text-[10px] text-muted-foreground mb-1.5 font-medium">Color</p>
+                          <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Color</p>
                           <div className="flex flex-wrap gap-1.5">
                             {COLOR_SWATCHES.map(c => (
                               <button
@@ -584,7 +584,7 @@ export function TransactionSheet() {
                         </div>
 
                         <div>
-                          <p className="text-[10px] text-muted-foreground mb-1.5 font-medium">Icon</p>
+                          <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Icon</p>
                           <div className="grid grid-cols-6 gap-1.5">
                             {ICON_OPTIONS.slice(0, 18).map(ico => (
                               <button
@@ -660,10 +660,10 @@ export function TransactionSheet() {
                   !calculatedAmount || calculatedAmount <= 0 || !categoryId
                     ? 'bg-muted text-muted-foreground cursor-not-allowed'
                     : mode === 'income'
-                      ? 'bg-emerald-500 text-white shadow-lg hover:bg-emerald-600'
+                      ? 'bg-emerald-600 text-white shadow-lg hover:bg-emerald-700'
                       : mode === 'save'
-                        ? 'bg-sky-500 text-white shadow-lg hover:bg-sky-600'
-                        : 'bg-red-500 text-white shadow-lg hover:bg-red-600'
+                        ? 'bg-sky-600 text-white shadow-lg hover:bg-sky-700'
+                        : 'bg-red-600 text-white shadow-lg hover:bg-red-700'
                 )}
                 whileTap={{ scale: 0.97 }}
               >
@@ -671,6 +671,13 @@ export function TransactionSheet() {
                   ? 'Save Changes'
                   : mode === 'income' ? 'Add Income' : mode === 'save' ? 'Add Savings' : 'Add Expense'}
               </motion.button>
+              {(!calculatedAmount || calculatedAmount <= 0 || !categoryId) && (
+                <p className="text-xs text-muted-foreground text-center" data-testid="submit-hint">
+                  {!calculatedAmount || calculatedAmount <= 0
+                    ? (categoryId ? 'Enter an amount above \u20b90 to save.' : 'Enter an amount above \u20b90 and choose a category to save.')
+                    : 'Choose a category to save.'}
+                </p>
+              )}
             </div>
           </motion.div>
         </>

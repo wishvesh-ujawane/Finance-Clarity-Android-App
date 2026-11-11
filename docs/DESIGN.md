@@ -780,19 +780,19 @@ Recorded so they are fixed deliberately, not copied. None of these is authorized
 
 | # | Area | Current build | Spec |
 |---|---|---|---|
-| G1 | Branding | Desktop sidebar wordmark reads "Financial / Clarity" | "Fiscal Focus" (§1.4) |
-| G2 | Contrast | Expense/income/save submit buttons and type toggle use 500-level fills with white text; list amounts use 600-level green/sky on white; `destructive` token is Red 500 | 600/700 fills and text colors (§2.2, §2.4, §12.1) |
-| G3 | Minimum text | Bottom-nav labels at 9 px; hero and sidebar labels at 10 px; 40% white text on navy | 11 px minimum; ≥ 60% white on navy (§3.2, §12.1) |
-| G4 | Status chips | Budget alert chips use emoji (🔴🟡🟢🔵) as the status signal | Icon + words (§5.10) |
-| G5 | Thresholds | Spending warns at 75%; savings bars warn at 70% | Single 75% threshold (§5.9) |
+| G1 | Branding | **Resolved 2026-11-12.** Sidebar wordmark, page title, and share text read "Fiscal Focus" | "Fiscal Focus" (§1.4) |
+| G2 | Contrast | **Partly resolved 2026-11-12:** the `destructive` token is Red 600 and the entry sheet's submit and type-toggle fills are 600-level. Still open: other 500-level fills and 600-level list amounts on white | 600/700 fills and text colors (§2.2, §2.4, §12.1) |
+| G3 | Minimum text | **Resolved 2026-11-12.** All 9–10 px text and chart labels raised to 11 px; sidebar text on navy at 60% white. E2E DSN-001 checks every visible text node on the main screens | 11 px minimum; ≥ 60% white on navy (§3.2, §12.1) |
+| G4 | Status chips | **Resolved 2026-11-12.** Dashboard budget chips use an icon plus words ("over by", "% used", "funded", "paid") | Icon + words (§5.10) |
+| G5 | Thresholds | **Resolved 2026-11-12.** Savings bars and the Analysis budget pill warn at 75% | Single 75% threshold (§5.9) |
 | G6 | Period selector | Dashboard uses arrow stepper; Analysis uses picker sheet | One combined component (§5.3) |
-| G7 | Fonts | Inter and Manrope loaded from Google Fonts at runtime; Inter 700 used but not loaded | Bundled fonts; Inter max 600 (§3.1) |
-| G8 | Amount formatting | One formatter module (`lib/format.ts`, 2026-11-12) with display, full, and chart variants; no paise. Most screens still use the full-precision variant through the deprecated `formatINR` alias | One canonical formatter (§4.6) |
-| G9 | Safe areas | No safe-area inset handling | Insets respected everywhere (§10) |
-| G10 | Reduced motion | Only confetti respects reduced motion | All motion (§9.4) |
-| G11 | Touch targets | Sheet close/delete icon buttons are 32 px | 48 px hit area (§12.3) |
+| G7 | Fonts | **Resolved 2026-11-12.** Inter 400–600 and Manrope 500–800 (latin + latin-ext, OFL) are bundled in `src/assets/fonts`; no font request leaves the device. Inter 700 renders at the nearest loaded weight | Bundled fonts; Inter max 600 (§3.1) |
+| G8 | Amount formatting | **Resolved 2026-11-12** outside month-end: lists, cards, tiles, and Analysis use `formatAmount` (compact from 1 lakh); inputs, edit screens, and confirmations use `formatAmountFull`; charts use `formatAmountShort`. Month-end cards still use the full-precision alias (pending D8) | One canonical formatter (§4.6) |
+| G9 | Safe areas | **Resolved in code 2026-11-12.** `viewport-fit=cover`; bottom navigation, FAB, and main content use `env(safe-area-inset-*)`. Needs a device check (notch and gesture bar) | Insets respected everywhere (§10) |
+| G10 | Reduced motion | **Resolved 2026-11-12.** framer-motion `MotionConfig reducedMotion="user"` plus a global `prefers-reduced-motion` CSS rule | All motion (§9.4) |
+| G11 | Touch targets | **Resolved 2026-11-12** for the entry sheet's close and delete buttons (32 px icon, 48 px hit area). Other small icon buttons still need an audit | 48 px hit area (§12.3) |
 | G12 | Layering | **Resolved 2026-11-06.** Nothing else is rendered while the lock screen is shown | Lock screen topmost (§4.4) |
 | G13 | Hard-coded colors | Raw hex and hsl values in components (hero, sheets, chips, nav) | Semantic tokens only (§2) |
 | G14 | SMS | **Resolved 2026-11-11.** SMS settings row and route removed; the old route renders Not Found | Removed (PRD FR-10, §6.1) |
-| G15 | Disabled submit | Entry submit disables without explaining what's missing | Visible hint (§5.12, §7.2) |
+| G15 | Disabled submit | **Resolved 2026-11-12.** The entry sheet shows what is missing (amount, category) under the disabled button | Visible hint (§5.12, §7.2) |
 | G16 | Share errors | **Resolved 2026-11-12.** Analysis share failure shows a toast; cancelling the share sheet shows nothing | Visible error (§13.7) |

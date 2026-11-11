@@ -5,7 +5,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { formatINR, formatMonthYear, getMonthOverMonthChange, formatDateLabel, isConsumptionExpense, addMonths, localDateStr, type MoMChange } from '@/lib/finance-utils';
+import { formatAmount, formatMonthYear, getMonthOverMonthChange, formatDateLabel, isConsumptionExpense, addMonths, localDateStr, type MoMChange } from '@/lib/finance-utils';
 import { getBudgetPill, getDateRangeExpenseTotal, addDays, startOfWeekMonday } from '@/lib/analysis-utils';
 import { categorySpent, consumptionByCategoryBetween, isSavingsContribution } from '@/lib/domain/finance-metrics';
 import type { AnalysisShared } from './useAnalysisShared';
@@ -258,7 +258,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
     if (isBudgetExceeded) {
       items.push({
         id: 'budget-exceeded',
-        text: `You have exceeded your day-to-day budget by ${formatINR(monthlyDayToDayToDate - monthlyBudgetTotal)}.`,
+        text: `You have exceeded your day-to-day budget by ${formatAmount(monthlyDayToDayToDate - monthlyBudgetTotal)}.`,
         severity: 'danger',
         href: '/budgets',
       });
@@ -338,7 +338,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Budget exceeded</p>
                 <h2 className="text-base font-bold text-foreground mt-0.5" style={{ fontFamily: 'var(--font-display)' }}>
-                  Day-to-day spend is over by {formatINR(monthlyDayToDayToDate - monthlyBudgetTotal)}
+                  Day-to-day spend is over by {formatAmount(monthlyDayToDayToDate - monthlyBudgetTotal)}
                 </h2>
                 <p className="text-xs text-muted-foreground mt-1">
                   Review category budgets and trim where possible. <span className="text-red-600 dark:text-red-400 font-semibold inline-flex items-center gap-0.5">Manage <ArrowRight size={11} /></span>
@@ -376,7 +376,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             >
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Spendable Budget</p>
-                <p className="text-sm font-bold text-foreground">{formatINR(monthlyDayToDayBudgetTotal)}</p>
+                <p className="text-sm font-bold text-foreground">{formatAmount(monthlyDayToDayBudgetTotal)}</p>
               </div>
               <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
             </Link>
@@ -389,7 +389,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             >
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Day-to-day</p>
-                <p className={cn('text-sm font-bold', isBudgetExceeded ? 'text-red-500' : 'text-foreground')}>{formatINR(monthlyDayToDay)}</p>
+                <p className={cn('text-sm font-bold', isBudgetExceeded ? 'text-red-500' : 'text-foreground')}>{formatAmount(monthlyDayToDay)}</p>
               </div>
               <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
             </button>
@@ -402,7 +402,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             >
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Commitments</p>
-                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{formatINR(monthlyCommitments)}</p>
+                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{formatAmount(monthlyCommitments)}</p>
               </div>
               <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
             </button>
@@ -415,7 +415,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             >
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Savings</p>
-                <p className="text-sm font-bold text-sky-600 dark:text-sky-400">{formatINR(monthlySavings)}</p>
+                <p className="text-sm font-bold text-sky-600 dark:text-sky-400">{formatAmount(monthlySavings)}</p>
               </div>
               <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
             </button>
@@ -460,7 +460,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               </p>
             </div>
             <p className={cn('text-base font-bold', remainingBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
-              {formatINR(Math.abs(remainingBudget))}
+              {formatAmount(Math.abs(remainingBudget))}
             </p>
           </div>
         </div>
@@ -470,7 +470,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
         <div className="grid grid-cols-2 gap-3" data-testid="key-numbers-grid">
           <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-total-spent">
             <p className="text-xs text-muted-foreground mb-1">Total Spent</p>
-            <p className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(monthlyExpensesToDate)}</p>
+            <p className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(monthlyExpensesToDate)}</p>
             {spentChange.pct !== null && (
               <p className={cn('text-[11px] mt-1 flex items-center gap-0.5 font-semibold', spentChange.pct <= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
                 {spentChange.pct <= 0 ? <ArrowDownRight size={11} /> : <ArrowUpRight size={11} />}
@@ -487,7 +487,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               data-testid="biggest-expense-card"
             >
               <p className="text-xs text-muted-foreground mb-1">Biggest Expense</p>
-              <p className="text-lg font-bold text-red-500" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(biggestExpense.transaction.amount)}</p>
+              <p className="text-lg font-bold text-red-500" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(biggestExpense.transaction.amount)}</p>
               <p className="text-[11px] text-muted-foreground truncate mt-1">{biggestExpense.categoryName}</p>
             </button>
           ) : (
@@ -500,7 +500,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
 
           <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-avg-day">
             <p className="text-xs text-muted-foreground mb-1">Avg / day</p>
-            <p className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(Math.round(avgSpendPerDay))}</p>
+            <p className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(Math.round(avgSpendPerDay))}</p>
             <p className="text-[11px] text-muted-foreground mt-1">Over {elapsedDays} day{elapsedDays === 1 ? '' : 's'}</p>
           </div>
 
@@ -512,7 +512,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             className="bg-card border border-border rounded-2xl p-4 text-left hover:bg-muted/40 transition-colors"
           >
             <p className="text-xs text-muted-foreground mb-1">Commitments</p>
-            <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(monthlyCommitmentsToDate)}</p>
+            <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(monthlyCommitmentsToDate)}</p>
             <p className="text-[11px] text-muted-foreground mt-1">Paid so far this month</p>
           </button>
         </div>
@@ -635,7 +635,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                         );
                       })}
                     </Pie>
-                    <Tooltip formatter={(value: number) => [formatINR(value), 'Spent']} />
+                    <Tooltip formatter={(value: number) => [formatAmount(value), 'Spent']} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -644,16 +644,16 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                     if (!slice) return null;
                     return (
                       <>
-                        <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">{slice.name}</p>
-                        <p className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(slice.amount)}</p>
-                        <p className="text-[10px] text-muted-foreground">{slice.pct.toFixed(1)}%</p>
+                        <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">{slice.name}</p>
+                        <p className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(slice.amount)}</p>
+                        <p className="text-[11px] text-muted-foreground">{slice.pct.toFixed(1)}%</p>
                       </>
                     );
                   })() : (
                     <>
-                      <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Total</p>
-                      <p className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(spendTotal)}</p>
-                      <p className="text-[10px] text-muted-foreground">Tap a slice</p>
+                      <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Total</p>
+                      <p className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(spendTotal)}</p>
+                      <p className="text-[11px] text-muted-foreground">Tap a slice</p>
                     </>
                   )}
                 </div>
@@ -681,7 +681,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                         <span className="text-sm font-medium text-foreground truncate">{item.name}</span>
                       </div>
                       <div className="text-right pl-3">
-                        <p className="text-sm font-bold text-foreground">{formatINR(item.amount)}</p>
+                        <p className="text-sm font-bold text-foreground">{formatAmount(item.amount)}</p>
                         <p className="text-[11px] text-muted-foreground">{item.pct.toFixed(1)}%</p>
                       </div>
                     </button>
@@ -714,8 +714,8 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                     <div className={cn('h-full rounded-full', row.usagePct > 100 ? 'bg-red-500' : row.usagePct > 80 ? 'bg-amber-500' : 'bg-emerald-500')} style={{ width: `${Math.min(100, Math.max(0, row.usagePct))}%` }} />
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Budget: <span className="font-semibold text-foreground">{formatINR(row.limit)}</span></span>
-                    <span className="text-muted-foreground">Spent: <span className="font-semibold text-foreground">{formatINR(row.spent)}</span></span>
+                    <span className="text-muted-foreground">Budget: <span className="font-semibold text-foreground">{formatAmount(row.limit)}</span></span>
+                    <span className="text-muted-foreground">Spent: <span className="font-semibold text-foreground">{formatAmount(row.spent)}</span></span>
                   </div>
                 </div>
               ))}
@@ -767,7 +767,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               Category Spend Breakdown
             </SheetTitle>
             <SheetDescription>
-              All categories for {spendPeriodLabel} • {formatINR(spendTotal)} total
+              All categories for {spendPeriodLabel} • {formatAmount(spendTotal)} total
             </SheetDescription>
           </SheetHeader>
 
@@ -786,7 +786,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                       <p className="text-xs text-muted-foreground">{item.pct.toFixed(1)}% of period spend</p>
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-foreground flex-shrink-0">{formatINR(item.amount)}</span>
+                  <span className="text-sm font-bold text-foreground flex-shrink-0">{formatAmount(item.amount)}</span>
                 </div>
               ))}
             </div>
@@ -801,7 +801,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               Expenses this month
             </SheetTitle>
             <SheetDescription>
-              Day-to-day transactions for {formatMonthYear(selectedMonth)} • {formatINR(monthlyDayToDay)} total
+              Day-to-day transactions for {formatMonthYear(selectedMonth)} • {formatAmount(monthlyDayToDay)} total
             </SheetDescription>
           </SheetHeader>
 
@@ -834,7 +834,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                       <p className="text-xs text-muted-foreground">{tx.categoryName}</p>
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-foreground flex-shrink-0">{formatINR(tx.amount)}</span>
+                  <span className="text-sm font-bold text-foreground flex-shrink-0">{formatAmount(tx.amount)}</span>
                 </button>
               ))}
             </div>
@@ -849,7 +849,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               Commitments
             </SheetTitle>
             <SheetDescription>
-              Commitment transactions for {formatMonthYear(selectedMonth)} • {formatINR(monthlyCommitments)} total
+              Commitment transactions for {formatMonthYear(selectedMonth)} • {formatAmount(monthlyCommitments)} total
             </SheetDescription>
           </SheetHeader>
 
@@ -882,7 +882,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                       <p className="text-xs text-muted-foreground">{tx.categoryName}</p>
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 flex-shrink-0">{formatINR(tx.amount)}</span>
+                  <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 flex-shrink-0">{formatAmount(tx.amount)}</span>
                 </button>
               ))}
             </div>
@@ -897,7 +897,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               Savings
             </SheetTitle>
             <SheetDescription>
-              Savings transfers for {formatMonthYear(selectedMonth)} • {formatINR(monthlySavings)} total
+              Savings transfers for {formatMonthYear(selectedMonth)} • {formatAmount(monthlySavings)} total
             </SheetDescription>
           </SheetHeader>
 
@@ -927,7 +927,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                       <p className="text-xs text-muted-foreground">{tx.categoryName}</p>
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-sky-600 dark:text-sky-400 flex-shrink-0">{formatINR(tx.amount)}</span>
+                  <span className="text-sm font-bold text-sky-600 dark:text-sky-400 flex-shrink-0">{formatAmount(tx.amount)}</span>
                 </button>
               ))}
             </div>

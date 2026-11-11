@@ -452,3 +452,16 @@ used for implementation is in the previous revision of this file
 - Open for later phases: backup download size guard (Proposed) and a
   blocking pre-restore safety copy are not implemented (PRD D7); a real Drive
   recovery check on a device (Phase 10, manual).
+
+### Phase 9 — Done in part (branch `feature/phase-9-shell-design-a11y`)
+
+- Done: "Fiscal Focus" branding; bundled fonts (no runtime Google Fonts);
+  compact amount display outside month-end; 11 px minimum text; worded
+  status chips; single 75% threshold; safe-area insets; reduced motion; 48 px
+  hit areas on the entry sheet's icon buttons; disabled-submit hint; Red 600
+  destructive token; Drive error logs without URLs or server text. Lock-screen
+  isolation was already complete. E2E DSN-001.
+- Open: DESIGN G2 (remaining 500-level fills), G6 (one period selector), G13
+  (semantic tokens), a Content Security Policy, the collapsible Inactive
+  section, savings/card-payment row styling; Crashlytics scrubbing and the
+  privacy/Data safety review (pending D9); device accessibility walkthrough.

@@ -60,6 +60,16 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 | 38 | 8 | Analysis image sharing moved into a platform adapter (`lib/platform/share-image.ts`); a failure shows a toast, while closing the share sheet (an error message containing "cancel") shows nothing. | Agent | DESIGN G16, API §4.2 and §6.6, AGENTS §3.2 (pages must not import Capacitor). |
 | 39 | 8 | Kept the pre-restore safety copy as best effort; a failure to save it still does not block a restore. | Agent | API §6.4 documents this; PRD D7 defers backup changes. |
 | 40 | 8 | The backup download size guard (API §6.3, "Proposed, MVP-cleanup") was not added. | Agent | It is marked Proposed and D7 defers backup expansion. |
+| 41 | 9 | Bundled Inter (400–600) and Manrope (500–800) as latin + latin-ext variable WOFF2 files from Google Fonts, with their OFL licences, in `src/assets/fonts` (so Vite hashes them and the relative base works). No package was added. | Agent | DESIGN G7 / ARCHITECTURE §2.1 require bundled fonts. latin-ext is needed for the rupee sign. |
+| 42 | 9 | Lists, cards, tiles, the sidebar, Settings, and Analysis use the compact display format; the Savings target edit screen keeps full precision; month-end cards are unchanged. | Owner (decision 9) + Agent | DESIGN §4.6; month-end is pending D8. Amounts below ₹1 lakh look the same as before. |
+| 43 | 9 | Raised every 9–10 px text and chart label to 11 px app-wide, including month-end cards, and sidebar text on navy to 60% white. | Agent | DESIGN G3 minimum is an accessibility fix, not a month-end flow or accounting change. |
+| 44 | 9 | Dashboard budget chips: icon + words ("over by ₹X", "N% used", "funded", "paid"); same colors. | Agent | DESIGN §5.10. |
+| 45 | 9 | Savings bars and the Analysis "Watch" pill warn at 75% (were 70% and 80%). | Agent | DESIGN §5.9 single threshold. |
+| 46 | 9 | Safe areas via `viewport-fit=cover` and `env(safe-area-inset-*)` on the bottom nav, FAB, and main content; reduced motion via `MotionConfig` and a global CSS rule. | Agent | DESIGN G9, G10. Safe areas still need a device check. |
+| 47 | 9 | The `destructive` token became Red 600, and the entry sheet's fills became 600-level. Other raw palette colors (DESIGN G13) were not converted to tokens. | Agent | G2 "must"; G13 is a broad refactor across many components and is left open. |
+| 48 | 9 | Drive errors no longer log the URL or raw body, and Drive's message text is never shown; a generic "Drive request failed (status)" is used. | Agent | ARCHITECTURE §14.4, API §6.2.5 (A15 / G5). |
+| 49 | 9 | Crashlytics scrubbing, permissions/privacy disclosures, consent, and Play Data safety were reviewed but not changed. | Agent | PRD D9 is pending owner review; the plan says not to claim readiness. |
+| 50 | 9 | Not done: one combined period selector (G6), semantic tokens everywhere (G13), a Content Security Policy, the collapsible Inactive section on Categories, DESIGN §4.6 row styling for savings and card payments. | Agent | Each is a larger design change best reviewed separately; listed for follow-up. |
 
 ---
 
@@ -104,3 +114,8 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 
 - **Completed:** backup `appVersion` from the build; image share failures shown (platform adapter); v5 round-trip test (build → serialize → validate → restore). Already in place and re-verified: Drive coverage, restore preview and confirmation, atomic restore with rollback (Phase 2), v1–v4 migration and newer-version refusal (v6), legacy SMS block, CSV validation, duplicate detection, formula escaping, and import preview. E2E SHR-001.
 - **Pending:** backup download size guard and making the pre-restore safety copy blocking (decisions 39–40). **Reason:** marked Proposed / best effort in API.md and D7 defers backup changes. A representative Drive recovery check needs a real Google account and device (Phase 10, manual).
+
+### Phase 9 — Shell, security, design, and accessibility
+
+- **Completed:** "Fiscal Focus" branding (G1); bundled fonts, no Google Fonts requests (G7); compact amount display outside month-end (G8); 11 px minimum text and 60% white on navy (G3); worded status chips (G4); single 75% threshold (G5); safe areas (G9); reduced motion (G10); 48 px hit areas on the entry sheet's icon buttons (G11); disabled-submit hint (G15); Red 600 destructive token and 600-level entry fills (G2, partly); Drive logs without URL or server text (A15). Lock-screen isolation was already done (A8). E2E DSN-001.
+- **Pending:** G2 (other 500-level fills), G6 (one period selector), G13 (semantic tokens instead of raw colors), Content Security Policy, collapsible Inactive section, DESIGN §4.6 row styling, Crashlytics scrubbing (A9) and Play Store privacy/Data safety review. **Reason:** G6/G13/CSP and row styling are broad visual changes that need their own review and a device check; A9 and the store review depend on the pending D9 decision. Device checks (TalkBack, 130% text, keyboard-open forms, safe areas) need a phone.

@@ -131,7 +131,7 @@ export default function Analysis() {
             aria-label="Change month"
           >
             <div className="text-right">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-none">Month</p>
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider leading-none">Month</p>
               <p className="text-sm font-bold text-foreground leading-tight">{formatMonthYear(selectedMonth)}</p>
             </div>
             <ChevronDown size={14} className="text-muted-foreground" />
@@ -224,7 +224,7 @@ export default function Analysis() {
                     {formatMonthYear(m)}
                   </span>
                   {isCurrent && (
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Current</span>
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Current</span>
                   )}
                 </button>
               );

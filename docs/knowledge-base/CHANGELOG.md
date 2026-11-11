@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-11-12 — DESIGN.md §15 G1–G5, G7–G11, G15; ARCHITECTURE.md §19 A5, A15; API.md §1, G5, G8 — Phase 9: "Fiscal Focus" branding, bundled fonts, compact amount display, 11 px minimum text, worded status chips, single 75% threshold, safe areas, reduced motion, 48 px sheet icon targets, disabled-submit hint, Red 600 destructive token, Drive logs without URLs or server text.
 2026-11-12 — features/backup-restore.md; features/analysis.md; API.md §6.3, §6.6, G14–G15; ARCHITECTURE.md §13.3, §19 A7; DESIGN.md §15 G16 — Phase 8: backup `appVersion` from the build; Analysis image sharing moved to `lib/platform/share-image.ts` with a visible failure toast; v5 backup round-trip test.
 2026-11-12 — features/analysis.md; ARCHITECTURE.md §19 A12 — Phase 7: Analysis uses the PRD §6 rules (`lib/domain/analysis.ts`) for safe-to-spend, projections, weekday/daily spend, the pace chart, and the savings rate; "Insufficient history" instead of a projection without an earlier month; budget suggestions confirm before replacing limits and report failures. Month-end unchanged.
 2026-11-12 — bugs/20261112-transaction-double-submit.md; features/transactions.md; features/budgets.md; ARCHITECTURE.md §19 A12 — Phase 6: Transactions "Spending" tile and day totals use consumption; budget copy renamed and its confirmation lists every overwrite (`lib/domain/budgets.ts`); delete confirmation names the entry; double-submit guard on the entry sheet.

@@ -151,7 +151,7 @@ export function MonthEndReconcileCard({ reviewMonth, onContinue, onBack, onSkip 
             >
               {hasInput ? formatINR(absGap) : '—'}
               {hasInput && absGap >= 1 && (
-                <span className="ml-1 text-[10px] font-medium uppercase tracking-wider">
+                <span className="ml-1 text-[11px] font-medium uppercase tracking-wider">
                   {gap > 0 ? 'under-logged' : 'over-logged'}
                 </span>
               )}

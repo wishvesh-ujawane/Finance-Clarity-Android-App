@@ -3,7 +3,7 @@ import { Link } from 'wouter';
 import { AlertTriangle, ArrowRight, CalendarClock, Sparkles, Target, TrendingUp, WalletCards } from 'lucide-react';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
-import { addMonths, formatINR, formatMonthYear, localDateStr, monthsBetween } from '@/lib/finance-utils';
+import { addMonths, formatAmount, formatMonthYear, localDateStr, monthsBetween } from '@/lib/finance-utils';
 import { getMonthTotal, shiftMonth } from '@/lib/analysis-utils';
 import { futureOutflow, monthsOfHistoryBefore, spendableBalance } from '@/lib/domain/analysis';
 import { isCategoryActive } from '@/lib/category-rules';
@@ -204,26 +204,26 @@ export default function PlanningPane({ shared }: Props) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="rounded-xl bg-muted/50 px-3 py-2">
               <p className="text-[11px] text-muted-foreground">Income</p>
-              <p className="text-sm font-bold text-foreground">{formatINR(currentSummary.totalIncome)}</p>
+              <p className="text-sm font-bold text-foreground">{formatAmount(currentSummary.totalIncome)}</p>
             </div>
             <div className="rounded-xl bg-muted/50 px-3 py-2">
               <p className="text-[11px] text-muted-foreground">Expenses</p>
-              <p className="text-sm font-bold text-foreground">{formatINR(currentSummary.totalExpenses)}</p>
+              <p className="text-sm font-bold text-foreground">{formatAmount(currentSummary.totalExpenses)}</p>
             </div>
             <div className="rounded-xl bg-muted/50 px-3 py-2">
               <p className="text-[11px] text-muted-foreground">To savings</p>
-              <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatINR(currentSummary.totalSavings)}</p>
+              <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatAmount(currentSummary.totalSavings)}</p>
             </div>
             <div className="rounded-xl bg-muted/50 px-3 py-2">
               <p className="text-[11px] text-muted-foreground">Net flow</p>
-              <p className={cn('text-sm font-bold', currentSummary.netFlow >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>{formatINR(currentSummary.netFlow)}</p>
+              <p className={cn('text-sm font-bold', currentSummary.netFlow >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>{formatAmount(currentSummary.netFlow)}</p>
             </div>
           </div>
           {monthlyBudgetTotal > 0 && (
             <p className="text-xs text-muted-foreground mt-3">
               Budget outcome:{' '}
               <span className={cn('font-semibold', isBudgetExceeded ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400')}>
-                {isBudgetExceeded ? `Over by ${formatINR(monthlyDayToDay - monthlyBudgetTotal)}` : `Under by ${formatINR(monthlyBudgetTotal - monthlyDayToDay)}`}
+                {isBudgetExceeded ? `Over by ${formatAmount(monthlyDayToDay - monthlyBudgetTotal)}` : `Under by ${formatAmount(monthlyBudgetTotal - monthlyDayToDay)}`}
               </span>
             </p>
           )}
@@ -255,7 +255,7 @@ export default function PlanningPane({ shared }: Props) {
                       </div>
                       <span className="text-sm font-medium text-foreground truncate">{cat?.name || 'Unknown'}</span>
                     </div>
-                    <span className="text-sm font-bold text-foreground">{formatINR(b.limit)}</span>
+                    <span className="text-sm font-bold text-foreground">{formatAmount(b.limit)}</span>
                   </div>
                 );
               })}
@@ -295,10 +295,10 @@ export default function PlanningPane({ shared }: Props) {
             </div>
           </div>
           <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400" style={{ fontFamily: 'var(--font-display)' }}>
-            {formatINR(safeToSpendPerDay)}<span className="text-sm text-muted-foreground font-semibold">/day</span>
+            {formatAmount(safeToSpendPerDay)}<span className="text-sm text-muted-foreground font-semibold">/day</span>
           </p>
           <p className="text-xs text-muted-foreground mt-2">
-            Based on {formatINR(inHandBalance)} available after money set aside for savings, across {currentMonthDaysLeft} day{currentMonthDaysLeft === 1 ? '' : 's'} left this month.
+            Based on {formatAmount(inHandBalance)} available after money set aside for savings, across {currentMonthDaysLeft} day{currentMonthDaysLeft === 1 ? '' : 's'} left this month.
           </p>
         </div>
 
@@ -348,7 +348,7 @@ export default function PlanningPane({ shared }: Props) {
                         <span className="block text-[11px] text-muted-foreground">{item.kind} • Expected {item.expectedDateLabel}</span>
                       </span>
                     </span>
-                    <span className="text-right text-sm font-bold text-foreground">{formatINR(item.amount)}</span>
+                    <span className="text-right text-sm font-bold text-foreground">{formatAmount(item.amount)}</span>
                   </Link>
                 ))}
               </div>
@@ -379,12 +379,12 @@ export default function PlanningPane({ shared }: Props) {
             </div>
           </div>
           <p className={cn('text-2xl font-bold', projectedBalance.value >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')} style={{ fontFamily: 'var(--font-display)' }}>
-            {formatINR(projectedBalance.value)}
+            {formatAmount(projectedBalance.value)}
           </p>
           <p className="text-xs text-muted-foreground mt-2">
-            At your current pace, you'll end the month with {formatINR(projectedBalance.value)}.
-            Based on avg income {formatINR(projectedBalance.expectedIncome)} and projected remaining spend {formatINR(projectedBalance.projectedRemainingSpend)}
-            {projectedBalance.knownFutureExpenses > 0 && <> plus scheduled bills {formatINR(projectedBalance.knownFutureExpenses)}</>}.
+            At your current pace, you'll end the month with {formatAmount(projectedBalance.value)}.
+            Based on avg income {formatAmount(projectedBalance.expectedIncome)} and projected remaining spend {formatAmount(projectedBalance.projectedRemainingSpend)}
+            {projectedBalance.knownFutureExpenses > 0 && <> plus scheduled bills {formatAmount(projectedBalance.knownFutureExpenses)}</>}.
           </p>
         </div>
       )}
@@ -412,9 +412,9 @@ export default function PlanningPane({ shared }: Props) {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground truncate">{s.name}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      Actual {formatINR(s.actual)} → suggest {formatINR(s.suggestedLimit)}
+                      Actual {formatAmount(s.actual)} → suggest {formatAmount(s.suggestedLimit)}
                       {s.existingLimit !== null && (
-                        <span className="ml-1">(current {formatINR(s.existingLimit)})</span>
+                        <span className="ml-1">(current {formatAmount(s.existingLimit)})</span>
                       )}
                     </p>
                   </div>
@@ -490,9 +490,9 @@ export default function PlanningPane({ shared }: Props) {
                 </div>
                 <p className="text-xs font-bold text-foreground mt-2">{g.name}</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {formatINR(g.ytdContrib)} / {formatINR(g.annualGoal)}
+                  {formatAmount(g.ytdContrib)} / {formatAmount(g.annualGoal)}
                 </p>
-                <p className={cn('text-[10px] font-semibold mt-0.5', g.onTrack ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
+                <p className={cn('text-[11px] font-semibold mt-0.5', g.onTrack ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
                   {g.onTrack ? 'On track' : 'Behind pace'}
                 </p>
               </div>

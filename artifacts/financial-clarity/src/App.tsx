@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { MotionConfig } from 'framer-motion';
 import { Switch, Route, Router as WouterRouter } from 'wouter';
 import { Toaster } from '@/components/ui/toaster';
 import { toast } from '@/hooks/use-toast';
@@ -79,7 +80,7 @@ function AppLayout({ quarantined }: { quarantined: QuarantineReport[] }) {
   return (
     <div className="flex min-h-screen bg-background">
       <Navigation />
-      <main className="flex-1 md:ml-64 overflow-y-auto min-h-screen">
+      <main className="flex-1 md:ml-64 overflow-y-auto min-h-screen" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <StorageNoticeBanner reports={quarantined} />
         <Switch>
           <Route path="/" component={Dashboard} />
@@ -142,6 +143,7 @@ function App() {
   }
 
   return (
+    <MotionConfig reducedMotion="user">
     <FinanceProvider initialLoad={startup.load}>
       <SecurityProvider>
         <BackupProvider>
@@ -159,6 +161,7 @@ function App() {
         </BackupProvider>
       </SecurityProvider>
     </FinanceProvider>
+    </MotionConfig>
   );
 }
 

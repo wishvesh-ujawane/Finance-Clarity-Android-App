@@ -42,7 +42,7 @@ Only these destinations are allowed. Adding one needs an ADR and owner approval 
 | `https://www.googleapis.com/drive/v3` | Drive metadata: find, create, and patch files | Existing |
 | `https://www.googleapis.com/upload/drive/v3` | Upload backup file content | Existing |
 | Firebase Crashlytics endpoints, called by the native SDK | Crash diagnostics | Existing, **Pending review (D9)** |
-| `fonts.googleapis.com`, `fonts.gstatic.com` | Runtime web fonts | **Must be removed (MVP-cleanup, DESIGN G7).** Bundle the fonts locally |
+| `fonts.googleapis.com`, `fonts.gstatic.com` | Runtime web fonts | **Removed 2026-11-12 (DESIGN G7).** Fonts are bundled locally |
 
 The app never calls bank, payment, SMS, analytics, advertising, remote-config, or AI services (PRD §13).
 
@@ -633,10 +633,10 @@ These gaps are reported here, not fixed. None of them is authorized for implemen
 | G2 | Drive requests have no timeouts | `googleDrive.ts` | §6.2.2 |
 | G3 | Idempotent Drive calls have no retry with backoff | `googleDrive.ts` | §9.3 |
 | G4 | Manual backup, check, and restore do not check for offline state before calling | `BackupContext.tsx` | §12 |
-| G5 | `driveFetch` logs the method, the full URL, and the raw response body with `console.error` | `googleDrive.ts` | §11.2 |
+| G5 | **Resolved 2026-11-12.** `driveFetch` logs the method, status, and Drive reason only | `googleDrive.ts` | §11.2 |
 | G6 | `lastAutoBackupError` can store raw Drive error text | `BackupContext.tsx` | §11.2, DATABASE §4.9 |
 | G7 | Crashlytics receives unscrubbed messages and rejection reasons | `crashlytics.ts` | §6.7 |
-| G8 | Google Fonts are loaded at runtime, and there is no Content Security Policy | `index.html` | §1.1, ARCHITECTURE §15.3 |
+| G8 | **Partly resolved 2026-11-12:** fonts are bundled. Still open: no Content Security Policy (needs a device check of the Google sign-in domains) | `index.html` | §1.1, ARCHITECTURE §15.3 |
 | G9 | Metadata is patched before content, which is not atomic | `googleDrive.ts` | §6.2.3 |
 | G10 | D3 has no `orderBy`, so the choice among same-named files is ambiguous | `googleDrive.ts` | §7 |
 | G11 | A 403 rate-limit response is shown as "permission removed" | `BackupContext.tsx` | §6.2.5 |

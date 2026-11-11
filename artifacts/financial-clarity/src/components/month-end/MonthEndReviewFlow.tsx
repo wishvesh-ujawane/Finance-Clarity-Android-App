@@ -92,7 +92,7 @@ export function MonthEndReviewFlow() {
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
                   Month-end review
                 </p>
                 <p className="text-sm font-semibold text-foreground">

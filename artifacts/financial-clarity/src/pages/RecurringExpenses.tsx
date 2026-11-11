@@ -11,7 +11,7 @@ import { useFinance } from '@/context/FinanceContext';
 import { useFabAction } from '@/context/FabContext';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
-import { currentMonth, formatINR } from '@/lib/finance-utils';
+import { currentMonth, formatAmount } from '@/lib/finance-utils';
 import { parseCurrencyInput } from '@/lib/currency-utils';
 import { SYSTEM_ADJUSTMENT_CATEGORY_IDS } from '@/lib/types';
 import { selectableCategories } from '@/lib/category-rules';
@@ -304,8 +304,8 @@ export default function RecurringExpenses() {
                     </p>
                   </button>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-bold text-foreground">{formatINR(r.amount)}</p>
-                    <p className={cn('text-[10px] font-semibold uppercase tracking-wider', r.active ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
+                    <p className="text-sm font-bold text-foreground">{formatAmount(r.amount)}</p>
+                    <p className={cn('text-[11px] font-semibold uppercase tracking-wider', r.active ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
                       {r.active ? 'Active' : 'Paused'}
                     </p>
                   </div>

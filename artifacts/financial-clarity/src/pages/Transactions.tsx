@@ -5,7 +5,7 @@ import { useFinance } from '@/context/FinanceContext';
 import { useDefaultFabMenu } from '@/hooks/useDefaultFabMenu';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
-import { formatDateLabel, formatINR, localDateStr } from '@/lib/finance-utils';
+import { formatDateLabel, formatAmount, localDateStr } from '@/lib/finance-utils';
 import { buildTransactionsCsv, exportCsvFile } from '@/lib/csv';
 import { isCategoryActive } from '@/lib/category-rules';
 import { sumConsumption, sumIncome } from '@/lib/domain/finance-metrics';
@@ -199,7 +199,7 @@ export default function Transactions() {
         {preset === 'custom' && (
           <div className="flex gap-2 items-center">
             <div className="flex-1">
-              <label className="text-[10px] text-muted-foreground font-medium block mb-1">From</label>
+              <label className="text-[11px] text-muted-foreground font-medium block mb-1">From</label>
               <input
                 data-testid="from-date"
                 type="date"
@@ -210,7 +210,7 @@ export default function Transactions() {
             </div>
             <Calendar size={14} className="text-muted-foreground mt-4 flex-shrink-0" />
             <div className="flex-1">
-              <label className="text-[10px] text-muted-foreground font-medium block mb-1">To</label>
+              <label className="text-[11px] text-muted-foreground font-medium block mb-1">To</label>
               <input
                 data-testid="to-date"
                 type="date"
@@ -223,7 +223,7 @@ export default function Transactions() {
         )}
 
         {/* Active range label */}
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[11px] text-muted-foreground">
           Showing: <span className="font-semibold text-foreground">{formatPeriodLabel(preset, effectiveFrom, effectiveTo)}</span>
           {preset !== 'custom' && (
             <span className="ml-1">({effectiveFrom} — {effectiveTo})</span>
@@ -253,16 +253,16 @@ export default function Transactions() {
       {/* Summary Bar */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div className="bg-card border border-border rounded-xl p-3 text-center">
-          <p className="text-[10px] text-muted-foreground">Transactions</p>
+          <p className="text-[11px] text-muted-foreground">Transactions</p>
           <p className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{filtered.length}</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-3 text-center">
-          <p className="text-[10px] text-muted-foreground">Income</p>
-          <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 truncate">{formatINR(totalIncome)}</p>
+          <p className="text-[11px] text-muted-foreground">Income</p>
+          <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 truncate">{formatAmount(totalIncome)}</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-3 text-center">
-          <p className="text-[10px] text-muted-foreground">Spending</p>
-          <p className="text-xs font-bold text-red-500 truncate" data-testid="transactions-spending-total">{formatINR(totalSpending)}</p>
+          <p className="text-[11px] text-muted-foreground">Spending</p>
+          <p className="text-xs font-bold text-red-500 truncate" data-testid="transactions-spending-total">{formatAmount(totalSpending)}</p>
         </div>
       </div>
 
@@ -302,9 +302,9 @@ export default function Transactions() {
                   <p className="text-xs font-bold text-foreground">
                     {formatDateLabel(date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                   </p>
-                  <div className="flex items-center gap-3 text-[10px] font-semibold">
-                    {dayIncome > 0 && <span className="text-emerald-600 dark:text-emerald-400">+{formatINR(dayIncome)}</span>}
-                    {dayExpense > 0 && <span className="text-red-500">-{formatINR(dayExpense)}</span>}
+                  <div className="flex items-center gap-3 text-[11px] font-semibold">
+                    {dayIncome > 0 && <span className="text-emerald-600 dark:text-emerald-400">+{formatAmount(dayIncome)}</span>}
+                    {dayExpense > 0 && <span className="text-red-500">-{formatAmount(dayExpense)}</span>}
                   </div>
                 </div>
 
@@ -343,7 +343,7 @@ export default function Transactions() {
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           <span className={cn('text-sm font-bold', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
-                            {t.type === 'income' ? '+' : '-'}{formatINR(t.amount)}
+                            {t.type === 'income' ? '+' : '-'}{formatAmount(t.amount)}
                           </span>
                         </div>
                       </div>
