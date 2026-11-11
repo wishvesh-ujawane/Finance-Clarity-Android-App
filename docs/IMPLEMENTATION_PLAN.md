@@ -440,4 +440,15 @@ used for implementation is in the previous revision of this file
   replacing limits and report save failures. Month-end code unchanged. E2E
   ANA-001 and ANA-002.
 - Open for later phases: month-end review snapshot and budget step (pending
-  D8 proposal); Analysis image share failure is still only logged (Phase 8).
+  D8 proposal). Analysis image share failure was fixed in Phase 8.
+
+### Phase 8 — Done (branch `feature/phase-8-backup-csv-share`)
+
+- Done: backup `appVersion` from the build version; Analysis image sharing
+  through `lib/platform/share-image.ts` with a visible failure toast; v5
+  backup round-trip test. Restore preview, atomic restore, v1–v4 migration,
+  v6 refusal, legacy SMS block, and CSV safety were already in place and
+  were re-verified. E2E SHR-001.
+- Open for later phases: backup download size guard (Proposed) and a
+  blocking pre-restore safety copy are not implemented (PRD D7); a real Drive
+  recovery check on a device (Phase 10, manual).

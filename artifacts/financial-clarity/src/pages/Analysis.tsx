@@ -11,6 +11,17 @@ import OverviewPane from '@/components/analysis/OverviewPane';
 import PlanningPane from '@/components/analysis/PlanningPane';
 import TrendsPane from '@/components/analysis/TrendsPane';
 import { useAnalysisShared } from '@/components/analysis/useAnalysisShared';
+import { shareImage } from '@/lib/platform/share-image';
+import { toast } from '@/hooks/use-toast';
+
+/** DESIGN G16 / API §6.6: a failed share is shown, not only logged. */
+function showShareFailure() {
+  toast({
+    variant: 'destructive',
+    title: 'Couldn\u2019t share the image',
+    description: 'The Overview image couldn\u2019t be created or shared. Your data is unchanged. Try again.',
+  });
+}
 
 export default function Analysis() {
   const { selectedMonth, setSelectedMonth } = useFinance();
@@ -94,36 +105,11 @@ export default function Analysis() {
         backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--background') || '#ffffff',
         pixelRatio: 2,
       });
-
-      const filename = `analysis-${selectedMonth}.png`;
-      const isCapacitor = typeof (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor !== 'undefined' &&
-        (window as unknown as { Capacitor: { isNativePlatform?: () => boolean } }).Capacitor.isNativePlatform?.();
-
-      if (isCapacitor) {
-        const [{ Filesystem, Directory }, { Share }] = await Promise.all([
-          import('@capacitor/filesystem'),
-          import('@capacitor/share'),
-        ]);
-        const base64 = dataUrl.split(',')[1];
-        const written = await Filesystem.writeFile({
-          path: filename,
-          data: base64,
-          directory: Directory.Cache,
-        });
-        await Share.share({
-          title: 'Financial Analysis',
-          text: `Analysis for ${formatMonthYear(selectedMonth)}`,
-          url: written.uri,
-          dialogTitle: 'Share analysis',
-        });
-      } else {
-        const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = filename;
-        link.click();
-      }
-    } catch (err) {
-      console.error('Share failed', err);
+      const result = await shareImage(dataUrl, `analysis-${selectedMonth}.png`, `Analysis for ${formatMonthYear(selectedMonth)}`);
+      if (!result.ok && result.error === 'failed') showShareFailure();
+    } catch {
+      // The image could not be rendered.
+      showShareFailure();
     } finally {
       setIsExporting(false);
     }

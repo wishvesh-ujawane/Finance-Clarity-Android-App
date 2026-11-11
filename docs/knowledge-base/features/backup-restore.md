@@ -2,7 +2,7 @@
 id: feature-backup-restore
 title: Backup & Restore
 date: 2026-06-28
-updated: 2026-11-06
+updated: 2026-11-12
 status: current
 scope: [financial-clarity]
 related:
@@ -81,6 +81,12 @@ connection state.
   dialog.
 - Restoring an older payload may downgrade or invalidate
   [security.md](./security.md) PIN state — flagged to the user.
+- Backup schema is v5 (ADR 0006): categories carry `active`, budgets always
+  have a month. v1–v4 files migrate forward; v6 or newer is refused with
+  "Update the app". `appVersion` comes from the build version.
+- Restore writes every key through `writeStorageEntries` and returns a typed
+  failure; on failure every key is rolled back and the app does not reload.
+- If local storage can't be read, no backup is built (it would be empty).
 
 ## Cross-feature dependencies
 - Every persistence-touching feature is potentially overwritten on restore.

@@ -795,4 +795,4 @@ Recorded so they are fixed deliberately, not copied. None of these is authorized
 | G13 | Hard-coded colors | Raw hex and hsl values in components (hero, sheets, chips, nav) | Semantic tokens only (§2) |
 | G14 | SMS | **Resolved 2026-11-11.** SMS settings row and route removed; the old route renders Not Found | Removed (PRD FR-10, §6.1) |
 | G15 | Disabled submit | Entry submit disables without explaining what's missing | Visible hint (§5.12, §7.2) |
-| G16 | Share errors | Analysis share failure is only logged | Visible error (§13.7) |
+| G16 | Share errors | **Resolved 2026-11-12.** Analysis share failure shows a toast; cancelling the share sheet shows nothing | Visible error (§13.7) |

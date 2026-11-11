@@ -56,6 +56,10 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 | 34 | 7 | The day-to-day pace chart uses the day-to-day budget only (savings budgets were included) and leaves out recurring entries by their stored rule ID instead of amount matching. | Agent | PRD §6 buckets; ADR 0004 replaced fuzzy matching with occurrence identity. Pre-v4 recurring entries without an ID now count as day-to-day spend. |
 | 35 | 7 | Budget suggestions skip inactive categories, ask before replacing existing limits, and report the first save failure with how many were saved. | Agent | PRD FR-08 ("confirm before suggestions overwrite existing budget limits"), decision 15, AGENTS §8. |
 | 36 | 7 | Month-end review code was not changed. | Agent | PRD FR-09 / D8 pending. |
+| 37 | 8 | Backup `appVersion` uses the build version (`__APP_VERSION__`), falling back to `unknown`. | Agent | ARCHITECTURE A7 / API G14. Old backups keep `1.0.0`; nothing reads this field for decisions. |
+| 38 | 8 | Analysis image sharing moved into a platform adapter (`lib/platform/share-image.ts`); a failure shows a toast, while closing the share sheet (an error message containing "cancel") shows nothing. | Agent | DESIGN G16, API §4.2 and §6.6, AGENTS §3.2 (pages must not import Capacitor). |
+| 39 | 8 | Kept the pre-restore safety copy as best effort; a failure to save it still does not block a restore. | Agent | API §6.4 documents this; PRD D7 defers backup changes. |
+| 40 | 8 | The backup download size guard (API §6.3, "Proposed, MVP-cleanup") was not added. | Agent | It is marked Proposed and D7 defers backup expansion. |
 
 ---
 
@@ -95,3 +99,8 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 
 - **Completed:** Overview, Planning, and Trends use the shared PRD §6 rules (`lib/domain/analysis.ts`): spendable balance, future outflow, weekday and daily consumption, day-to-day pace, one savings-rate definition. Projection shows "Insufficient history" without an earlier month. Budget suggestions confirm before replacing limits and report failures. Existing zero-base guards (week-over-week, month-over-month) kept. E2E ANA-001 and ANA-002.
 - **Pending:** month-end review still counts card bill payments in its snapshot and ignores its budget save results. **Reason:** month-end is pending owner review (D8); the plan forbids changing it until a proposal is approved.
+
+### Phase 8 — Backup, restore, CSV, and sharing
+
+- **Completed:** backup `appVersion` from the build; image share failures shown (platform adapter); v5 round-trip test (build → serialize → validate → restore). Already in place and re-verified: Drive coverage, restore preview and confirmation, atomic restore with rollback (Phase 2), v1–v4 migration and newer-version refusal (v6), legacy SMS block, CSV validation, duplicate detection, formula escaping, and import preview. E2E SHR-001.
+- **Pending:** backup download size guard and making the pre-restore safety copy blocking (decisions 39–40). **Reason:** marked Proposed / best effort in API.md and D7 defers backup changes. A representative Drive recovery check needs a real Google account and device (Phase 10, manual).

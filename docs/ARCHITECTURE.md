@@ -533,7 +533,7 @@ If AI is ever approved (Future), it must:
 - Anything prefixed `VITE_` is compiled into the public bundle. **Never put secrets in client configuration.** The MVP client needs no secrets.
 - Configuration is fixed at build time. No remote config.
 - Toolchain: Node 24, pnpm 10, Android SDK 36, and the JDK required by the Android Gradle Plugin. See [docs/BUILD_AND_DEPLOY.md](./BUILD_AND_DEPLOY.md).
-- **MVP-cleanup:** the app version recorded in backups is hard-coded to `1.0.0`. Take it from the build version instead.
+- **Done (A7):** backups record the build version from `package.json` through the Vite `__APP_VERSION__` define.
 
 ---
 
@@ -683,7 +683,7 @@ None of these items is authorized by this document alone. Each needs owner appro
 | A4 | **Resolved 2026-11-11:** recurring occurrences have stable rule/month identity; due dates clamp to month-end; resuming skips past paused periods; catch-up is idempotent | Occurrence identity, short-month clamp, skip paused months, idempotent catch-up | PRD FR-07; §6.4 |
 | A5 | **Formatter part done 2026-11-12:** one formatter module (`lib/format.ts`) with `formatAmount` (display), `formatAmountFull` (full precision), and `formatAmountShort` (charts); display never shows paise. Still open: most screens call the full-precision alias `formatINR` where DESIGN §4.6 wants compact display (planned for Phase 9); fonts still load from Google at runtime | One formatter; bundled fonts | DESIGN G7, G8 |
 | A6 | **Resolved 2026-11-06.** Removed the unused React Query provider, the `@workspace/api-client-react` dependency, 42 unused `components/ui` primitives, the unused `use-mobile` hook, and the 31 packages only they used | Remove | §2.3 |
-| A7 | Backup app version hard-coded to `1.0.0` | Take it from the build version | §13.3 |
+| A7 | **Resolved 2026-11-12.** Backup app version comes from the build version (`__APP_VERSION__`) | Take it from the build version | §13.3 |
 | A8 | **Resolved 2026-11-06.** While locked, `App.tsx` renders only the lock screen (no pages, sheets, FAB, navigation, or toasts) | Lock screen topmost; content not mounted while locked | DESIGN G12; §4.3 |
 | A9 | Crash reporting not yet privacy-reviewed | Scrubbed payloads; disclosure; D9 decision | PRD FR-12 |
 | A10 | `FinanceContext` mixes state, rules, and persistence (about 1,400 lines) | Split into `domain/` + `storage/`; same public hook API | §4.2 |

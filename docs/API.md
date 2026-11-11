@@ -411,7 +411,7 @@ Drive error bodies contain `error.code`, `error.message`, and `error.errors[0].r
 | Field | Type | Rule |
 |---|---|---|
 | `schemaVersion` | int | Currently `5` (v5 adds `categories.active` and a required budget `month`, ADR 0006). If it is newer than supported, refuse with `backup.newer_version` |
-| `appVersion` | string | Hard-coded to `1.0.0` today. **MVP-cleanup:** take it from the build version |
+| `appVersion` | string | The app's build version (`package.json` → Vite `__APP_VERSION__`) since 2026-11-12. Older backups say `1.0.0` |
 | `exportedAt` | ISO-8601 UTC | — |
 | `device` | `{ platform, model?, osVersion? }` | Not used for any decision |
 | `counts` | Integer counts per collection, plus legacy SMS counts | Used for the preview and the shrink guard |
@@ -467,7 +467,7 @@ Versioning follows DATABASE §10.2: v1 → v2 → v3 → v4 step by step, and a 
 
 ### 6.6 Image export
 
-The app renders the Analysis Overview to a PNG with html-to-image, writes it to the app cache, and opens the share sheet. **MVP-cleanup (DESIGN G16):** failures are only logged to the console today. They must show an `export.share_failed` toast.
+The app renders the Analysis Overview to a PNG with html-to-image, writes it to the app cache, and opens the share sheet through the platform adapter `lib/platform/share-image.ts`. Since 2026-11-12 (DESIGN G16) a failure shows a "Couldn't share the image" toast (`export.share_failed`); closing the share sheet is a cancellation and shows nothing.
 
 ### 6.7 Firebase Crashlytics (Pending review: D9)
 
@@ -642,8 +642,8 @@ These gaps are reported here, not fixed. None of them is authorized for implemen
 | G11 | A 403 rate-limit response is shown as "permission removed" | `BackupContext.tsx` | §6.2.5 |
 | G12 | A failed pre-restore safety copy is swallowed without telling the user | `BackupContext.tsx` | §6.4 |
 | G13 | No size check before downloading a backup | `BackupContext.tsx` | §6.3 |
-| G14 | Backup `appVersion` is hard-coded to `1.0.0` | `backup.ts` | §6.3 |
-| G15 | Analysis image share failures are only logged | `Analysis.tsx` | §6.6 |
+| G14 | **Resolved 2026-11-12.** Backup `appVersion` comes from the build version | `backup.ts` | §6.3 |
+| G15 | **Resolved 2026-11-12.** Analysis image share failures show a toast | `Analysis.tsx`, `lib/platform/share-image.ts` | §6.6 |
 | G16 | Security actions return `boolean` with no reason | `SecurityContext.tsx` | §5.3 |
 | G17 | **Resolved 2026-11-11.** Every storage key name now lives in `lib/storage/keys.ts`; a unit test fails if another source file contains one | `lib/storage/keys.ts` | §5.1, DATABASE §3 |
 

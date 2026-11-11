@@ -76,7 +76,9 @@ const STORAGE = {
   smsLastScan: STORAGE_KEYS.smsLastScan,
 } as const;
 
-const APP_VERSION = '1.0.0';
+// The build version from package.json (vite `define`), so restores can tell
+// which app made a backup (ARCHITECTURE §13.3). Old backups say `1.0.0`.
+const APP_VERSION = typeof __APP_VERSION__ === 'string' && __APP_VERSION__ ? __APP_VERSION__ : 'unknown';
 
 const EMPTY_SMS_STATE: BackupSmsState = {
   pendingSms: [],

@@ -80,6 +80,43 @@ describe('Backup storage boundary', () => {
     buildBackup();
     expect(Object.keys(localStorage).filter(k => k.startsWith('financial-clarity:backup:'))).toEqual([]);
   });
+
+  it('records the build version instead of a hard-coded one', () => {
+    expect(buildBackup().appVersion).toBe(__APP_VERSION__);
+  });
+
+  it('round-trips a v5 backup: build, serialize, validate, restore', () => {
+    const categories = [
+      { id: 'groceries', name: 'Groceries', icon: 'ShoppingCart', color: '#10B981', type: 'expense', active: true },
+      { id: 'old', name: 'Old', icon: 'X', color: '#000000', type: 'expense', active: false },
+    ];
+    const transactions = [
+      { id: 't1', type: 'expense', amount: 120, categoryId: 'old', note: 'synthetic', date: '2026-11-02', paymentMethod: 'cash' },
+      { id: 't2', type: 'expense', amount: 500, categoryId: 'groceries', note: '', date: '2026-11-05', recurringRuleId: 'r1', recurringMonth: '2026-11' },
+    ];
+    const budgets = [{ id: 'b1', categoryId: 'groceries', limit: 3000, month: '2026-11' }];
+    const recurring = [{ id: 'r1', description: 'Weekly box', amount: 500, categoryId: 'groceries', dayOfMonth: 5, active: true, startMonth: '2026-11', lastGeneratedMonth: '2026-11' }];
+    const savingsGoal = { goal: { monthly: 1000, annual: 12000, createdAt: '2026-01-01' }, emergency: { monthly: 0, annual: 0 } };
+    localStorage.setItem('financial-clarity:categories', JSON.stringify(categories));
+    localStorage.setItem('financial-clarity:transactions', JSON.stringify(transactions));
+    localStorage.setItem('financial-clarity:budgets', JSON.stringify(budgets));
+    localStorage.setItem('financial-clarity:recurring', JSON.stringify(recurring));
+    localStorage.setItem('financial-clarity:savings-goal', JSON.stringify(savingsGoal));
+
+    const file = JSON.parse(JSON.stringify(buildBackup())) as unknown;
+    localStorage.clear();
+    const validation = validateBackup(file);
+    expect(validation.ok).toBe(true);
+    if (!validation.ok) return;
+    expect(validation.backup.schemaVersion).toBe(5);
+    expect(applyBackup(validation.backup)).toMatchObject({ ok: true });
+
+    expect(JSON.parse(localStorage.getItem('financial-clarity:categories') ?? '[]')).toEqual(categories);
+    expect(JSON.parse(localStorage.getItem('financial-clarity:transactions') ?? '[]')).toEqual(transactions);
+    expect(JSON.parse(localStorage.getItem('financial-clarity:budgets') ?? '[]')).toEqual(budgets);
+    expect(JSON.parse(localStorage.getItem('financial-clarity:recurring') ?? '[]')).toEqual(recurring);
+    expect(JSON.parse(localStorage.getItem('financial-clarity:savings-goal') ?? 'null')).toEqual(savingsGoal);
+  });
 });
 
 describe('Backup schema versioning', () => {
