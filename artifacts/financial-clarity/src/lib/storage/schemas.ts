@@ -52,7 +52,8 @@ export function isValidCategory(value: unknown): value is Category {
     value.name.length > 0 &&
     typeof value.icon === 'string' &&
     typeof value.color === 'string' &&
-    (value.type === 'income' || value.type === 'expense' || value.type === 'commitment' || value.type === 'savings' || value.type === 'both')
+    (value.type === 'income' || value.type === 'expense' || value.type === 'commitment' || value.type === 'savings' || value.type === 'both') &&
+    (value.active === undefined || typeof value.active === 'boolean')
   );
 }
 

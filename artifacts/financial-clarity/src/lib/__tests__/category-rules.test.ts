@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canDeactivateCategory,
   canDeleteCategory,
   describeCategoryDeleteBlock,
   getCategoryUsage,
+  isCategoryActive,
   isReservedCategory,
+  selectableCategories,
   type CategoryReferences,
 } from '@/lib/category-rules';
 
@@ -48,5 +51,26 @@ describe('category rules', () => {
     expect(describeCategoryDeleteBlock({
       ok: false, reason: 'in-use', usage: { transactions: 1, budgets: 0, recurring: 0 },
     })).toBe('Used by 1 transaction, so it can\u2019t be deleted.');
+  });
+});
+
+describe('category status rules', () => {
+  it('treats a missing status as active', () => {
+    expect(isCategoryActive({})).toBe(true);
+    expect(isCategoryActive({ active: true })).toBe(true);
+    expect(isCategoryActive({ active: false })).toBe(false);
+  });
+
+  it('never lets built-in categories become inactive', () => {
+    for (const id of ['savings-goal', 'savings-emergency', '_adjustment-missed-spend', '_adjustment-overlogged', 'other', 'other-income']) {
+      expect(canDeactivateCategory(id)).toBe(false);
+    }
+    expect(canDeactivateCategory('leisure')).toBe(true);
+  });
+
+  it('offers active categories plus the entry being edited', () => {
+    const cats = [{ id: 'a', active: true }, { id: 'b', active: false }, { id: 'c' }];
+    expect(selectableCategories(cats).map(c => c.id)).toEqual(['a', 'c']);
+    expect(selectableCategories(cats, 'b').map(c => c.id)).toEqual(['a', 'b', 'c']);
   });
 });

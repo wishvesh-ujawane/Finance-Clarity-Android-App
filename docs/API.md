@@ -258,6 +258,7 @@ Storage keys are frozen. The full catalogue is in DATABASE §3.
 | `deleteTransaction` | `id` | `{ ok: true }` | As above |
 | `importTransactions` | Items, plus optional new categories | `{ ok: true, count }` | As above. Nothing is saved |
 | `addCategory` | A category without `id` | `{ ok: true, category }` | As above |
+| `setCategoryActive` | `id`, `active` | `{ ok: true }` | Refused for built-in categories, or a storage failure. New transactions, new budgets, and new or edited recurring rules are refused in an inactive category |
 | `updateCategory` / `deleteCategory` | `id`, plus updates for update | `{ ok: true }` | A delete check result (in use or reserved) or a storage failure |
 | `addBudget` / `updateBudget` / `deleteBudget` | A budget, or `id` and `limit` | `{ ok: true }` | As above |
 | `transferBudgetsToMonth` | `fromMonth`, `toMonth` | `{ ok: true, count }` | As above. Copies limits only; it never moves money (PRD §6) |
@@ -377,7 +378,7 @@ These values are private to the app and limited to 124 bytes per key and value i
 
 | Key | Value |
 |---|---|
-| `schemaVersion` | Backup schema version, for example `4` |
+| `schemaVersion` | Backup schema version, for example `5` |
 | `appVersion` | App version string |
 | `exportedAt` | ISO-8601 UTC time |
 | `devicePlatform`, `deviceModel` | Platform and a shortened user-agent string |
@@ -408,7 +409,7 @@ Drive error bodies contain `error.code`, `error.message`, and `error.errors[0].r
 
 | Field | Type | Rule |
 |---|---|---|
-| `schemaVersion` | int | Currently `4`. If it is newer than supported, refuse with `backup.newer_version` |
+| `schemaVersion` | int | Currently `5` (v5 adds `categories.active` and a required budget `month`, ADR 0006). If it is newer than supported, refuse with `backup.newer_version` |
 | `appVersion` | string | Hard-coded to `1.0.0` today. **MVP-cleanup:** take it from the build version |
 | `exportedAt` | ISO-8601 UTC | — |
 | `device` | `{ platform, model?, osVersion? }` | Not used for any decision |

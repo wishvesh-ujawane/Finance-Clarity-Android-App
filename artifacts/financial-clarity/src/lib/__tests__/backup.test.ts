@@ -2,6 +2,7 @@
  * Tests for backup schema versions and migrations.
  * - Phase 1: added Transaction.paymentMethod (v1 -> v2).
  * - v3 backups migrate to v4 recurring occurrence identity support.
+ * - v4 backups migrate to v5 (category status, required budget month).
  */
 
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
@@ -82,8 +83,54 @@ describe('Backup storage boundary', () => {
 });
 
 describe('Backup schema versioning', () => {
-  it('current BACKUP_VERSION is 4', () => {
-    expect(BACKUP_VERSION).toBe(4);
+  it('current BACKUP_VERSION is 5', () => {
+    expect(BACKUP_VERSION).toBe(5);
+  });
+
+  it('migrates a v4 backup to v5: categories default to active and every budget gets a month', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 15));
+    try {
+      const v4Backup: unknown = {
+        schemaVersion: 4,
+        appVersion: '1.0.0',
+        exportedAt: '2026-11-01T00:00:00.000Z',
+        device: { platform: 'android' },
+        counts: {
+          transactions: 0, categories: 2, budgets: 3, recurringExpenses: 0, savingsGoal: 0,
+          pendingSms: 0, dismissedSmsFingerprints: 0, linkedSms: 0,
+        },
+        data: {
+          transactions: [],
+          categories: [
+            { id: 'rent', name: 'Rent', icon: 'Home', color: '#6366F1', type: 'commitment' },
+            { id: 'fun', name: 'Fun', icon: 'Smile', color: '#F59E0B', type: 'expense', active: false },
+          ],
+          budgets: [
+            { id: 'old', categoryId: 'rent', limit: 100 },
+            { id: 'kept', categoryId: 'rent', limit: 200, month: '2026-11' },
+            { id: 'fun-old', categoryId: 'fun', limit: 50 },
+          ],
+          recurringExpenses: [],
+          savingsGoal: null,
+          sms: { pendingSms: [], dismissedSmsFingerprints: [], linkedSms: {}, lastScanMs: 0 },
+        },
+      };
+
+      const result = validateBackup(v4Backup);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.backup.schemaVersion).toBe(5);
+      expect(result.backup.data.categories.map(c => c.active)).toEqual([true, false]);
+      expect(result.backup.data.budgets).toEqual([
+        { id: 'kept', categoryId: 'rent', limit: 200, month: '2026-11' },
+        { id: 'fun-old', categoryId: 'fun', limit: 50, month: '2026-11' },
+      ]);
+      expect(result.backup.counts.budgets).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('accepts a valid v3 backup with an empty SMS block', () => {
@@ -134,7 +181,7 @@ describe('Backup schema versioning', () => {
     const result = validateBackup(v3Backup);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.backup.schemaVersion).toBe(4);
+      expect(result.backup.schemaVersion).toBe(5);
       expect(result.backup.data.transactions[0].paymentMethod).toBe('credit-card');
       expect(result.backup.data.transactions[0].merchant).toBe('Reliance Fresh');
       expect(result.backup.data.transactions[0].sourceSmsFingerprint).toBe('sha256-abc123');
@@ -244,7 +291,7 @@ describe('Backup schema versioning', () => {
     }
   });
 
-  it('migrates a v1 backup up to v4 (adds paymentMethod support + empty SMS block)', () => {
+  it('migrates a v1 backup up to v5 (adds paymentMethod support + empty SMS block)', () => {
     const v1Backup: unknown = {
       schemaVersion: 1,
       appVersion: '1.0.0',
@@ -282,7 +329,7 @@ describe('Backup schema versioning', () => {
     const result = validateBackup(v1Backup);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.backup.schemaVersion).toBe(4);
+      expect(result.backup.schemaVersion).toBe(5);
       expect(result.backup.data.transactions).toHaveLength(2);
       expect(result.backup.data.transactions[0].id).toBe('tx-001');
       expect(result.backup.data.transactions[1].id).toBe('tx-002');
@@ -293,7 +340,7 @@ describe('Backup schema versioning', () => {
     }
   });
 
-  it('migrates a v2 backup up to v4 (adds SMS compatibility and occurrence support)', () => {
+  it('migrates a v2 backup up to v5 (adds SMS compatibility and occurrence support)', () => {
     const existingLegacySms = {
       pending: '[{"rawBody":"keep existing legacy record"}]',
       dismissed: '["keep-this-fingerprint"]',
@@ -335,7 +382,7 @@ describe('Backup schema versioning', () => {
     const result = validateBackup(v2Backup);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.backup.schemaVersion).toBe(4);
+      expect(result.backup.schemaVersion).toBe(5);
       expect(result.backup.data.transactions[0].paymentMethod).toBe('credit-card');
       expect(result.backup.data.sms.pendingSms).toEqual([]);
       expect(result.backup.data.sms.dismissedSmsFingerprints).toEqual([]);
@@ -351,9 +398,9 @@ describe('Backup schema versioning', () => {
     }
   });
 
-  it('rejects a backup with schemaVersion > current (v5)', () => {
+  it('rejects a backup with schemaVersion > current (v6)', () => {
     const futureBackup: unknown = {
-      schemaVersion: 5,
+      schemaVersion: 6,
       appVersion: '2.0.0',
       exportedAt: '2027-01-01T00:00:00.000Z',
       device: { platform: 'android' },
@@ -378,7 +425,7 @@ describe('Backup schema versioning', () => {
     }
   });
 
-  it('accepts v1 transactions without optional metadata (migrates cleanly to v4)', () => {
+  it('accepts v1 transactions without optional metadata (migrates cleanly to v5)', () => {
     const v1Backup: unknown = {
       schemaVersion: 1,
       appVersion: '1.0.0',
@@ -409,7 +456,7 @@ describe('Backup schema versioning', () => {
     const result = validateBackup(v1Backup);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.backup.schemaVersion).toBe(4);
+      expect(result.backup.schemaVersion).toBe(5);
       expect(result.backup.data.transactions[0].paymentMethod).toBeUndefined();
       expect(result.backup.data.sms.pendingSms).toEqual([]);
     }

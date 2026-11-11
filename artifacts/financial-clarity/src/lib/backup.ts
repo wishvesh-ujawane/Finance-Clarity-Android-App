@@ -10,6 +10,8 @@ import { sha256Hex } from './backupHash';
 import { readFinanceData } from './storage/finance-read';
 import { writeStorageEntries, type StorageWriteResult } from './storage/finance-storage';
 import { STORAGE_KEYS } from './storage/keys';
+import { assignBudgetMonths, defaultCategoriesActive } from './storage/local-migrations';
+import { currentMonth } from './domain/periods';
 import {
   isObject as isObj,
   isValidBudget,
@@ -19,7 +21,7 @@ import {
   isValidTransaction,
 } from './storage/schemas';
 
-export const BACKUP_VERSION = 4;
+export const BACKUP_VERSION = 5;
 
 export interface BackupCounts {
   transactions: number;
@@ -105,6 +107,19 @@ export const migrations: Record<number, (b: BackupFile) => BackupFile> = {
   }),
   // v3 -> v4: transactions may carry a stable recurring rule/month identity.
   3: (b) => ({ ...b, schemaVersion: 4 }),
+  // v4 -> v5: categories gain `active` (missing = true) and every budget has a
+  // month (same rule as local migration 2; the backup file itself is unchanged
+  // on Drive, so a left-out duplicate is still recoverable from it).
+  4: (b) => {
+    const categories = Array.isArray(b.data?.categories) ? defaultCategoriesActive(b.data.categories).items : b.data?.categories;
+    const budgets = Array.isArray(b.data?.budgets) ? assignBudgetMonths(b.data.budgets, currentMonth()).items : b.data?.budgets;
+    return {
+      ...b,
+      schemaVersion: 5,
+      data: { ...b.data, categories: categories as Category[], budgets: budgets as Budget[] },
+      counts: { ...b.counts, budgets: Array.isArray(budgets) ? budgets.length : b.counts?.budgets },
+    };
+  },
 };
 
 // ---------------- Validators ----------------

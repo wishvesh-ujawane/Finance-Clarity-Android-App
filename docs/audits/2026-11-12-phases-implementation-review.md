@@ -33,6 +33,15 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 | 11 | 3 | `formatINR`, `formatShortINR`, and `formatMonthYear` stay as deprecated aliases instead of renaming about 100 call sites. | Agent | Avoid a large rename-only diff; Phase 9 touches each call site anyway. |
 | 12 | 3 | Budget "spent" is savings contributions for a savings category and consumption for any other category, so card bill payments no longer count. | Agent | PRD §6 consumption definition; savings budgets track contributions. |
 | 13 | 3 | The month-end review snapshot is not changed even though it still counts card bill payments. | Agent | Month-end behavior is pending owner review (PRD D8, FR-09). |
+| 14 | 4 | `Category.active` stays optional in TypeScript; absent means active. Migration 1, backup v5, and new categories store `true`. | Agent | Keeps pre-migration data readable everywhere; the migration guarantees stored values. |
+| 15 | 4 | New transactions, new budgets, and new or edited recurring rules are refused in an inactive category; an edited transaction may keep its current inactive category. | Agent | DATABASE §6.2 and the PRD FR-03 assumption. The assumption is marked "requiring confirmation" in the PRD — **owner should confirm**. |
+| 16 | 4 | An active recurring rule whose category becomes inactive keeps generating; it is not paused or deleted. | Agent | PRD FR-03 leaves this pending and forbids silently pausing or deleting the rule; no behavior change is the safe default. **Owner decision still needed.** |
+| 17 | 4 | Reserved categories plus `other` and `other-income` can never be inactive; a stored inactive value is corrected at load. | Agent | DATABASE §6.2 (owner-approved in the database design review). |
+| 18 | 4 | CSV import may still match an existing inactive category by name. | Agent | Import restores history rather than creating a new entry by choice. |
+| 19 | 4 | Backup v4 → v5 leaves out a month-less budget that collides with an existing one instead of quarantining it. | Agent | Quarantine is local-only; the Drive file is unchanged and still holds the row. |
+| 20 | 4 | Inactive categories are listed last within their type group with an "Inactive" badge instead of DESIGN §13's collapsible Inactive section. | Agent | Smaller change; the collapsible section is noted for Phase 9 design alignment. |
+| 21 | 4 | The month-end budget planner hides inactive categories unless they already have a next-month budget. | Agent | Its `addBudget` result is ignored (existing month-end behavior), so offering an inactive category would fail silently. |
+| 22 | 4 | Active category names are unique ignoring case; adding, renaming, or reactivating into a clash is refused. Inactive categories may share a name. | Agent | DATABASE §6.2 (owner-approved). |
 
 ---
 
@@ -52,3 +61,8 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 
 - **Completed:** one implementation per PRD §6 metric, shared period helpers and formatters, card bill payments no longer double counted, cross-screen consistency test.
 - **Pending:** Transactions totals (Phase 6), Analysis-only figures (Phase 7), compact amount display (Phase 9), month-end snapshot (pending D8).
+
+### Phase 4 — Category status, deletion rules, and data compatibility
+
+- **Completed:** `active` flag with domain enforcement (new entries, budgets, recurring rules), built-in categories always active, pickers show active categories only (plus the edited entry's own), "Mark inactive/active" on the Categories screen, "Inactive" badges, local migrations 1 and 2 (with quarantine on budget collisions), backup schema v5 with v4 → v5 migration. ADR 0006. Unit, context, migration, backup, and e2e CAT-003 tests.
+- **Pending:** owner confirmation of the PRD FR-03 picker assumption and of the inactive-category/active-recurring-rule detail (decisions 15–16). **Reason:** the PRD marks both as requiring confirmation; the safest documented behavior is implemented. Collapsible Inactive section (DESIGN §13) left for Phase 9. Unique active category names (DATABASE §6.2) were implemented in this phase.

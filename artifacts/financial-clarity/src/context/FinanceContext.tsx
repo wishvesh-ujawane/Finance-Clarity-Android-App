@@ -16,7 +16,15 @@ import {
   totalSavingsContributions,
   type MonthSummary,
 } from '@/lib/domain/finance-metrics';
-import { canDeleteCategory, type CategoryDeleteCheck } from '@/lib/category-rules';
+import {
+  canDeactivateCategory,
+  canDeleteCategory,
+  duplicateNameMessage,
+  findActiveNameClash,
+  INACTIVE_CATEGORY_MESSAGE,
+  isCategoryActive,
+  type CategoryDeleteCheck,
+} from '@/lib/category-rules';
 import { createId } from '@/lib/ids';
 import { writeFinanceData, type FinanceStorageKey } from '@/lib/storage/finance-storage';
 import { readFinanceData, type StoredFinanceData } from '@/lib/storage/finance-read';
@@ -73,7 +81,7 @@ const ADJUSTMENT_DEFAULTS: Category[] = [
   { id: '_adjustment-overlogged', name: 'Over-logged Reversal', icon: 'Undo2', color: '#64748B', type: 'income' },
 ];
 
-const DEFAULT_CATEGORIES: Category[] = [
+const DEFAULT_CATEGORIES: Category[] = ([
   { id: 'groceries', name: 'Groceries', icon: 'ShoppingCart', color: '#10B981', type: 'expense' },
   { id: 'rent', name: 'Rent', icon: 'Home', color: '#6366F1', type: 'expense' },
   { id: 'leisure', name: 'Leisure', icon: 'Smile', color: '#F59E0B', type: 'expense' },
@@ -86,14 +94,15 @@ const DEFAULT_CATEGORIES: Category[] = [
   ...SAVINGS_DEFAULTS,
   ...OTHER_DEFAULTS,
   ...ADJUSTMENT_DEFAULTS,
-];
+] as Category[]).map(c => ({ ...c, active: true }));
 
 /**
  * Ensure hardcoded required categories exist in the array with the correct
  * `type`. Covers the two Savings buckets, the two "Other" catch-alls, and
  * the two hidden Adjustment categories used by the
  * Month-End Review reconciliation step. Missing entries are appended;
- * entries with a wrong `type` are corrected in place. Preserves user ordering.
+ * entries with a wrong `type` are corrected in place, and they are always
+ * active because their features depend on them. Preserves user ordering.
  */
 function ensureRequiredCategories(list: Category[]): Category[] {
   const seeds = [...SAVINGS_DEFAULTS, ...OTHER_DEFAULTS, ...ADJUSTMENT_DEFAULTS];
@@ -102,10 +111,10 @@ function ensureRequiredCategories(list: Category[]): Category[] {
   for (const seed of seeds) {
     const existing = byId.get(seed.id);
     if (!existing) {
-      byId.set(seed.id, { ...seed });
+      byId.set(seed.id, { ...seed, active: true });
       mutated = true;
-    } else if (existing.type !== seed.type) {
-      byId.set(seed.id, { ...existing, type: seed.type });
+    } else if (existing.type !== seed.type || existing.active === false) {
+      byId.set(seed.id, { ...existing, type: seed.type, active: existing.active === false ? true : existing.active });
       mutated = true;
     }
   }
@@ -141,6 +150,8 @@ interface FinanceContextType {
   deleteTransaction: (id: string) => FinanceWriteResult;
   addCategory: (c: Omit<Category, 'id'>) => { ok: true; category: Category } | { ok: false; message: string };
   updateCategory: (id: string, updates: Omit<Category, 'id'>) => FinanceWriteResult;
+  /** Makes a category active or inactive. Built-in categories can't be made inactive. */
+  setCategoryActive: (id: string, active: boolean) => FinanceWriteResult;
   deleteCategory: (id: string) => DeleteCategoryResult;
   addBudget: (b: Omit<Budget, 'id'>) => FinanceWriteResult;
   updateBudget: (id: string, limit: number) => FinanceWriteResult;
@@ -344,9 +355,17 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const addTransaction = useCallback((t: Omit<Transaction, 'id'>): FinanceWriteResult =>
-    commit({ transactions: [{ ...t, id: createId() }, ...latest.current.transactions] }),
-  [commit]);
+  // New entries need an active category (PRD FR-03, DATABASE §6.2).
+  const isInactiveCategory = (categoryId: string): boolean => {
+    const category = latest.current.categories.find(c => c.id === categoryId);
+    return category !== undefined && !isCategoryActive(category);
+  };
+
+  const addTransaction = useCallback((t: Omit<Transaction, 'id'>): FinanceWriteResult => {
+    if (isInactiveCategory(t.categoryId)) return { ok: false, message: INACTIVE_CATEGORY_MESSAGE };
+    return commit({ transactions: [{ ...t, id: createId() }, ...latest.current.transactions] });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commit]);
 
   const importTransactions = useCallback((
     items: Omit<Transaction, 'id'>[],
@@ -358,16 +377,22 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
     };
     if (newCategories.length > 0) {
       // Savings type is reserved for the two hardcoded categories.
-      const safe = newCategories.map(c => (c.type === 'savings' ? { ...c, type: 'expense' as const } : c));
+      const safe = newCategories.map(c => ({ ...c, type: c.type === 'savings' ? 'expense' as const : c.type, active: true }));
       changes.categories = [...latest.current.categories, ...safe];
     }
     const result = commit(changes);
     return result.ok ? { ok: true, count: items.length } : result;
   }, [commit]);
 
-  const updateTransaction = useCallback((id: string, updates: Omit<Transaction, 'id'>): FinanceWriteResult =>
-    commit({ transactions: latest.current.transactions.map(t => t.id === id ? { ...updates, id } : t) }),
-  [commit]);
+  // Editing may keep the entry's current category even if it is now inactive.
+  const updateTransaction = useCallback((id: string, updates: Omit<Transaction, 'id'>): FinanceWriteResult => {
+    const previous = latest.current.transactions.find(t => t.id === id);
+    if (previous?.categoryId !== updates.categoryId && isInactiveCategory(updates.categoryId)) {
+      return { ok: false, message: INACTIVE_CATEGORY_MESSAGE };
+    }
+    return commit({ transactions: latest.current.transactions.map(t => t.id === id ? { ...updates, id } : t) });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commit]);
 
   const deleteTransaction = useCallback((id: string): FinanceWriteResult =>
     commit({ transactions: latest.current.transactions.filter(t => t.id !== id) }),
@@ -375,26 +400,44 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
 
   const addCategory = useCallback((c: Omit<Category, 'id'>): { ok: true; category: Category } | { ok: false; message: string } => {
     // Savings type is reserved for the two hardcoded categories.
+    if (findActiveNameClash(latest.current.categories, c.name)) return { ok: false, message: duplicateNameMessage(c.name) };
     const safeType: Category['type'] = c.type === 'savings' ? 'expense' : c.type;
-    const newCat: Category = { ...c, type: safeType, id: createId() };
+    const newCat: Category = { ...c, type: safeType, active: true, id: createId() };
     const result = commit({ categories: [...latest.current.categories, newCat] });
     return result.ok ? { ok: true, category: newCat } : result;
   }, [commit]);
 
-  const updateCategory = useCallback((id: string, updates: Omit<Category, 'id'>): FinanceWriteResult =>
-    commit({
+  const updateCategory = useCallback((id: string, updates: Omit<Category, 'id'>): FinanceWriteResult => {
+    const current = latest.current.categories.find(c => c.id === id);
+    if (current && isCategoryActive(current) && findActiveNameClash(latest.current.categories, updates.name, id)) {
+      return { ok: false, message: duplicateNameMessage(updates.name) };
+    }
+    return commit({
       categories: latest.current.categories.map(c => {
         if (c.id !== id) return c;
+        // Status changes go through setCategoryActive, so keep the current one.
+        const active = c.active;
         // For hardcoded savings categories, force type='savings' to preserve invariant.
         if (SAVINGS_CATEGORY_ID_SET.has(id)) {
-          return { ...updates, type: 'savings', id };
+          return { ...updates, type: 'savings', active, id };
         }
         // Disallow promoting a non-savings category to 'savings' via update.
         const safeType: Category['type'] = updates.type === 'savings' ? c.type : updates.type;
-        return { ...updates, type: safeType, id };
+        return { ...updates, type: safeType, active, id };
       }),
-    }),
-  [commit]);
+    });
+  }, [commit]);
+
+  const setCategoryActive = useCallback((id: string, active: boolean): FinanceWriteResult => {
+    if (!active && !canDeactivateCategory(id)) {
+      return { ok: false, message: 'This built-in category is needed by the app, so it can\u2019t be made inactive.' };
+    }
+    const category = latest.current.categories.find(c => c.id === id);
+    if (active && category && findActiveNameClash(latest.current.categories, category.name, id)) {
+      return { ok: false, message: duplicateNameMessage(category.name) };
+    }
+    return commit({ categories: latest.current.categories.map(c => (c.id === id ? { ...c, active } : c)) });
+  }, [commit]);
 
   const deleteCategory = useCallback((id: string): DeleteCategoryResult => {
     const check = canDeleteCategory(id, latest.current);
@@ -407,6 +450,7 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
     const month = b.month || selectedMonth;
     const currentBudgets = latest.current.budgets;
     const existing = currentBudgets.find(x => x.categoryId === b.categoryId && x.month === month);
+    if (!existing && isInactiveCategory(b.categoryId)) return { ok: false, message: INACTIVE_CATEGORY_MESSAGE };
     const next = existing
       ? currentBudgets.map(x => x.id === existing.id ? { ...x, limit: b.limit, month } : x)
       : [...currentBudgets, { ...b, month, id: createId() }];
@@ -468,11 +512,15 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
     setIsBudgetSheetOpen(false);
   }, []);
 
-  const addRecurring = useCallback((r: Omit<RecurringExpense, 'id' | 'lastGeneratedMonth'>): FinanceWriteResult =>
-    commit({ recurringExpenses: [...latest.current.recurringExpenses, { ...r, id: createId() }] }),
-  [commit]);
+  // A new or edited recurring rule needs an active category (DATABASE §6.2).
+  const addRecurring = useCallback((r: Omit<RecurringExpense, 'id' | 'lastGeneratedMonth'>): FinanceWriteResult => {
+    if (isInactiveCategory(r.categoryId)) return { ok: false, message: INACTIVE_CATEGORY_MESSAGE };
+    return commit({ recurringExpenses: [...latest.current.recurringExpenses, { ...r, id: createId() }] });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commit]);
 
   const updateRecurring = useCallback((id: string, updates: Omit<RecurringExpense, 'id'>): FinanceWriteResult => {
+    if (isInactiveCategory(updates.categoryId)) return { ok: false, message: INACTIVE_CATEGORY_MESSAGE };
     const previous = latest.current.recurringExpenses.find(r => r.id === id);
     const nextRule: RecurringExpense = { ...updates, id };
     if (previous?.lastGeneratedMonth && (!nextRule.lastGeneratedMonth || nextRule.lastGeneratedMonth < previous.lastGeneratedMonth)) {
@@ -762,7 +810,7 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
       recurringExpenses, savingsGoal,
       reconciliations,
       addTransaction, importTransactions, updateTransaction, deleteTransaction,
-      addCategory, updateCategory, deleteCategory,
+      addCategory, updateCategory, setCategoryActive, deleteCategory,
       addBudget, updateBudget, deleteBudget, transferBudgetsToMonth,
       addRecurring, updateRecurring, deleteRecurring, toggleRecurringActive,
       setSavingsGoal,

@@ -357,8 +357,8 @@ All key names live in one module, `lib/storage/keys.ts`. No other file contains 
 ### 8.4 Migrations
 
 - **Local migrations** are ordered, forward-only, and idempotent. They run at startup before any context reads data, and record the new storage version only after all writes succeed. The runner is `lib/storage/migrations.ts` (ADR 0005); no step is registered yet.
-  - First planned migration: add `active: true` to every existing category so current categories stay usable (PRD FR-03, §9).
-- **Backup migrations** run in parallel with local migrations. Adding category status raises the backup schema version from 3 to 4. Old backups restore through the migration chain; newer backups are refused.
+  - Migration 1 adds `active: true` to every existing category so current categories stay usable (PRD FR-03, §9); migration 2 gives every budget a month (ADR 0006).
+- **Backup migrations** run in parallel with local migrations. Category status and required budget months raised the backup schema version from 4 to 5. Old backups restore through the migration chain; newer backups are refused.
 - Google Play cannot roll an app back to an older version. A migration must never leave data that the current code cannot read.
 
 ### 8.5 Data-modeling rules
@@ -678,7 +678,7 @@ None of these items is authorized by this document alone. Each needs owner appro
 |---|---|---|---|
 | A1 | **Resolved in source 2026-11-11:** SMS screens, parsers, native reader, route, and `READ_SMS` permission removed; legacy SMS keys stay readable for backups. A Vitest guard (`src/__tests__/sms-removal-release-config.test.ts`) and e2e NAV-002 prevent regressions. Still missing: merged release manifest check on a machine with the Android SDK | Remove completely; keep legacy SMS keys readable for backups | PRD FR-10 |
 | A2 | **Resolved 2026-11-11:** finance mutations, including budgets, recurring rules, and savings targets, persist first and surface failures; multi-key writes roll back | Persist first, typed results, visible failures | PRD §9; §6.2 |
-| A3 | **Partly resolved 2026-11-06:** deletion is blocked in the mutation for reserved categories and for categories used by transactions, budgets, or recurring rules (`lib/category-rules.ts`). Still missing: category active/inactive status | Domain-enforced usage rule, `active` flag, local migration, backup schema v5 | PRD FR-03 |
+| A3 | **Resolved 2026-11-12:** deletion is blocked in the mutation for reserved and used categories (`lib/category-rules.ts`), and categories have active/inactive status with local migration 1 and backup schema v5 (ADR 0006). Still pending owner confirmation: the PRD FR-03 picker assumption and the inactive-category/recurring-rule detail | Domain-enforced usage rule, `active` flag, local migration, backup schema v5 | PRD FR-03 |
 | A4 | **Resolved 2026-11-11:** recurring occurrences have stable rule/month identity; due dates clamp to month-end; resuming skips past paused periods; catch-up is idempotent | Occurrence identity, short-month clamp, skip paused months, idempotent catch-up | PRD FR-07; §6.4 |
 | A5 | **Formatter part done 2026-11-12:** one formatter module (`lib/format.ts`) with `formatAmount` (display), `formatAmountFull` (full precision), and `formatAmountShort` (charts); display never shows paise. Still open: most screens call the full-precision alias `formatINR` where DESIGN §4.6 wants compact display (planned for Phase 9); fonts still load from Google at runtime | One formatter; bundled fonts | DESIGN G7, G8 |
 | A6 | **Resolved 2026-11-06.** Removed the unused React Query provider, the `@workspace/api-client-react` dependency, 42 unused `components/ui` primitives, the unused `use-mobile` hook, and the 31 packages only they used | Remove | §2.3 |

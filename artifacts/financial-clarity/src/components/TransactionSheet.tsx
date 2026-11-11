@@ -11,6 +11,7 @@ import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { localDateStr, formatAmountExpression } from '@/lib/finance-utils';
 import { SAVINGS_CATEGORY_IDS, SYSTEM_ADJUSTMENT_CATEGORY_IDS } from '@/lib/types';
+import { isCategoryActive, selectableCategories } from '@/lib/category-rules';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 const SYSTEM_ADJUSTMENT_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
@@ -187,13 +188,15 @@ export function TransactionSheet() {
     }
   }, [isSheetOpen, editingTransaction, sheetInitialMode]);
 
+  // New entries only offer active categories; an edited entry keeps its own.
+  const pickableCategories = selectableCategories(categories, editingTransaction?.categoryId);
   const filteredCategories = (mode === 'save'
-    ? categories.filter(c => c.type === 'savings')
+    ? pickableCategories.filter(c => c.type === 'savings')
     : mode === 'expense'
-      ? categories.filter(c =>
+      ? pickableCategories.filter(c =>
           !SYSTEM_ADJUSTMENT_ID_SET.has(c.id) &&
           (c.type === 'expense' || c.type === 'commitment' || c.type === 'both'))
-      : categories.filter(c =>
+      : pickableCategories.filter(c =>
           !SYSTEM_ADJUSTMENT_ID_SET.has(c.id) &&
           (c.type === 'income' || c.type === 'both'))
   ).slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -483,6 +486,9 @@ export function TransactionSheet() {
                         <CategoryIcon icon={cat.icon} color={cat.color} size={16} />
                       </div>
                       <span className="text-center leading-tight">{cat.name}</span>
+                      {!isCategoryActive(cat) && (
+                        <span className="rounded-lg bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">Inactive</span>
+                      )}
                     </button>
                   ))}
 

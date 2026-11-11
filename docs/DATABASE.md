@@ -88,7 +88,7 @@ All key names live in **one module**, `src/lib/storage/keys.ts`. No other file c
 | `drive_folder_cache` | `financial-clarity:backup-folder-id` | String | No |
 | `google_profile_cache` | `financial-clarity:google-user` | Object, singleton | No (disclosed exclusion) |
 | `app_flags` | `financial-clarity:onboarding-complete`, `financial-clarity:first-run-done` (legacy, read-only), `financial-clarity:connect-drive-banner-dismissed` | String values | No (disclosed exclusion) |
-| `storage_meta` | `financial-clarity:storage-version` | Integer. Key defined; first written by local migration 1 | No |
+| `storage_meta` | `financial-clarity:storage-version` | Integer. Written by the migration runner | No |
 | `legacy_sms` | `financial-clarity:sms-pending`, `sms-dismissed`, `sms-linked`, `sms-last-scan` | Legacy, **read-only** | Carried for compatibility only |
 | `quarantine` | `financial-clarity:backup:<key>:<epoch_ms>` | Raw original text | No |
 
@@ -230,7 +230,7 @@ The key exists only while a PIN is enabled.
 | `app_flags.onboarding-complete` | `"<reason>:<epoch_ms>"` or `"migrated:<reason>"` | Present means onboarding is complete |
 | `app_flags.first-run-done` | Legacy string | Read once to migrate older users, then ignored |
 | `app_flags.connect-drive-banner-dismissed` | `epoch_ms` string | Dashboard nudge has been dismissed |
-| `storage_meta` | `storage-version`: `int` | Highest local migration that has been applied (§10.1). The runner exists; no step is registered yet, so the key stays absent (version 0) until migration 1 |
+| `storage_meta` | `storage-version`: `int` | Highest local migration that has been applied (§10.1). Currently `2` after the first launch of a build with migrations 1 and 2 |
 | `legacy_sms` | Existing shapes, unchanged | **Read-only.** Carried in backups for compatibility. It never reactivates SMS features, and it is never silently deleted (PRD FR-10) |
 | `quarantine` | Raw text | Original text of a key or record that failed validation. It is never overwritten by normal writes |
 
@@ -489,7 +489,7 @@ Pages and components never access storage directly. **Only the storage layer rea
 | No rollback releases | Google Play cannot downgrade an app. A migration must never leave data that the current code cannot read |
 | Implementation | `runLocalMigrations` in `src/lib/storage/migrations.ts`, called by `prepareStorage` at startup (ADR 0005). A stored version higher than the app knows is refused with an "Update the app" screen and left unchanged. Each step writes its data and then the version in one rolled-back unit |
 
-Planned migrations (none registered yet):
+Migrations (registered in `src/lib/storage/local-migrations.ts`, ADR 0006):
 
 | Version | Change | Source |
 |---|---|---|
@@ -510,7 +510,7 @@ These existing migrations that run when data loads stay as they are:
 | 1 → 2 | `transactions.paymentMethod` added (Existing) |
 | 2 → 3 | Legacy SMS block added. Older backups get an empty block (Existing) |
 | **3 → 4** | Add optional `transactions.recurringRuleId` and `recurringMonth` as a paired occurrence identity. Existing v3 transactions remain valid without either field |
-| **4 → 5 (planned)** | Add `categories.active`, defaulting missing values to `true`, and normalize month-less budgets as described by local migration 2 |
+| **4 → 5** | Add `categories.active`, defaulting missing values to `true`, and normalize month-less budgets as described by local migration 2. Implemented 2026-11-12 (ADR 0006); a month-less budget that collides is left out of the restore, and the Drive file keeps it |
 
 - A backup with a **newer** schema version is refused with an "update the app" message.
 - Older backups are migrated forward step by step, then validated with the same entity schemas.

@@ -2,7 +2,7 @@
 id: feature-categories
 title: Categories screen
 date: 2026-06-28
-updated: 2026-11-06
+updated: 2026-11-12
 status: current
 scope: [financial-clarity]
 related:
@@ -39,6 +39,10 @@ Reads / writes `categories` on
   and returns `{ ok: false, reason }` instead of deleting. The edit panel
   shows Delete only when allowed; otherwise it says why ("Used by 3
   transactions and 1 budget…" or "built-in category").
+- Mark a category inactive or active (`FinanceContext.setCategoryActive`).
+  Inactive categories stay on existing records, show an "Inactive" badge,
+  and are listed after active ones. They are hidden from the transaction,
+  budget, recurring-rule, and month-end budget pickers.
 - Inline creation also happens from inside
   [TransactionSheet](../../../artifacts/financial-clarity/src/components/TransactionSheet.tsx).
 
@@ -46,8 +50,18 @@ Reads / writes `categories` on
 - Usage means any transaction, budget, or recurring expense referring to the
   category. Dependent records are never deleted with a category.
 - Built-in categories (Goal Savings, Emergency Fund, Missed Spend,
-  Over-logged Reversal) can never be deleted.
-- Active/inactive status is not implemented yet (ARCHITECTURE §19 A3).
+  Over-logged Reversal) can never be deleted. Those plus Other and Other
+  Income can never be made inactive; a stored inactive value is corrected at
+  load.
+- New transactions, new budgets, and new or edited recurring rules are
+  refused in an inactive category. Editing a transaction may keep its current
+  inactive category (PRD FR-03 assumption, pending owner confirmation).
+- An active recurring rule whose category becomes inactive keeps generating;
+  it is not paused or deleted (PRD FR-03 pending detail).
+- CSV import may still match an existing inactive category by name, because
+  it restores history.
+- Data saved before 2026-11-12 has no `active` value; local migration 1 and
+  backup v5 store `true`.
 
 ## Cross-feature dependencies
 - [transactions.md](./transactions.md), [budgets.md](./budgets.md),

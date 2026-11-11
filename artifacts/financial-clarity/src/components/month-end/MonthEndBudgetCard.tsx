@@ -10,6 +10,7 @@ import { parseCurrencyInput } from '@/lib/currency-utils';
 import { useFinance } from '@/context/FinanceContext';
 import { Category } from '@/lib/types';
 import { suggestBudgetForCategory } from '@/lib/month-end-review';
+import { isCategoryActive } from '@/lib/category-rules';
 
 interface Props {
   reviewMonth: string;
@@ -36,8 +37,11 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
   const nextMonth = useMemo(() => addMonths(reviewMonth, 1), [reviewMonth]);
 
   const steps = useMemo<Step[]>(() => {
+    // Inactive categories are not offered for new budgets (PRD FR-03); one
+    // that already has a next-month budget stays so its limit can be edited.
     const budgetableCats = categories
       .filter(c => c.type === 'expense' || c.type === 'commitment' || c.type === 'both' || c.type === 'savings')
+      .filter(c => isCategoryActive(c) || budgets.some(b => b.categoryId === c.id && b.month === nextMonth))
       .slice()
       .sort((a, b) => {
         const t = (CATEGORY_TYPE_ORDER[a.type] ?? 50) - (CATEGORY_TYPE_ORDER[b.type] ?? 50);

@@ -5,6 +5,7 @@ import { useFinance } from '@/context/FinanceContext';
 import { formatMonthLabel } from '@/lib/finance-utils';
 import { parseCurrencyInput } from '@/lib/currency-utils';
 import { SYSTEM_ADJUSTMENT_CATEGORY_IDS } from '@/lib/types';
+import { isCategoryActive } from '@/lib/category-rules';
 
 const SYSTEM_ADJUSTMENT_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
 
@@ -33,13 +34,14 @@ export function BudgetSheet() {
 
   const expenseCategories = useMemo(
     () => categories.filter(c =>
+      isCategoryActive(c) &&
       !SYSTEM_ADJUSTMENT_ID_SET.has(c.id) &&
       (c.type === 'expense' || c.type === 'commitment' || c.type === 'both')
     ),
     [categories],
   );
   const savingsCategories = useMemo(
-    () => categories.filter(c => c.type === 'savings'),
+    () => categories.filter(c => isCategoryActive(c) && c.type === 'savings'),
     [categories],
   );
   const budgetableCategories = useMemo(

@@ -48,8 +48,14 @@ function failure(error: unknown): StorageWriteResult {
     : { ok: false, error: 'unavailable', message: STORAGE_UNAVAILABLE_MESSAGE };
 }
 
+/** Wraps text that must be stored exactly as given (for example a quarantine copy) instead of as JSON. */
+export class RawText {
+  constructor(readonly text: string) {}
+}
+
 /**
- * Writes each `[key, value]` pair in order (`undefined` removes the key).
+ * Writes each `[key, value]` pair in order (`undefined` removes the key;
+ * `RawText` is stored verbatim; anything else is stored as JSON).
  * If any write fails, every key written so far is restored to its previous
  * raw value and the failure is returned.
  */
@@ -65,7 +71,7 @@ export function writeStorageEntries(entries: Array<[string, unknown]>): StorageW
   try {
     for (const [key, value] of entries) {
       if (value === undefined) localStorage.removeItem(key);
-      else localStorage.setItem(key, JSON.stringify(value));
+      else localStorage.setItem(key, value instanceof RawText ? value.text : JSON.stringify(value));
       written += 1;
     }
     return { ok: true };

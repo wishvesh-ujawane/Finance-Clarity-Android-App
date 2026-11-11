@@ -26,6 +26,12 @@ export interface Category {
   icon: string;
   color: string;
   type: 'income' | 'expense' | 'commitment' | 'savings' | 'both';
+  /**
+   * Inactive categories stay on existing records but can't be picked for new
+   * entries (PRD FR-03). Stored as `true` by local migration 1 and for every
+   * new category; an absent value from older data means active.
+   */
+  active?: boolean;
 }
 
 export const SAVINGS_CATEGORY_IDS = ['savings-goal', 'savings-emergency'] as const;

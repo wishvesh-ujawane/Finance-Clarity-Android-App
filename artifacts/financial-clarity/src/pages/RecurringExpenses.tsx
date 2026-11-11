@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { currentMonth, formatINR } from '@/lib/finance-utils';
 import { parseCurrencyInput } from '@/lib/currency-utils';
 import { SYSTEM_ADJUSTMENT_CATEGORY_IDS } from '@/lib/types';
+import { selectableCategories } from '@/lib/category-rules';
 
 const SYSTEM_ADJUSTMENT_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
 
@@ -45,21 +46,23 @@ export default function RecurringExpenses() {
     toggleRecurringActive,
   } = useFinance();
 
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [saveError, setSaveError] = useState('');
+
+  // Only active categories are offered. A rule being edited still shows its
+  // current category so the form is readable; saving then asks for an active one.
   const eligibleCategories = useMemo(
-    () => categories
+    () => selectableCategories(categories, form.categoryId)
       .filter(c =>
         !SYSTEM_ADJUSTMENT_ID_SET.has(c.id) &&
         (c.type === 'expense' || c.type === 'commitment' || c.type === 'both' || c.type === 'savings')
       )
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name)),
-    [categories]
+    [categories, form.categoryId]
   );
-
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [saveError, setSaveError] = useState('');
 
   const resetForm = () => {
     setForm({ ...EMPTY_FORM, categoryId: eligibleCategories[0]?.id || '' });

@@ -393,3 +393,18 @@ used for implementation is in the previous revision of this file
   known future expenses (Phase 7); switching list and card amounts to the
   compact display format (Phase 9); the month-end snapshot still counts card
   bill payments (pending D8).
+
+### Phase 4 — Done (branch `feature/phase-4-category-status`)
+
+- Done: categories have an `active` flag enforced in `FinanceContext`
+  (new transactions, new budgets, and new or edited recurring rules need an
+  active category; an edited transaction may keep its own); built-in
+  categories plus Other/Other Income are always active; active names are
+  unique ignoring case; pickers offer active categories only; "Mark
+  inactive/active" and "Inactive" badges; local migrations 1 (`active`) and 2
+  (every budget has a month; collisions quarantined); backup schema v5.
+  ADR 0006. E2E CAT-003.
+- Open for later phases: owner confirmation of the PRD FR-03 picker
+  assumption and the inactive-category/active-recurring-rule detail (current
+  behavior: the rule keeps generating); DESIGN §13 collapsible Inactive
+  section (Phase 9).

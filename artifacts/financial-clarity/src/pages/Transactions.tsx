@@ -7,6 +7,7 @@ import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { formatDateLabel, formatINR, localDateStr } from '@/lib/finance-utils';
 import { buildTransactionsCsv, exportCsvFile } from '@/lib/csv';
+import { isCategoryActive } from '@/lib/category-rules';
 
 type RangePreset = 'current' | 'last1' | 'last3' | 'custom';
 
@@ -329,7 +330,12 @@ export default function Transactions() {
                           <CategoryIcon icon={cat?.icon || 'DollarSign'} color={cat?.color || '#6366F1'} size={16} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground">{cat?.name || 'Unknown'}</p>
+                          <p className="text-sm font-medium text-foreground">
+                            {cat?.name || 'Unknown'}
+                            {cat && !isCategoryActive(cat) && (
+                              <span className="ml-1.5 rounded-lg bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground align-middle">Inactive</span>
+                            )}
+                          </p>
                           {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
