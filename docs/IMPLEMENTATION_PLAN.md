@@ -419,3 +419,14 @@ used for implementation is in the previous revision of this file
 - Open for later phases: permanent suppression of a deleted occurrence is
   still an open PRD FR-07 decision (the forward-only cursor already prevents
   re-creation).
+
+### Phase 6 — Done (branch `feature/phase-6-core-journeys`)
+
+- Done: Transactions "Spending" tile and day totals use consumption; budget
+  copy is "Copy to {month}" with a confirmation listing new, replaced, kept,
+  and skipped budgets, and copies limits only; the delete confirmation names
+  the entry; the entry sheet ignores repeated taps (fixed a double-save bug).
+  Dashboard and budget progress already used shared selectors. E2E TXN-002
+  and BUD-002.
+- Open for later phases: DESIGN §4.6 row styling for savings and card
+  payments (Phase 9); offline restart and device checks (Phase 10).

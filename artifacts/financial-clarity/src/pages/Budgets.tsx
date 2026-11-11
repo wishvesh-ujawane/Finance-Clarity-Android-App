@@ -15,6 +15,8 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { cn } from '@/lib/utils';
 import { addMonths, formatDateLabel, formatINR, formatMonthLabel } from '@/lib/finance-utils';
 import { parseCurrencyInput } from '@/lib/currency-utils';
+import { formatAmountFull } from '@/lib/format';
+import { planBudgetCopy } from '@/lib/domain/budgets';
 
 export default function Budgets() {
   const {
@@ -81,6 +83,12 @@ export default function Budgets() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [transactions, selectedCategoryId, selectedMonth]);
 
+  const copyPlan = useMemo(
+    () => planBudgetCopy(budgets, categories, selectedMonth, targetMonth),
+    [budgets, categories, selectedMonth, targetMonth],
+  );
+  const categoryName = (id: string) => categories.find(c => c.id === id)?.name ?? 'Unknown category';
+
   const handleTransferBudgets = () => {
     setOperationError('');
     const result = transferBudgetsToMonth(selectedMonth, targetMonth);
@@ -91,7 +99,7 @@ export default function Budgets() {
     }
     setTransferMessage(
       result.count > 0
-        ? `Transferred ${result.count} budget${result.count === 1 ? '' : 's'} to ${formatMonthLabel(targetMonth)}.`
+        ? `Copied ${result.count} budget limit${result.count === 1 ? '' : 's'} to ${formatMonthLabel(targetMonth)}. No money was moved.`
         : `No budgets found for ${formatMonthLabel(selectedMonth)}.`
     );
   };
@@ -284,23 +292,44 @@ export default function Budgets() {
               data-testid="transfer-budget-button"
               disabled={currentMonthBudgets.length === 0}
               className="inline-flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:hover:bg-card"
-              aria-label={`Transfer budget to ${formatMonthLabel(targetMonth)}`}
+              aria-label={`Copy budget limits to ${formatMonthLabel(targetMonth)}`}
             >
               <ArrowRightLeft size={12} className="text-muted-foreground" />
-              <span>Transfer to {formatMonthLabel(targetMonth).split(' ')[0]}</span>
+              <span>Copy to {formatMonthLabel(targetMonth).split(' ')[0]}</span>
             </button>
           </AlertDialogTrigger>
-          <AlertDialogContent>
+          <AlertDialogContent data-testid="budget-copy-dialog">
             <AlertDialogHeader>
-              <AlertDialogTitle>Transfer Budgets?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Transfer all budgets from {formatMonthLabel(selectedMonth)} to {formatMonthLabel(targetMonth)}. Existing budgets in {formatMonthLabel(targetMonth)} for the same categories will be updated.
+              <AlertDialogTitle>Copy budget limits?</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2 text-sm">
+                  <p>
+                    Copy the limits from {formatMonthLabel(selectedMonth)} to {formatMonthLabel(targetMonth)}.
+                    This copies limits only; no money is moved and spending is not changed.
+                  </p>
+                  {copyPlan.created.length > 0 && (
+                    <p data-testid="budget-copy-created">
+                      New in {formatMonthLabel(targetMonth)}: {copyPlan.created.map(c => `${categoryName(c.categoryId)} ${formatAmountFull(c.limit)}`).join(', ')}.
+                    </p>
+                  )}
+                  {copyPlan.overwritten.length > 0 && (
+                    <p data-testid="budget-copy-overwritten" className="font-medium text-foreground">
+                      Replaces: {copyPlan.overwritten.map(o => `${categoryName(o.categoryId)} ${formatAmountFull(o.previousLimit)} \u2192 ${formatAmountFull(o.limit)}`).join(', ')}.
+                    </p>
+                  )}
+                  {copyPlan.keptInTarget > 0 && (
+                    <p>{copyPlan.keptInTarget} other {formatMonthLabel(targetMonth)} budget{copyPlan.keptInTarget === 1 ? ' stays' : 's stay'} as {copyPlan.keptInTarget === 1 ? 'it is' : 'they are'}.</p>
+                  )}
+                  {copyPlan.skippedInactive.length > 0 && (
+                    <p>Not copied because the category is inactive: {copyPlan.skippedInactive.map(categoryName).join(', ')}.</p>
+                  )}
+                </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleTransferBudgets}>
-                Transfer
+              <AlertDialogAction onClick={handleTransferBudgets} data-testid="budget-copy-confirm">
+                Copy limits
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

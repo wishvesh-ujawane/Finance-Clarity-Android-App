@@ -10,6 +10,7 @@ import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { localDateStr, formatAmountExpression } from '@/lib/finance-utils';
+import { formatAmountFull, formatDateLabel } from '@/lib/format';
 import { SAVINGS_CATEGORY_IDS, SYSTEM_ADJUSTMENT_CATEGORY_IDS } from '@/lib/types';
 import { isCategoryActive, selectableCategories } from '@/lib/category-rules';
 
@@ -127,6 +128,8 @@ export function TransactionSheet() {
   // restored after re-render so commas don't cause it to jump.
   const amountInputRef = useRef<HTMLInputElement>(null);
   const pendingCursorRef = useRef<number | null>(null);
+  // Ignores repeated taps while a save is in progress (DESIGN §7.3).
+  const submittingRef = useRef(false);
   const displayAmount = formatAmountExpression(amount);
 
   const handleAmountChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -167,6 +170,7 @@ export function TransactionSheet() {
   // Pre-fill form when editing
   useEffect(() => {
     if (isSheetOpen) {
+      submittingRef.current = false;
       if (editingTransaction) {
         const isSavingsTx = editingTransaction.type === 'expense' && SAVINGS_CATEGORY_ID_SET.has(editingTransaction.categoryId);
         setMode(isSavingsTx ? 'save' : editingTransaction.type);
@@ -205,7 +209,8 @@ export function TransactionSheet() {
 
   const handleSubmit = useCallback(() => {
     const parsed = evaluateAmountExpression(amount);
-    if (!parsed || parsed <= 0 || !categoryId) return;
+    if (!parsed || parsed <= 0 || !categoryId || submittingRef.current) return;
+    submittingRef.current = true;
 
     // 'save' is a UI mode; underlying transaction is an expense whose category is a savings one.
     const storedType: 'expense' | 'income' = mode === 'income' ? 'income' : 'expense';
@@ -226,6 +231,7 @@ export function TransactionSheet() {
 
     // Keep the sheet open with the entered values when the save fails.
     if (!result.ok) {
+      submittingRef.current = false;
       setSaveError(result.message);
       return;
     }
@@ -332,8 +338,16 @@ export function TransactionSheet() {
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>Delete Transaction?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you really want to delete this transaction? This action cannot be undone and will update your balances and budget data.
+                          <AlertDialogDescription data-testid="delete-transaction-details">
+                            {editingTransaction && (
+                              <>
+                                Delete {formatAmountFull(editingTransaction.amount)}{' '}
+                                {categories.find(c => c.id === editingTransaction.categoryId)?.name ?? 'Unknown category'} on{' '}
+                                {formatDateLabel(editingTransaction.date, { day: 'numeric', month: 'short', year: 'numeric' })}?
+                                Balances, budgets, and totals will update. This can&rsquo;t be undone.
+                                {editingTransaction.recurringRuleId && ' It was added by a recurring expense and will not be added again.'}
+                              </>
+                            )}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

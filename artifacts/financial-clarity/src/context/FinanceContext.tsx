@@ -30,6 +30,7 @@ import { writeFinanceData, type FinanceStorageKey } from '@/lib/storage/finance-
 import { readFinanceData, type StoredFinanceData } from '@/lib/storage/finance-read';
 import type { FinanceLoad } from '@/lib/storage/startup';
 import { getLastDueMonthBeforeDate, planRecurringGeneration } from '@/lib/domain/recurring';
+import { applyBudgetCopy, budgetCopyCount, planBudgetCopy } from '@/lib/domain/budgets';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 const SYSTEM_ADJUSTMENT_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
@@ -471,24 +472,11 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
   [commit]);
 
   const transferBudgetsToMonth = useCallback((fromMonth: string, toMonth: string) => {
-    if (fromMonth === toMonth) return { ok: true as const, count: 0 };
-
-    const currentBudgets = latest.current.budgets;
-    const sourceBudgets = currentBudgets.filter(b => b.month === fromMonth);
-    if (sourceBudgets.length === 0) return { ok: true as const, count: 0 };
-
-    const next = [...currentBudgets];
-    sourceBudgets.forEach(source => {
-      const existingIndex = next.findIndex(b => b.month === toMonth && b.categoryId === source.categoryId);
-      if (existingIndex >= 0) {
-        next[existingIndex] = { ...next[existingIndex], limit: source.limit, month: toMonth };
-      } else {
-        next.push({ id: createId(), categoryId: source.categoryId, limit: source.limit, month: toMonth });
-      }
-    });
-
-    const result = commit({ budgets: next });
-    return result.ok ? { ok: true as const, count: sourceBudgets.length } : result;
+    const plan = planBudgetCopy(latest.current.budgets, latest.current.categories, fromMonth, toMonth);
+    const count = budgetCopyCount(plan);
+    if (plan.created.length === 0 && plan.overwritten.length === 0) return { ok: true as const, count };
+    const result = commit({ budgets: applyBudgetCopy(latest.current.budgets, plan, toMonth, createId) });
+    return result.ok ? { ok: true as const, count } : result;
   }, [commit]);
 
   const openSheet = useCallback((initialMode?: 'expense' | 'income' | 'save') => {

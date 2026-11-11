@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { formatDateLabel, formatINR, localDateStr } from '@/lib/finance-utils';
 import { buildTransactionsCsv, exportCsvFile } from '@/lib/csv';
 import { isCategoryActive } from '@/lib/category-rules';
+import { sumConsumption, sumIncome } from '@/lib/domain/finance-metrics';
 
 type RangePreset = 'current' | 'last1' | 'last3' | 'custom';
 
@@ -106,8 +107,10 @@ export default function Transactions() {
     return Object.keys(map).sort((a, b) => b.localeCompare(a)).map(date => ({ date, txns: map[date] }));
   }, [filtered]);
 
-  const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const totalExpenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  // PRD §6: "Spending" is consumption — savings contributions and card bill
+  // payments are listed but not counted.
+  const totalIncome = sumIncome(filtered);
+  const totalSpending = sumConsumption(filtered);
 
   const getCategoryById = (id: string) => categoryById.get(id);
 
@@ -258,8 +261,8 @@ export default function Transactions() {
           <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 truncate">{formatINR(totalIncome)}</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-3 text-center">
-          <p className="text-[10px] text-muted-foreground">Expenses</p>
-          <p className="text-xs font-bold text-red-500 truncate">{formatINR(totalExpenses)}</p>
+          <p className="text-[10px] text-muted-foreground">Spending</p>
+          <p className="text-xs font-bold text-red-500 truncate" data-testid="transactions-spending-total">{formatINR(totalSpending)}</p>
         </div>
       </div>
 
@@ -284,8 +287,8 @@ export default function Transactions() {
       ) : (
         <div className="space-y-5">
           {grouped.map(({ date, txns }, gi) => {
-            const dayIncome = txns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-            const dayExpense = txns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+            const dayIncome = sumIncome(txns);
+            const dayExpense = sumConsumption(txns);
 
             return (
               <motion.div

@@ -44,6 +44,10 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 | 22 | 4 | Active category names are unique ignoring case; adding, renaming, or reactivating into a clash is refused. Inactive categories may share a name. | Agent | DATABASE §6.2 (owner-approved). |
 | 23 | 5 | Recurring generation runs only while unlocked: once after unlock and on every return to the foreground (`visibilitychange`), plus after rule changes. It no longer runs when the data first loads. | Agent | ARCHITECTURE §6.4 and DATABASE §8.2 (no finance writes while locked). Uses the browser `visibilitychange` event so no Capacitor call is added to the context layer. |
 | 24 | 5 | Deleting a generated occurrence still relies on the forward-only cursor; no permanent suppression list is added. | Agent | PRD FR-07 leaves permanent suppression pending; DATABASE §6.3 says the cursor is enough today. **Owner decision still needed.** |
+| 25 | 6 | The Transactions page tile is labeled "Spending" and shows consumption; day headers use the same rule. Savings contributions and card bill payments stay visible in the list. | Owner (decision 10) | PRD §6. |
+| 26 | 6 | "Transfer to {month}" is renamed "Copy to {month}", and the confirmation lists each new budget, each replaced limit (old → new), untouched target budgets, and skipped inactive categories. | Agent | PRD FR-05: copying is not a money transfer and overwrite consequences must be confirmed. |
+| 27 | 6 | Budget copy skips a source budget whose category is inactive unless the target month already has that budget (then its limit is updated). | Agent | Consistent with decision 15: no new budgets in inactive categories. |
+| 28 | 6 | Added a busy guard to the transaction sheet's submit button; the budget sheet needs none because adding a budget replaces the same category/month. | Agent | DESIGN §7.3. A double tap previously saved two transactions (bug 20261112-transaction-double-submit). |
 
 ---
 
@@ -73,3 +77,8 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 
 - **Completed:** the scheduler is a pure, tested planner (`lib/domain/recurring.ts`); `processRecurring` is single-flight and saves occurrences and cursors together; generation runs only after unlock and on resume; tests cover day 31 in short months, leap and non-leap February, catch-up after time away, repeated runs, interrupted saves, legacy matches, and paused/resumed rules. E2E REC-003. Clamping, paused-month skipping, and occurrence identity were already in place (ADR 0004).
 - **Pending:** permanent suppression of a deleted occurrence (decision 24). **Reason:** PRD FR-07 marks it as an open product decision.
+
+### Phase 6 — Transaction, dashboard, budget, and savings journeys
+
+- **Completed:** Transactions "Spending" tile and day totals use consumption; budget copy explains every overwrite and copies limits only (`lib/domain/budgets.ts`); transaction delete confirmation names the entry; double-submit guard (fixed a real double-save bug). Dashboard metrics and budget progress already used shared selectors after Phases 3–4; savings targets remain separate from monthly savings budgets (no change needed); save errors keep form values (Phase 2 / A2). E2E TXN-002 and BUD-002.
+- **Pending:** offline save-and-restart and device checks (Phase 10, manual). Visual treatment of savings and card-payment rows (DESIGN §4.6 colors and labels) is left for Phase 9.

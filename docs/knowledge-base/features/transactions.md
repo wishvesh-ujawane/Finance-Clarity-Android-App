@@ -2,7 +2,7 @@
 id: feature-transactions
 title: Transactions screen + entry sheet
 date: 2026-06-28
-updated: 2026-06-28
+updated: 2026-11-12
 status: current
 scope: [financial-clarity]
 related:
@@ -41,7 +41,16 @@ writes via the context's add / update / delete actions.
   creating a new category on-the-fly. See [categories.md](./categories.md).
 - **Edit** — tap a row → sheet opens with current values → Save updates the
   transaction.
-- **Delete** — delete button inside the edit sheet.
+- **Delete** — delete button inside the edit sheet. The confirmation names
+  the amount, category, and date, and says when the entry came from a
+  recurring expense (it is not added again).
+- **Summary tiles** — Transactions count, Income, and **Spending**. Spending
+  is consumption (PRD §6): savings contributions and card bill payments stay
+  in the list but are not counted. Day headers use the same rule.
+- **Busy guard** — the submit button ignores repeated taps while saving
+  (bug 20261112-transaction-double-submit).
+- **Inactive categories** — new entries offer active categories only; an
+  edited entry keeps its own category, shown with an "Inactive" badge.
 
 ## Edge cases & empty states
 - Empty month: empty-state placeholder and a hint to add a transaction.

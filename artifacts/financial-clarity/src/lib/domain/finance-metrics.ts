@@ -55,6 +55,16 @@ function sumWhere<T extends MetricTransaction>(transactions: readonly T[], inclu
   return total;
 }
 
+/** Income in an already-filtered list (for example the Transactions search results). */
+export function sumIncome(transactions: readonly MetricTransaction[]): number {
+  return sumWhere(transactions, isIncome);
+}
+
+/** Consumption spending in an already-filtered list. */
+export function sumConsumption(transactions: readonly MetricTransaction[]): number {
+  return sumWhere(transactions, isConsumptionExpense);
+}
+
 function inMonthScope(tx: MetricTransaction, month: string, scope?: MonthScope): boolean {
   return isInMonth(tx.date, month) && (scope?.through === undefined || tx.date <= scope.through);
 }

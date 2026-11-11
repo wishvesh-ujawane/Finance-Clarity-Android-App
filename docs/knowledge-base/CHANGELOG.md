@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-11-12 — bugs/20261112-transaction-double-submit.md; features/transactions.md; features/budgets.md; ARCHITECTURE.md §19 A12 — Phase 6: Transactions "Spending" tile and day totals use consumption; budget copy renamed and its confirmation lists every overwrite (`lib/domain/budgets.ts`); delete confirmation names the entry; double-submit guard on the entry sheet.
 2026-11-12 — features/recurring-expenses.md; ARCHITECTURE.md §6.4; API.md §5.2 — Phase 5: pure recurring planner in `lib/domain/recurring.ts`; `processRecurring` runs only after unlock and on resume (no finance writes while locked); scheduler tests for short months, leap years, catch-up, repeated runs, interrupted saves.
 2026-11-12 — decisions/0006-category-status-and-backup-v5.md; features/categories.md; DATABASE.md §3, §4.10, §10.1, §10.2; ARCHITECTURE.md §8.4, §19 A3; API.md §5.2, §6.2.4, §6.3 — Phase 4: active/inactive categories enforced in mutations and pickers, local migrations 1–2, backup schema v5.
 2026-11-12 — bugs/20261106-card-bill-double-count.md; ARCHITECTURE.md §2.1, §4.2, §19 A5, A12; DESIGN.md §15 G8; AGENTS.md §5 — Phase 3: PRD §6 metrics in `lib/domain/finance-metrics.ts`, period helpers in `lib/domain/periods.ts`, formatters in `lib/format.ts`; selectors, Dashboard, and shared Analysis totals use them; card bill payments no longer counted as spending on Analysis, budget spent, or today's spend.
