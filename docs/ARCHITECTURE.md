@@ -165,7 +165,7 @@ Rules:
 
 ### 4.3 Routing and navigation
 
-- Routes: `/`, `/transactions`, `/budgets`, `/analysis`, `/settings`, and Settings sub-pages (`/settings/categories`, `/settings/recurring`, `/settings/savings`, `/settings/security`, `/settings/backup`), plus Not Found. **MVP-cleanup:** remove `/settings/sms-auto-import`.
+- Routes: `/`, `/transactions`, `/budgets`, `/analysis`, `/settings`, and Settings sub-pages (`/settings/categories`, `/settings/recurring`, `/settings/savings`, `/settings/security`, `/settings/backup`), plus Not Found. `/settings/sms-auto-import` was removed (A1) and now renders Not Found.
 - The Android back button is handled once in the app shell through `@capacitor/app`. It closes the topmost layer first, in DESIGN §6.4 order: FAB menu → dialog → sheet → sub-page → Dashboard → exit.
 - Launch overlays appear in a strict order: **lock screen → onboarding → month-end prompt**. Only one appears at a time (DESIGN §6.5).
 - While the app is locked, financial screens are **not rendered at all**. Hiding them visually is not enough. The lock screen is the topmost layer (DESIGN G12).
@@ -322,7 +322,7 @@ src/
 ```
 
 - Tests sit next to the code in `__tests__/` folders.
-- **MVP-cleanup, removed entirely:** `components/sms/`, `lib/sms/`, `pages/SmsAutoImport.tsx`, and their tests and fixtures.
+- **Removed entirely (A1):** `components/sms/`, `lib/sms/`, `pages/SmsAutoImport.tsx`, and their tests and fixtures.
 - **Migration approach:** move files into `domain/`, `storage/`, and `platform/` when they are next changed, one layer per PR. No big-bang reorganization.
 
 ---
@@ -595,7 +595,7 @@ If AI is ever approved (Future), it must:
 
 | Area | Control |
 |---|---|
-| Android permissions | `INTERNET`, `USE_BIOMETRIC`, `USE_FINGERPRINT` (API ≤ 28 only). **MVP-cleanup:** remove `READ_SMS` and verify the merged manifest of the release bundle |
+| Android permissions | `INTERNET`, `USE_BIOMETRIC`, `USE_FINGERPRINT` (API ≤ 28 only). `READ_SMS` removed from the source manifest (A1); still verify the merged manifest of the release bundle |
 | OS backup | Keep `allowBackup="false"` |
 | WebView | Load bundled assets only; no remote pages; no cleartext traffic. Add a restrictive Content Security Policy allowing only `self` plus the Google API domains in use; verify it on a device |
 | Rendering | No raw HTML injection of user or imported data |
@@ -621,7 +621,7 @@ If AI is ever approved (Future), it must:
 | Release artifact | Inspect the bundle | No SMS permission, SMS code, or SMS route in the release build; only expected permissions present |
 
 - Test fixtures use synthetic data only. No real financial data in the repo.
-- SMS tests are deleted together with the SMS code.
+- SMS feature tests were deleted together with the SMS code. Removal regression and legacy-compatibility tests remain.
 
 ### 16.2 Continuous integration (MVP, minimal)
 
@@ -676,7 +676,7 @@ None of these items is authorized by this document alone. Each needs owner appro
 
 | ID | Gap in current code | Target | Source |
 |---|---|---|---|
-| A1 | SMS screens, parsers, native reader, route, and `READ_SMS` permission still present | Remove completely; keep legacy SMS keys readable for backups | PRD FR-10 |
+| A1 | **Resolved in source 2026-11-11:** SMS screens, parsers, native reader, route, and `READ_SMS` permission removed; legacy SMS keys stay readable for backups. A Vitest guard (`src/__tests__/sms-removal-release-config.test.ts`) and e2e NAV-002 prevent regressions. Still missing: merged release manifest check on a machine with the Android SDK | Remove completely; keep legacy SMS keys readable for backups | PRD FR-10 |
 | A2 | **Resolved 2026-11-11:** finance mutations, including budgets, recurring rules, and savings targets, persist first and surface failures; multi-key writes roll back | Persist first, typed results, visible failures | PRD §9; §6.2 |
 | A3 | **Partly resolved 2026-11-06:** deletion is blocked in the mutation for reserved categories and for categories used by transactions, budgets, or recurring rules (`lib/category-rules.ts`). Still missing: category active/inactive status | Domain-enforced usage rule, `active` flag, local migration, backup schema v5 | PRD FR-03 |
 | A4 | **Resolved 2026-11-11:** recurring occurrences have stable rule/month identity; due dates clamp to month-end; resuming skips past paused periods; catch-up is idempotent | Occurrence identity, short-month clamp, skip paused months, idempotent catch-up | PRD FR-07; §6.4 |

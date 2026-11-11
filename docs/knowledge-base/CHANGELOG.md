@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-11-11 — ARCHITECTURE.md §19 A1, DESIGN.md §15 G14, testing.md SMS-001/NAV-002/QA-002 — Phase 1: confirmed SMS code, route, native wiring, permission, and dependencies are gone; added a Vitest release-config guard and e2e NAV-002 for the removed route. Merged release manifest check still needs a machine with the Android SDK.
 2026-11-11 — AGENTS.md §1.1, §1.3, §8–§10, §12, §14; ARCHITECTURE.md §10–§11; API.md — Registered API.md as a source of truth (takes over ARCHITECTURE §10/§11 contract details); agent rules now cite API.md for internal contracts, external calls, error codes, configuration, and privacy.
 2026-11-11 — decisions/0004-recurring-occurrence-identity.md, bugs/20261111-recurring-paused-months.md — Added stable rule/month occurrence identity, v4 backup migration, and paused-month resume handling; desktop Playwright regression passes.
 2026-11-11 — bugs/20261106-swallowed-storage-writes.md — Completed E3 persist-first finance writes for budgets, recurring rules, and savings targets; forms retain values and surface storage failures.

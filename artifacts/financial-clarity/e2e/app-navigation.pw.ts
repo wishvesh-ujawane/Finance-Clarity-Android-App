@@ -57,6 +57,22 @@ test('[NAV-001] navigate between primary pages and settings sections', async ({
   expect(pageErrors).toEqual([]);
 });
 
+test('[NAV-002] removed SMS route shows Not Found and Settings has no SMS entry', async ({
+  page,
+}) => {
+  await blockGoogleAuthNetwork(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('financial-clarity:onboarding-complete', 'e2e');
+  });
+
+  await page.goto('/settings/sms-auto-import');
+  await expect(page.getByRole('heading', { name: '404 Page Not Found' })).toBeVisible();
+
+  await page.goto('/settings');
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  await expect(page.locator('main').getByText(/sms/i)).toHaveCount(0);
+});
+
 test('[TXN-001] reject invalid amounts and persist a valid expense', async ({
   page,
 }) => {
