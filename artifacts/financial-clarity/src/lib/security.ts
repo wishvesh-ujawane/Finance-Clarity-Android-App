@@ -1,5 +1,7 @@
-const SECURITY_STORAGE_KEY = 'financial-clarity:security';
-const DATA_KEY_PREFIX = 'financial-clarity:';
+import { STORAGE_KEY_PREFIX, STORAGE_KEYS } from '@/lib/storage/keys';
+
+const SECURITY_STORAGE_KEY = STORAGE_KEYS.security;
+const DATA_KEY_PREFIX = STORAGE_KEY_PREFIX;
 const DEFAULT_LOCK_TIMEOUT_MS = 30_000;
 const ATTEMPTS_PER_COOLDOWN = 5;
 /** Cooldown after the 1st, 2nd, 3rd, and later rounds of failed attempts. */

@@ -191,9 +191,9 @@ The workspace contains a single package, `artifacts/financial-clarity`. The form
 ### 6.1 App startup
 
 1. `main.tsx` mounts the app. On native builds only, crash reporting starts if it is configured.
-2. **Storage load.** The storage adapter reads every key, parses it, checks it against its schema, and runs any pending local migrations.
-   - An invalid item or key is **quarantined**: the original raw text is copied to `financial-clarity:backup:<key>:<timestamp>` and is never silently overwritten.
-   - If core data cannot be read at all, show a full-screen explanation. Offer no action that overwrites data without explicit confirmation (DESIGN §8.2).
+2. **Storage load.** Before any provider mounts, `prepareStorage()` (`lib/storage/startup.ts`) runs any pending local migrations, then reads every finance key and checks it against its schema.
+   - An invalid item or key is **quarantined**: the original raw text is copied to `financial-clarity:backup:<key>:<timestamp>` and is never silently overwritten. An identical copy is not saved twice. A dismissible banner says how many records couldn't be read and that the original was kept.
+   - If core data cannot be read at all, a migration fails, or the data comes from a newer app version, `StartupErrorScreen` shows a full-screen explanation with **Try again**. If invalid data was found but its quarantine copy could not be saved, the screen also offers **Continue without it**, which needs an explicit confirmation (DESIGN §8.2).
 3. **Security.** If the lock is enabled, show only the lock screen until unlock succeeds.
 4. **Onboarding.** Show it if onboarding is incomplete. Offer the restore choice; starting fresh never deletes existing records (PRD FR-01).
 5. **Recurring processing** runs after unlock, and again on every app resume (§6.4).
@@ -218,7 +218,7 @@ Rules:
 - **Persist before commit.** Update in-memory state only after the storage write succeeds (PRD §9: "do not equate an in-memory update with a durable save").
 - Submit buttons enter a busy state immediately and ignore repeated taps (DESIGN §7.3).
 - Writes that touch several keys (restore, recurring catch-up) snapshot the previous values first and roll back if any write fails.
-- **MVP-cleanup:** today `saveToStorage` ignores errors and runs after state has already changed. Replace it with the persist-first flow above.
+- **Done (A2):** `saveToStorage` was replaced by `writeFinanceData` / `writeStorageEntries` (`lib/storage/finance-storage.ts`), and restore uses the same path.
 
 ### 6.3 Read and derive path
 
@@ -347,16 +347,16 @@ src/
 | Legacy | SMS keys are kept read-only for backup compatibility. Never deleted silently (PRD FR-10) |
 | New (MVP) | `financial-clarity:storage-version`, used to track local schema migrations |
 
-All key names live in one module in `lib/storage/`. No other file contains key strings.
+All key names live in one module, `lib/storage/keys.ts`. No other file contains key strings.
 
 ### 8.3 Schemas and validation
 
-- Each entity has one validator (a TypeScript type guard). It is used for storage reads, backup restore, and CSV import.
-- Invalid records are quarantined, never silently dropped. Show a non-blocking startup banner saying how many records could not be read and that the raw data was kept.
+- Each entity has one validator (a TypeScript type guard) in `lib/storage/schemas.ts`. It is used for storage reads and backup restore; CSV import still has its own row checks.
+- Invalid records are quarantined, never silently dropped. A non-blocking startup banner (`StorageNoticeBanner`) says how many records could not be read and that the raw data was kept.
 
 ### 8.4 Migrations
 
-- **Local migrations** are ordered, forward-only, and idempotent. They run at startup before any context reads data, and record the new storage version only after all writes succeed.
+- **Local migrations** are ordered, forward-only, and idempotent. They run at startup before any context reads data, and record the new storage version only after all writes succeed. The runner is `lib/storage/migrations.ts` (ADR 0005); no step is registered yet.
   - First planned migration: add `active: true` to every existing category so current categories stay usable (PRD FR-03, §9).
 - **Backup migrations** run in parallel with local migrations. Adding category status raises the backup schema version from 3 to 4. Old backups restore through the migration chain; newer backups are refused.
 - Google Play cannot roll an app back to an older version. A migration must never leave data that the current code cannot read.

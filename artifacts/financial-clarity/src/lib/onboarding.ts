@@ -4,9 +4,11 @@
 // (which wrote `financial-clarity:first-run-done`) so they are not
 // re-onboarded by the new journey.
 
-const ONBOARDING_FLAG = 'financial-clarity:onboarding-complete';
-const LEGACY_FLAG = 'financial-clarity:first-run-done';
-const TRANSACTIONS_KEY = 'financial-clarity:transactions';
+import { STORAGE_KEYS } from '@/lib/storage/keys';
+
+const ONBOARDING_FLAG = STORAGE_KEYS.onboardingComplete;
+const LEGACY_FLAG = STORAGE_KEYS.legacyFirstRunDone;
+const TRANSACTIONS_KEY = STORAGE_KEYS.transactions;
 
 function safeGet(key: string): string | null {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -50,7 +52,7 @@ export function markOnboardingComplete(reason: string = 'completed') {
 }
 
 // Connect-Drive nudge banner shown on the Dashboard after a "Skip" finish.
-const BANNER_DISMISSED_KEY = 'financial-clarity:connect-drive-banner-dismissed';
+const BANNER_DISMISSED_KEY = STORAGE_KEYS.connectDriveBannerDismissed;
 
 export function isConnectDriveBannerDismissed(): boolean {
   return Boolean(safeGet(BANNER_DISMISSED_KEY));

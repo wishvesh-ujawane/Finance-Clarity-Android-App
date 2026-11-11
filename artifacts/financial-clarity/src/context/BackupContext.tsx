@@ -37,9 +37,10 @@ import {
   type BackupCounts,
   type BackupFile,
 } from '@/lib/backup';
+import { STORAGE_KEYS } from '@/lib/storage/keys';
 
-const PREFS_KEY = 'financial-clarity:backup-prefs';
-const DRIVE_FOLDER_CACHE_KEY = 'financial-clarity:backup-folder-id';
+const PREFS_KEY = STORAGE_KEYS.backupPrefs;
+const DRIVE_FOLDER_CACHE_KEY = STORAGE_KEYS.driveFolderCache;
 const AUTO_BACKUP_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export type BackupStatus =
@@ -436,6 +437,7 @@ export function BackupProvider({ children }: { children: ReactNode }) {
         throw new Error(message);
       }
       const result = applyBackup(validation.backup);
+      if (!result.ok) throw new Error(result.message);
       reloadFromStorage();
       const hash = await hashBackupData(validation.backup);
       updatePrefs({

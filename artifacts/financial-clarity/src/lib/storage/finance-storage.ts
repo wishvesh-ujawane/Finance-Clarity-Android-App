@@ -4,13 +4,15 @@
  * roll back so a failed save leaves storage exactly as it was.
  */
 
+import { STORAGE_KEYS } from './keys';
+
 export const FINANCE_STORAGE_KEYS = {
-  transactions: 'financial-clarity:transactions',
-  categories: 'financial-clarity:categories',
-  budgets: 'financial-clarity:budgets',
-  recurring: 'financial-clarity:recurring',
-  reconciliations: 'financial-clarity:reconciliations',
-  savingsGoal: 'financial-clarity:savings-goal',
+  transactions: STORAGE_KEYS.transactions,
+  categories: STORAGE_KEYS.categories,
+  budgets: STORAGE_KEYS.budgets,
+  recurring: STORAGE_KEYS.recurring,
+  reconciliations: STORAGE_KEYS.reconciliations,
+  savingsGoal: STORAGE_KEYS.savingsGoal,
 } as const;
 
 export type FinanceStorageKey = keyof typeof FINANCE_STORAGE_KEYS;

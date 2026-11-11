@@ -72,7 +72,7 @@ General rules:
 
 ## 3. Storage Key Catalogue
 
-All key names live in **one module** in `src/lib/storage/`. No other file contains key strings (ARCHITECTURE §8.2). **MVP-cleanup:** today the key strings are spread across `FinanceContext`, `backup.ts`, `security.ts`, `onboarding.ts`, `googleAuth.ts`, `month-end-review.ts`, and `BackupContext`.
+All key names live in **one module**, `src/lib/storage/keys.ts`. No other file contains key strings (ARCHITECTURE §8.2); a unit test enforces this. Moved there on 2026-11-11 from `FinanceContext`, `backup.ts`, `security.ts`, `onboarding.ts`, `googleAuth.ts`, `month-end-review.ts`, and `BackupContext`.
 
 | Logical table | Storage key | Shape | In Drive backup? |
 |---|---|---|---|
@@ -88,7 +88,7 @@ All key names live in **one module** in `src/lib/storage/`. No other file contai
 | `drive_folder_cache` | `financial-clarity:backup-folder-id` | String | No |
 | `google_profile_cache` | `financial-clarity:google-user` | Object, singleton | No (disclosed exclusion) |
 | `app_flags` | `financial-clarity:onboarding-complete`, `financial-clarity:first-run-done` (legacy, read-only), `financial-clarity:connect-drive-banner-dismissed` | String values | No (disclosed exclusion) |
-| `storage_meta` | `financial-clarity:storage-version` | Integer, **MVP-cleanup (new)** | No |
+| `storage_meta` | `financial-clarity:storage-version` | Integer. Key defined; first written by local migration 1 | No |
 | `legacy_sms` | `financial-clarity:sms-pending`, `sms-dismissed`, `sms-linked`, `sms-last-scan` | Legacy, **read-only** | Carried for compatibility only |
 | `quarantine` | `financial-clarity:backup:<key>:<epoch_ms>` | Raw original text | No |
 
@@ -230,7 +230,7 @@ The key exists only while a PIN is enabled.
 | `app_flags.onboarding-complete` | `"<reason>:<epoch_ms>"` or `"migrated:<reason>"` | Present means onboarding is complete |
 | `app_flags.first-run-done` | Legacy string | Read once to migrate older users, then ignored |
 | `app_flags.connect-drive-banner-dismissed` | `epoch_ms` string | Dashboard nudge has been dismissed |
-| `storage_meta` | `storage-version`: `int` | **MVP-cleanup.** Highest local migration that has been applied (§10.1) |
+| `storage_meta` | `storage-version`: `int` | Highest local migration that has been applied (§10.1). The runner exists; no step is registered yet, so the key stays absent (version 0) until migration 1 |
 | `legacy_sms` | Existing shapes, unchanged | **Read-only.** Carried in backups for compatibility. It never reactivates SMS features, and it is never silently deleted (PRD FR-10) |
 | `quarantine` | Raw text | Original text of a key or record that failed validation. It is never overwritten by normal writes |
 
@@ -329,7 +329,7 @@ Restore and legacy data can produce an **orphaned `categoryId`**, meaning it poi
 | Layer | Enforces | Location |
 |---|---|---|
 | Form validation (controlled state + the entity validator) | Field formats and ranges. Entered values are kept on error | Sheets and forms |
-| Entity validator (TypeScript type guard) | The same rules for storage reads, backup restore, and CSV import. **One validator per entity** | `src/lib/storage/` |
+| Entity validator (TypeScript type guard) | The same rules for storage reads, backup restore, and CSV import. **One validator per entity** | `src/lib/storage/schemas.ts` |
 | Domain mutation | Cross-record invariants: uniqueness, references, delete restrictions, eligibility | `src/lib/domain/` |
 
 Invariants are enforced in the **domain mutation**, not only by hiding UI (PRD FR-03, ARCHITECTURE §8.5). A record that fails its schema when read is **quarantined**, never silently dropped (§9.4).
@@ -487,8 +487,9 @@ Pages and components never access storage directly. **Only the storage layer rea
 | Atomicity | Snapshot the affected keys → write → roll back on failure. The version is written **last** |
 | Failure | Keep the old data unchanged and show a full-screen explanation. Never overwrite data without confirmation |
 | No rollback releases | Google Play cannot downgrade an app. A migration must never leave data that the current code cannot read |
+| Implementation | `runLocalMigrations` in `src/lib/storage/migrations.ts`, called by `prepareStorage` at startup (ADR 0005). A stored version higher than the app knows is refused with an "Update the app" screen and left unchanged. Each step writes its data and then the version in one rolled-back unit |
 
-Planned migrations:
+Planned migrations (none registered yet):
 
 | Version | Change | Source |
 |---|---|---|

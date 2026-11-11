@@ -162,7 +162,8 @@ Existing shapes must converge on this envelope (**MVP-cleanup**):
 
 | Existing shape | Location | Difference from the envelope |
 |---|---|---|
-| `StorageWriteResult`: `{ ok: false, error: 'quota' \| 'unavailable', message }` | `lib/storage/finance-storage.ts` | Uses `error` where the envelope uses `code` |
+| `StorageWriteResult`: `{ ok: false, error: 'quota' \| 'unavailable', message }` | `lib/storage/finance-storage.ts`, also returned by `applyBackup` | Uses `error` where the envelope uses `code` |
+| `MigrationResult` and `FinanceReadResult`: `{ ok: false, error }` | `lib/storage/migrations.ts`, `lib/storage/finance-read.ts` | Uses `error` where the envelope uses `code`; `App` maps them to startup messages |
 | `FinanceWriteResult`: `{ ok: false, message }` | `FinanceContext` | Has no code |
 | `ScreenSecurityResult`: `{ ok: false, reason: 'unsupported' \| 'failed' }` | `lib/screen-security.ts` | Uses `reason` where the envelope uses `code` |
 | `ValidationResult`: `{ ok: false, reason, errors[] }` | `lib/backup.ts` | Uses `reason` and `errors` |
@@ -236,14 +237,16 @@ Rules:
 
 ### 5.1 Storage layer
 
-**Owner:** `src/lib/storage/`. It is the **only** code that touches `localStorage` (target; key strings are still spread across files, MVP-cleanup).
+**Owner:** `src/lib/storage/`. It is the **only** code that reads or writes finance keys. Every key name lives in `lib/storage/keys.ts` (G17 resolved 2026-11-11). **MVP-cleanup:** the non-finance modules (security settings, onboarding flags, month-end review state, Google profile cache, backup preferences) still call `localStorage` directly for their own keys.
 
 | Operation | Input | Success | Failure | Notes |
 |---|---|---|---|---|
-| Read collection | Logical key | A typed, validated array or object | Invalid parts are quarantined. Unreadable core data is reported to the startup screen | Runs pending local migrations first (DATABASE §10.1) |
+| `prepareStorage()` | — | `{ ok: true, load }` with the finance data and a quarantine report | `{ ok: false, problem }`: `unavailable`, `storage-full`, `newer-version`, `migration-failed`, or `unpreserved` (with the load) | Runs at startup before any provider mounts: migrations first, then the finance read (ARCHITECTURE §6.1). `App` shows a full-screen explanation for any problem |
+| `runLocalMigrations()` | Registered steps | `{ ok: true, version, applied }` | `{ ok: false, error, version? }`: `unavailable`, `quota`, `invalid-version`, `newer-version`, `migration-failed` | Ordered, forward-only, idempotent. Each step writes its data and then `storage-version` in one rolled-back unit (DATABASE §10.1) |
+| `readFinanceData({ quarantine })` | Whether to copy invalid raw text to quarantine (default yes) | `{ ok: true, data, quarantined }`. Each report has `key`, `invalidCount` (`null` if the whole key was unreadable), and `preserved` | `{ ok: false, error: 'unavailable' }` | Uses the shared entity validators (`lib/storage/schemas.ts`). An identical quarantine copy is not saved twice. Backup building reads with `quarantine: false` |
 | `writeFinanceData(changes)` | A partial map of finance keys to values | `{ ok: true }` | `storage.quota` or `storage.unavailable`. Every key is rolled back | Fixed write order: categories, transactions, reconciliations, recurring, budgets, savingsGoal (DATABASE §7.3) |
 | `writeStorageEntries(entries)` | Ordered `[key, value]` pairs. `undefined` removes the key | `{ ok: true }` | As above | Snapshots, writes, and rolls back in reverse order |
-| Apply restore (`applyBackup`) | A validated backup | Counts | Throws today; must return a typed failure (**MVP-cleanup**) | Snapshots every backed-up key and rolls back on any failure |
+| Apply restore (`applyBackup`) | A validated backup | `{ ok: true, counts }` | The `StorageWriteResult` failure. Every key is rolled back | Uses `writeStorageEntries`. `BackupContext` shows the failure message and does not reload |
 
 Storage keys are frozen. The full catalogue is in DATABASE §3.
 
@@ -261,7 +264,7 @@ Storage keys are frozen. The full catalogue is in DATABASE §3.
 | `addRecurring` / `updateRecurring` / `deleteRecurring` / `toggleRecurringActive` | A rule or `id` | `{ ok: true }` | As above. The cursor never moves back |
 | `setSavingsGoal` | Both buckets | `{ ok: true }` | As above |
 | `addReconciliation` | `month`, `actualBalance`, `expectedBalance`, optional `adjustmentAmount` and `note` | `{ ok: true, record }` | As above |
-| `reloadFromStorage` | — | State is re-read | — (used after a restore) |
+| `reloadFromStorage` | — (used after a restore) | State is re-read | If storage can't be read, state is unchanged and `storageError` is set |
 
 **Read API (selectors).** `getMonthSummary`, `getTotalIncome`, `getTotalExpenses`, `getTotalSavings`, `getTotalCommitments`, `getTotalDayToDay`, `getCarryForward`, `getNetBalanceToDate`, `getCumulativeNetBalanceThroughEndOf`, `getOutstandingCardBalance`, `getBudgetBreakdown`, `getSpentForCategory`, and `getReconciliationFor`. Each PRD §6 metric has **exactly one** implementation. Pages never re-sum transactions.
 
@@ -640,7 +643,7 @@ These gaps are reported here, not fixed. None of them is authorized for implemen
 | G14 | Backup `appVersion` is hard-coded to `1.0.0` | `backup.ts` | §6.3 |
 | G15 | Analysis image share failures are only logged | `Analysis.tsx` | §6.6 |
 | G16 | Security actions return `boolean` with no reason | `SecurityContext.tsx` | §5.3 |
-| G17 | Storage key strings are spread across modules | Several files | §5.1, DATABASE §3 |
+| G17 | **Resolved 2026-11-11.** Every storage key name now lives in `lib/storage/keys.ts`; a unit test fails if another source file contains one | `lib/storage/keys.ts` | §5.1, DATABASE §3 |
 
 ---
 

@@ -4,12 +4,81 @@
  * - v3 backups migrate to v4 recurring occurrence identity support.
  */
 
-import { beforeEach, describe, it, expect } from 'vitest';
-import { applyBackup, buildBackup, validateBackup, BACKUP_VERSION } from '../backup';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { applyBackup, buildBackup, validateBackup, BACKUP_READ_FAILED_MESSAGE, BACKUP_VERSION } from '../backup';
 import type { BackupFile } from '../backup';
 
 beforeEach(() => {
   localStorage.clear();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('Backup storage boundary', () => {
+  const backupWith = (savingsGoal: BackupFile['data']['savingsGoal']): BackupFile => ({
+    schemaVersion: BACKUP_VERSION,
+    appVersion: '1.0.0',
+    exportedAt: '2026-11-11T10:00:00.000Z',
+    device: { platform: 'android' },
+    counts: {
+      transactions: 1, categories: 0, budgets: 0, recurringExpenses: 0, savingsGoal: savingsGoal ? 1 : 0,
+      pendingSms: 0, dismissedSmsFingerprints: 0, linkedSms: 0,
+    },
+    data: {
+      transactions: [{ id: 'restored', type: 'expense', amount: 10, categoryId: 'groceries', note: '', date: '2026-11-01' }],
+      categories: [],
+      budgets: [],
+      recurringExpenses: [],
+      savingsGoal,
+      sms: { pendingSms: [], dismissedSmsFingerprints: [], linkedSms: {}, lastScanMs: 0 },
+    },
+  });
+
+  it('returns a typed failure and leaves every key unchanged when a restore write fails', () => {
+    localStorage.setItem('financial-clarity:transactions', '[{"id":"local"}]');
+    localStorage.setItem('financial-clarity:savings-goal', '{"goal":{"monthly":1,"annual":12}}');
+    const original = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, k: string, v: string) {
+      if (k === 'financial-clarity:recurring') throw new DOMException('full', 'QuotaExceededError');
+      return original.call(this, k, v);
+    });
+
+    const result = applyBackup(backupWith(null));
+
+    expect(result).toMatchObject({ ok: false, error: 'quota' });
+    expect(localStorage.getItem('financial-clarity:transactions')).toBe('[{"id":"local"}]');
+    expect(localStorage.getItem('financial-clarity:categories')).toBeNull();
+    expect(localStorage.getItem('financial-clarity:savings-goal')).toBe('{"goal":{"monthly":1,"annual":12}}');
+  });
+
+  it('returns the counts after a successful restore', () => {
+    const backup = backupWith({ goal: { monthly: 5, annual: 60 }, emergency: { monthly: 0, annual: 0 } });
+    expect(applyBackup(backup)).toEqual({ ok: true, counts: backup.counts });
+    expect(JSON.parse(localStorage.getItem('financial-clarity:savings-goal') ?? 'null')).toEqual(backup.data.savingsGoal);
+  });
+
+  it('refuses to build a backup when local storage cannot be read', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('denied', 'SecurityError');
+    });
+    expect(() => buildBackup()).toThrow(BACKUP_READ_FAILED_MESSAGE);
+  });
+
+  it('includes a legacy single-bucket savings goal in the backup', () => {
+    localStorage.setItem('financial-clarity:savings-goal', '{"monthly":500,"annual":6000}');
+    expect(buildBackup().data.savingsGoal).toEqual({
+      goal: { monthly: 500, annual: 6000 },
+      emergency: { monthly: 0, annual: 0 },
+    });
+  });
+
+  it('does not write quarantine copies while building a backup', () => {
+    localStorage.setItem('financial-clarity:transactions', '[{"id":1}]');
+    buildBackup();
+    expect(Object.keys(localStorage).filter(k => k.startsWith('financial-clarity:backup:'))).toEqual([]);
+  });
 });
 
 describe('Backup schema versioning', () => {

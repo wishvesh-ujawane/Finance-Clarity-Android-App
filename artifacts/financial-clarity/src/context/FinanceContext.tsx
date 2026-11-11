@@ -4,6 +4,8 @@ import { addMonths, currentMonth, localDateStr, isConsumptionExpense } from '@/l
 import { canDeleteCategory, type CategoryDeleteCheck } from '@/lib/category-rules';
 import { createId } from '@/lib/ids';
 import { writeFinanceData, type FinanceStorageKey } from '@/lib/storage/finance-storage';
+import { readFinanceData, type StoredFinanceData } from '@/lib/storage/finance-read';
+import type { FinanceLoad } from '@/lib/storage/startup';
 import { getLastDueMonthBeforeDate, getRecurringOccurrenceDate } from '@/lib/recurring-utils';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
@@ -220,190 +222,55 @@ interface FinanceContextType {
 }
 
 const FinanceContext = createContext<FinanceContextType | null>(null);
-const skippedInitialStorageWrites = new Set<string>();
 
-function getStorageKey(key: string) {
-  return `financial-clarity:${key}`;
+const RELOAD_FAILED_MESSAGE =
+  'Couldn\u2019t reload your saved data. Close and reopen the app to see the latest saved data.';
+
+function emptySavingsGoal(): SavingsGoal {
+  return { goal: { monthly: 0, annual: 0 }, emergency: { monthly: 0, annual: 0 } };
 }
 
-function getBackupStorageKey(key: string) {
-  return `financial-clarity:backup:${key}:${Date.now()}`;
+const EMPTY_STORED_DATA: StoredFinanceData = {
+  transactions: [],
+  categories: [],
+  budgets: [],
+  recurringExpenses: [],
+  reconciliations: [],
+  savingsGoal: null,
+};
+
+/** Applies the load-time defaults to validated stored data (DATABASE §10.3). */
+function toFinanceData(stored: StoredFinanceData): FinanceData {
+  return {
+    transactions: stored.transactions.map(t => ({ ...t, note: t.note || '' })),
+    categories: stored.categories.length === 0 ? DEFAULT_CATEGORIES : ensureRequiredCategories(stored.categories),
+    budgets: stored.budgets.map(b => ({ ...b, month: b.month || currentMonth() })),
+    recurringExpenses: stored.recurringExpenses,
+    reconciliations: stored.reconciliations,
+    savingsGoal: stored.savingsGoal ?? emptySavingsGoal(),
+  };
 }
 
-function preserveRawStorage(key: string, raw: string): void {
-  try {
-    localStorage.setItem(getBackupStorageKey(key), raw);
-  } catch {
-    // ignore
-  }
-  skippedInitialStorageWrites.add(key);
+interface FinanceProviderProps {
+  children: ReactNode;
+  /** Data already read by the startup storage check. Read here when absent. */
+  initialLoad?: FinanceLoad;
 }
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-const VALID_PAYMENT_METHODS = new Set(['cash', 'bank', 'credit-card', 'credit-card-payment']);
-
-function isValidTransaction(value: unknown): value is Transaction {
-  return (
-    isObject(value) &&
-    typeof value.id === 'string' &&
-    value.id.length > 0 &&
-    (value.type === 'income' || value.type === 'expense') &&
-    typeof value.amount === 'number' &&
-    Number.isFinite(value.amount) &&
-    typeof value.categoryId === 'string' &&
-    value.categoryId.length > 0 &&
-    (value.note === undefined || typeof value.note === 'string') &&
-    typeof value.date === 'string' &&
-    value.date.length > 0 &&
-    (value.paymentMethod === undefined ||
-      (typeof value.paymentMethod === 'string' && VALID_PAYMENT_METHODS.has(value.paymentMethod))) &&
-    ((value.recurringRuleId === undefined && value.recurringMonth === undefined) ||
-      (value.type === 'expense' && typeof value.recurringRuleId === 'string' && value.recurringRuleId.length > 0 &&
-        typeof value.recurringMonth === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.recurringMonth))) &&
-    (value.sourceSmsFingerprint === undefined || typeof value.sourceSmsFingerprint === 'string') &&
-    (value.merchant === undefined || typeof value.merchant === 'string')
-  );
-}
-
-function isValidCategory(value: unknown): value is Category {
-  return (
-    isObject(value) &&
-    typeof value.id === 'string' &&
-    value.id.length > 0 &&
-    typeof value.name === 'string' &&
-    value.name.length > 0 &&
-    typeof value.icon === 'string' &&
-    typeof value.color === 'string' &&
-    (value.type === 'income' || value.type === 'expense' || value.type === 'commitment' || value.type === 'savings' || value.type === 'both')
-  );
-}
-
-function isValidBudget(value: unknown): value is Budget {
-  return (
-    isObject(value) &&
-    typeof value.id === 'string' &&
-    value.id.length > 0 &&
-    typeof value.categoryId === 'string' &&
-    value.categoryId.length > 0 &&
-    typeof value.limit === 'number' &&
-    Number.isFinite(value.limit) &&
-    (value.month === undefined || typeof value.month === 'string')
-  );
-}
-
-function isValidRecurring(value: unknown): value is RecurringExpense {
-  return (
-    isObject(value) &&
-    typeof value.id === 'string' &&
-    value.id.length > 0 &&
-    typeof value.description === 'string' &&
-    typeof value.amount === 'number' &&
-    Number.isFinite(value.amount) &&
-    typeof value.categoryId === 'string' &&
-    value.categoryId.length > 0 &&
-    typeof value.dayOfMonth === 'number' &&
-    value.dayOfMonth >= 1 &&
-    value.dayOfMonth <= 31 &&
-    typeof value.active === 'boolean' &&
-    typeof value.startMonth === 'string' &&
-    (value.lastGeneratedMonth === undefined || typeof value.lastGeneratedMonth === 'string')
-  );
-}
-
-function isValidReconciliation(value: unknown): value is MonthReconciliation {
-  return (
-    isObject(value) &&
-    typeof value.month === 'string' &&
-    /^\d{4}-\d{2}$/.test(value.month) &&
-    typeof value.actualBalance === 'number' &&
-    Number.isFinite(value.actualBalance) &&
-    typeof value.expectedBalance === 'number' &&
-    Number.isFinite(value.expectedBalance) &&
-    (value.adjustmentTxnId === undefined || typeof value.adjustmentTxnId === 'string') &&
-    typeof value.reconciledAt === 'number' &&
-    Number.isFinite(value.reconciledAt)
-  );
-}
-
-function loadArrayFromStorage<T>(key: string, fallback: T[], isValid: (value: unknown) => value is T): T[] {
-  try {
-    const raw = localStorage.getItem(getStorageKey(key));
-    if (!raw) return fallback;
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      preserveRawStorage(key, raw);
-      return fallback;
-    }
-    const filtered = parsed.filter(isValid);
-    if (filtered.length !== parsed.length) {
-      preserveRawStorage(key, raw);
-    }
-    return filtered;
-  } catch {
-    try {
-      const raw = localStorage.getItem(getStorageKey(key));
-      if (raw) preserveRawStorage(key, raw);
-    } catch {
-      // ignore
-    }
-    return fallback;
-  }
-}
-
-export function FinanceProvider({ children }: { children: ReactNode }) {
-  const [transactions, setTransactions] = useState<Transaction[]>(() =>
-    loadArrayFromStorage('transactions', [], isValidTransaction).map(t => ({ ...t, note: t.note || '' }))
-  );
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const stored = loadArrayFromStorage('categories', [], isValidCategory);
-    if (stored.length === 0) return DEFAULT_CATEGORIES;
-    return ensureRequiredCategories(stored);
+export function FinanceProvider({ children, initialLoad }: FinanceProviderProps) {
+  const [initial] = useState(() => {
+    if (initialLoad) return { data: toFinanceData(initialLoad.data), skipWrite: new Set(initialLoad.quarantined.map(r => r.key)) };
+    const read = readFinanceData();
+    if (read.ok) return { data: toFinanceData(read.data), skipWrite: new Set(read.quarantined.map(r => r.key)) };
+    // Storage could not be read: never write over it from this empty state.
+    return { data: toFinanceData(EMPTY_STORED_DATA), skipWrite: new Set<FinanceStorageKey>(['transactions', 'categories']) };
   });
-  const [budgets, setBudgets] = useState<Budget[]>(() =>
-    loadArrayFromStorage('budgets', [], isValidBudget).map(b => ({ ...b, month: b.month || currentMonth() }))
-  );
-  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(() =>
-    loadArrayFromStorage('recurring', [], isValidRecurring)
-  );
-  const [reconciliations, setReconciliations] = useState<MonthReconciliation[]>(() =>
-    loadArrayFromStorage('reconciliations', [], isValidReconciliation)
-  );
-  const [savingsGoal, setSavingsGoalState] = useState<SavingsGoal>(() => {
-    const empty: SavingsGoal = { goal: { monthly: 0, annual: 0 }, emergency: { monthly: 0, annual: 0 } };
-    const validEntry = (v: unknown): v is { monthly: number; annual: number; createdAt?: string } =>
-      isObject(v) && typeof v.monthly === 'number' && Number.isFinite(v.monthly)
-      && typeof v.annual === 'number' && Number.isFinite(v.annual)
-      && (v.createdAt === undefined || typeof v.createdAt === 'string');
-    const pickEntry = (v: unknown) => {
-      if (!validEntry(v)) return { monthly: 0, annual: 0 };
-      const out: { monthly: number; annual: number; createdAt?: string } = { monthly: v.monthly, annual: v.annual };
-      if (v.createdAt) out.createdAt = v.createdAt;
-      return out;
-    };
-    try {
-      const raw = localStorage.getItem(getStorageKey('savings-goal'));
-      if (!raw) return empty;
-      const parsed = JSON.parse(raw) as unknown;
-      if (!isObject(parsed)) return empty;
-      // New shape
-      if (validEntry(parsed.goal) || validEntry(parsed.emergency)) {
-        return {
-          goal: pickEntry(parsed.goal),
-          emergency: pickEntry(parsed.emergency),
-        };
-      }
-      // Legacy shape { monthly, annual } -> migrate into `goal`.
-      if (validEntry(parsed)) {
-        return { goal: pickEntry(parsed), emergency: { monthly: 0, annual: 0 } };
-      }
-      return empty;
-    } catch {
-      return empty;
-    }
-  });
+  const [transactions, setTransactions] = useState<Transaction[]>(initial.data.transactions);
+  const [categories, setCategories] = useState<Category[]>(initial.data.categories);
+  const [budgets, setBudgets] = useState<Budget[]>(initial.data.budgets);
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(initial.data.recurringExpenses);
+  const [reconciliations, setReconciliations] = useState<MonthReconciliation[]>(initial.data.reconciliations);
+  const [savingsGoal, setSavingsGoalState] = useState<SavingsGoal>(initial.data.savingsGoal);
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -444,15 +311,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // quarantined). A failure here loses nothing: the same values are rebuilt
   // from storage on the next launch.
   useEffect(() => {
-    const initial: Partial<Record<FinanceStorageKey, unknown>> = {};
+    const writes: Partial<Record<FinanceStorageKey, unknown>> = {};
     for (const key of ['transactions', 'categories'] as const) {
-      if (skippedInitialStorageWrites.has(key)) {
-        skippedInitialStorageWrites.delete(key);
-        continue;
-      }
-      initial[key] = latest.current[key];
+      if (!initial.skipWrite.has(key)) writes[key] = latest.current[key];
     }
-    writeFinanceData(initial);
+    writeFinanceData(writes);
     setLastChangedAt(Date.now());
   }, []);
 
@@ -666,60 +529,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [commit]);
 
   const reloadFromStorage = useCallback(() => {
-    // Re-read all five entities from localStorage. Used after a Drive restore.
-    const txns = loadArrayFromStorage('transactions', [], isValidTransaction).map(t => ({ ...t, note: t.note || '' }));
-    const storedCats = loadArrayFromStorage('categories', [], isValidCategory);
-    const cats = storedCats.length === 0 ? DEFAULT_CATEGORIES : ensureRequiredCategories(storedCats);
-    const storedBudgets = loadArrayFromStorage('budgets', [], isValidBudget).map(b => ({ ...b, month: b.month || currentMonth() }));
-    const storedRecurring = loadArrayFromStorage('recurring', [], isValidRecurring);
-    const storedReconciliations = loadArrayFromStorage('reconciliations', [], isValidReconciliation);
-
-    let restoredSavingsGoal: SavingsGoal;
-    try {
-      const raw = localStorage.getItem(getStorageKey('savings-goal'));
-      const empty: SavingsGoal = { goal: { monthly: 0, annual: 0 }, emergency: { monthly: 0, annual: 0 } };
-      if (!raw) {
-        restoredSavingsGoal = empty;
-      } else {
-        const parsed = JSON.parse(raw) as unknown;
-        const validEntry = (v: unknown): v is { monthly: number; annual: number; createdAt?: string } =>
-          isObject(v) && typeof v.monthly === 'number' && Number.isFinite(v.monthly)
-          && typeof v.annual === 'number' && Number.isFinite(v.annual)
-          && (v.createdAt === undefined || typeof v.createdAt === 'string');
-        const pickEntry = (v: unknown) => {
-          if (!validEntry(v)) return { monthly: 0, annual: 0 };
-          const out: { monthly: number; annual: number; createdAt?: string } = { monthly: v.monthly, annual: v.annual };
-          if (v.createdAt) out.createdAt = v.createdAt;
-          return out;
-        };
-        if (isObject(parsed) && (validEntry(parsed.goal) || validEntry(parsed.emergency))) {
-          restoredSavingsGoal = {
-            goal: pickEntry(parsed.goal),
-            emergency: pickEntry(parsed.emergency),
-          };
-        } else if (isObject(parsed) && validEntry(parsed)) {
-          restoredSavingsGoal = { goal: pickEntry(parsed), emergency: { monthly: 0, annual: 0 } };
-        } else {
-          restoredSavingsGoal = empty;
-        }
-      }
-    } catch {
-      restoredSavingsGoal = { goal: { monthly: 0, annual: 0 }, emergency: { monthly: 0, annual: 0 } };
+    // Re-read every entity from storage. Used after a Drive restore.
+    const read = readFinanceData();
+    if (!read.ok) {
+      setStorageError(RELOAD_FAILED_MESSAGE);
+      return;
     }
-    latest.current = {
-      transactions: txns,
-      categories: cats,
-      budgets: storedBudgets,
-      recurringExpenses: storedRecurring,
-      reconciliations: storedReconciliations,
-      savingsGoal: restoredSavingsGoal,
-    };
-    setTransactions(txns);
-    setCategories(cats);
-    setBudgets(storedBudgets);
-    setRecurringExpenses(storedRecurring);
-    setReconciliations(storedReconciliations);
-    setSavingsGoalState(restoredSavingsGoal);
+    const next = toFinanceData(read.data);
+    latest.current = next;
+    setTransactions(next.transactions);
+    setCategories(next.categories);
+    setBudgets(next.budgets);
+    setRecurringExpenses(next.recurringExpenses);
+    setReconciliations(next.reconciliations);
+    setSavingsGoalState(next.savingsGoal);
     setLastChangedAt(Date.now());
   }, []);
 

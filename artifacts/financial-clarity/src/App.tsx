@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Switch, Route, Router as WouterRouter } from 'wouter';
 import { Toaster } from '@/components/ui/toaster';
 import { toast } from '@/hooks/use-toast';
@@ -15,7 +15,11 @@ import { BudgetSheet } from '@/components/BudgetSheet';
 import { LockScreen } from '@/components/LockScreen';
 import { OnboardingFlow } from '@/components/onboarding/OnboardingFlow';
 import { MonthEndReviewFlow } from '@/components/month-end/MonthEndReviewFlow';
+import { StartupErrorScreen } from '@/components/StartupErrorScreen';
+import { StorageNoticeBanner } from '@/components/StorageNoticeBanner';
 import { isOnboardingComplete } from '@/lib/onboarding';
+import { prepareStorage, type StorageStartupResult } from '@/lib/storage/startup';
+import type { QuarantineReport } from '@/lib/storage/finance-read';
 import Dashboard from '@/pages/Dashboard';
 import Budgets from '@/pages/Budgets';
 import Analysis from '@/pages/Analysis';
@@ -34,7 +38,7 @@ function normalizeRouterBase(baseUrl: string) {
   return normalized;
 }
 
-function AppLayout() {
+function AppLayout({ quarantined }: { quarantined: QuarantineReport[] }) {
   const { isReady, isLocked } = useSecurity();
   const { setSuppressAutoOpen } = useMonthEndReview();
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean>(() => !isOnboardingComplete());
@@ -63,6 +67,7 @@ function AppLayout() {
     <div className="flex min-h-screen bg-background">
       <Navigation />
       <main className="flex-1 md:ml-64 overflow-y-auto min-h-screen">
+        <StorageNoticeBanner reports={quarantined} />
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/transactions" component={Transactions} />
@@ -106,16 +111,32 @@ function StorageErrorNotifier() {
 
 function App() {
   const routerBase = normalizeRouterBase(import.meta.env.BASE_URL);
+  // Migrations and the finance read run before any provider mounts (ARCHITECTURE §6.1).
+  const [startup, setStartup] = useState<StorageStartupResult>(() => prepareStorage());
+  const retryStartup = useCallback(() => setStartup(prepareStorage()), []);
+  const continueStartup = useCallback(() => {
+    setStartup(current => (!current.ok && current.problem === 'unpreserved' ? { ok: true, load: current.load } : current));
+  }, []);
+
+  if (!startup.ok) {
+    return (
+      <StartupErrorScreen
+        problem={startup.problem}
+        onRetry={retryStartup}
+        onContinue={startup.problem === 'unpreserved' ? continueStartup : undefined}
+      />
+    );
+  }
 
   return (
-    <FinanceProvider>
+    <FinanceProvider initialLoad={startup.load}>
       <SecurityProvider>
         <BackupProvider>
           <FabProvider>
             <MonthEndReviewProvider>
               <TooltipProvider>
                 <WouterRouter base={routerBase}>
-                  <AppLayout />
+                  <AppLayout quarantined={startup.load.quarantined} />
                 </WouterRouter>
                 <AppToaster />
                 <StorageErrorNotifier />

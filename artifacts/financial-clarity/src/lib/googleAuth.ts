@@ -4,6 +4,7 @@ import {
   type Authentication,
   type User,
 } from '@codetrix-studio/capacitor-google-auth';
+import { STORAGE_KEYS } from '@/lib/storage/keys';
 
 /**
  * Web OAuth client ID. On Android the plugin reads `server_client_id`
@@ -23,7 +24,7 @@ const SCOPES = ['profile', 'email', DRIVE_SCOPE];
  * the connected account immediately on cold start while we silently refresh
  * the access token in the background.
  */
-const USER_CACHE_KEY = 'financial-clarity:google-user';
+const USER_CACHE_KEY = STORAGE_KEYS.googleUser;
 
 let initialized = false;
 let initPromise: Promise<void> | null = null;

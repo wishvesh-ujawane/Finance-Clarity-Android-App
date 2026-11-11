@@ -9,10 +9,10 @@
 
 import { Transaction, Category, SAVINGS_CATEGORY_IDS } from '@/lib/types';
 import { addMonths, currentMonth } from '@/lib/finance-utils';
+import { monthReviewKey } from '@/lib/storage/keys';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 
-const REVIEW_KEY_PREFIX = 'financial-clarity:month-end-review:';
 const MAX_LOOKBACK_MONTHS = 12;
 
 /** Minimum single-transaction amount to be considered an impulse expense. */
@@ -35,7 +35,7 @@ function safeSet(key: string, value: string) {
 }
 
 function reviewKey(month: string): string {
-  return `${REVIEW_KEY_PREFIX}${month}`;
+  return monthReviewKey(month);
 }
 
 export function getReviewState(month: string): ReviewState {

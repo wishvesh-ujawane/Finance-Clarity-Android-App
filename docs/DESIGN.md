@@ -288,9 +288,11 @@ One component, used everywhere a screen is scoped to a month (Dashboard, Transac
 | Standard | `card` surface, 1 px border, radius 16, padding 20 | Default container |
 | List group | Standard with padding 0 and full-width dividers between rows | Settings groups, grouped lists |
 | Hero | `hero` navy surface, radius 16, padding 20, white text | Dashboard balance only; max one per screen |
-| Banner | Tint background of its status (§2.3), radius 12, padding 12–16, icon + one sentence + one action + dismiss | Month-end review prompt, Drive connection prompt, screen-level errors |
+| Banner | Tint background of its status (§2.3), radius 12, padding 12–16, icon + one sentence + one action + dismiss | Month-end review prompt, Drive connection prompt, screen-level errors, unreadable-data notice |
 
 - Card title uses the card-title style. Card-level actions sit at the top right as a text button or icon button. Never more than one primary action per card.
+- **Unreadable-data notice** (`StorageNoticeBanner`, added 2026-11-11): an info Banner at the top of the page content after startup when records were quarantined (§8.2, ARCHITECTURE §8.3). It gives a count only, never record contents. Its only action is dismiss, because no in-app recovery exists yet. It is an instance of Banner, not a new component.
+- **Startup error screen** (`StartupErrorScreen`, added 2026-11-11): the full-screen pattern from §8.2 for unreadable local data. Same layout as the lock screen (centered icon tile, title, one sentence, actions). The primary action is **Try again**. The only data-affecting action, **Continue without it**, is a ghost button behind a destructive confirmation dialog. Rationale: §8.2 requires a full-screen message and forbids overwriting data without explicit confirmation; no existing component covered it.
 
 ### 5.5 Balance hero
 
