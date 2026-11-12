@@ -55,6 +55,24 @@ export function canDeactivateCategory(categoryId: string): boolean {
 }
 
 /**
+ * Active (not paused) recurring rules in a category. A category with any of
+ * these cannot be made inactive (owner decision, PRD FR-03): the user pauses
+ * or moves the rule first, so the app never pauses it silently.
+ */
+export function activeRecurringRulesIn<T extends Pick<RecurringExpense, 'categoryId' | 'active'>>(
+  categoryId: string,
+  rules: readonly T[],
+): T[] {
+  return rules.filter(r => r.categoryId === categoryId && r.active);
+}
+
+export function activeRecurringBlockMessage(rules: readonly Pick<RecurringExpense, 'description'>[]): string {
+  const count = rules.length;
+  const names = rules.map(r => `\u201c${r.description}\u201d`).join(', ');
+  return `${count} active recurring expense${count === 1 ? '' : 's'} (${names}) use${count === 1 ? 's' : ''} this category. Pause ${count === 1 ? 'it' : 'them'} or move ${count === 1 ? 'it' : 'them'} to another category in Recurring first. Nothing was changed.`;
+}
+
+/**
  * Categories offered for a new entry: active ones only. When editing, the
  * entry's current category stays available even if it is inactive.
  */

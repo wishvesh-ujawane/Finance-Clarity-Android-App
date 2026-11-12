@@ -7,11 +7,10 @@
 // See docs/knowledge-base/features/month-end-review.md and
 // docs/knowledge-base/decisions/0002-month-end-review-flow.md.
 
-import { Transaction, Category, SAVINGS_CATEGORY_IDS } from '@/lib/types';
+import { Transaction, Category } from '@/lib/types';
 import { addMonths, currentMonth } from '@/lib/finance-utils';
 import { monthReviewKey } from '@/lib/storage/keys';
-
-const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
+import { isConsumptionExpense, isSavingsCategory, isSavingsContribution } from '@/lib/domain/finance-metrics';
 
 const MAX_LOOKBACK_MONTHS = 12;
 
@@ -180,15 +179,15 @@ export function computeReviewSnapshot(
       savingsGoal += t.amount;
       continue;
     }
+    // Card bill payments are transfers, not spending (PRD §6; owner decision D8).
+    if (!isConsumptionExpense(t)) continue;
     expenses += t.amount;
     bySpend[t.categoryId] = (bySpend[t.categoryId] || 0) + t.amount;
   }
 
   let prevExpenses = 0;
   for (const t of prevTxns) {
-    if (t.type !== 'expense') continue;
-    if (SAVINGS_CATEGORY_ID_SET.has(t.categoryId)) continue;
-    prevExpenses += t.amount;
+    if (isConsumptionExpense(t)) prevExpenses += t.amount;
   }
 
   const totalSpendForPct = Object.values(bySpend).reduce((s, v) => s + v, 0);
@@ -208,8 +207,7 @@ export function computeReviewSnapshot(
     });
 
   const impulseExpenses: ImpulseRow[] = monthTxns
-    .filter(t => t.type === 'expense')
-    .filter(t => !SAVINGS_CATEGORY_ID_SET.has(t.categoryId))
+    .filter(t => isConsumptionExpense(t))
     .filter(t => {
       const cat = catById.get(t.categoryId);
       return cat?.type !== 'commitment';
@@ -272,9 +270,8 @@ export function computeReviewSnapshot(
  * — i.e. reviewMonth, reviewMonth-1, reviewMonth-2. Rounded to nearest ₹100.
  * Returns `null` when the category has zero history in those months.
  *
- * For non-savings categories `getSpentForCategory` semantics apply (only
- * expense-typed transactions; savings-category ids are treated as their own
- * category since savings transactions are stored as expense-typed).
+ * Counts what the category's budget counts: savings contributions for a
+ * savings category, consumption otherwise (card bill payments excluded).
  */
 export function suggestBudgetForCategory(
   categoryId: string,
@@ -283,6 +280,7 @@ export function suggestBudgetForCategory(
   window: number = BUDGET_AVG_WINDOW,
 ): number | null {
   const nextMonth = addMonths(reviewMonth, 1);
+  const counts = isSavingsCategory(categoryId) ? isSavingsContribution : isConsumptionExpense;
   let totalSpend = 0;
   let monthsWithHistory = 0;
 
@@ -291,7 +289,7 @@ export function suggestBudgetForCategory(
     let monthSpend = 0;
     let sawAny = false;
     for (const t of transactions) {
-      if (t.type !== 'expense') continue;
+      if (!counts(t)) continue;
       if (t.categoryId !== categoryId) continue;
       if (!t.date.startsWith(m)) continue;
       monthSpend += t.amount;

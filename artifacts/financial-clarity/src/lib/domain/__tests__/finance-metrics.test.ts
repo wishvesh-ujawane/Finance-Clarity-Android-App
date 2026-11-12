@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
   balanceThroughEndOf,
+  cardBillPaymentsIn,
   carryForward,
   categorySpent,
   consumptionBetween,
   consumptionByCategory,
   consumptionByCategoryBetween,
+  expectedBankBalanceAtEndOf,
   isConsumptionExpense,
   isSavingsContribution,
   lifetimeBalance,
   monthlyNet,
   monthSummary,
   outstandingCardAmount,
+  outstandingCardAmountThroughEndOf,
   totalCommitments,
   totalConsumption,
   totalDayToDay,
@@ -92,6 +95,36 @@ describe('outstanding card amount', () => {
       { type: 'expense', amount: 300, categoryId: 'groceries', date: '2026-11-02', paymentMethod: 'credit-card-payment' },
     ];
     expect(outstandingCardAmount(overpaid)).toBe(0);
+  });
+
+  it('can be measured at the end of a month, ignoring later entries', () => {
+    expect(outstandingCardAmountThroughEndOf(tx, '2026-09')).toBe(0);
+    expect(outstandingCardAmountThroughEndOf(tx, '2026-10')).toBe(2000 - 1500);
+    expect(outstandingCardAmountThroughEndOf(tx, NOV)).toBe(2000 + 1000 - 1500 - 1000);
+  });
+
+  it('sums card bill payments dated in a month', () => {
+    expect(cardBillPaymentsIn(tx, '2026-10')).toBe(1500);
+    expect(cardBillPaymentsIn(tx, NOV)).toBe(1000);
+    expect(cardBillPaymentsIn(tx, '2026-12')).toBe(0);
+  });
+});
+
+describe('expected bank balance for month-end reconcile', () => {
+  it('adds the still-unpaid card amount to the balance through the month', () => {
+    // October: 50000 - 15000 - 2000 = 33000, plus 500 not yet paid from the bank.
+    expect(expectedBankBalanceAtEndOf(tx, '2026-10')).toBe(33000 + 500);
+    expect(expectedBankBalanceAtEndOf(tx, NOV)).toBe(73500 + 500);
+  });
+
+  it('drops by exactly the bill payment, which is not spending', () => {
+    const before = [...tx];
+    const payment: MetricTransaction = { type: 'expense', amount: 500, categoryId: 'other', date: '2026-11-30', paymentMethod: 'credit-card-payment' };
+    const after = [...before, payment];
+    expect(balanceThroughEndOf(after, NOV)).toBe(balanceThroughEndOf(before, NOV));
+    expect(totalConsumption(after, NOV)).toBe(totalConsumption(before, NOV));
+    expect(expectedBankBalanceAtEndOf(after, NOV)).toBe(expectedBankBalanceAtEndOf(before, NOV) - 500);
+    expect(outstandingCardAmountThroughEndOf(after, NOV)).toBe(0);
   });
 });
 

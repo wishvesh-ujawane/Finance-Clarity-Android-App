@@ -63,6 +63,7 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
   const total = steps.length;
   const [idx, setIdx] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
+  const [saveError, setSaveError] = useState('');
   // Per-step input value keyed by categoryId. Prefill on first render.
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
@@ -112,9 +113,14 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
   const parsed = parseCurrencyInput(value);
   const canSave = parsed > 0;
 
+  // Stay on the category and keep the value when the save fails (AGENTS §8).
   const handleSaveAndNext = () => {
     if (canSave) {
-      addBudget({ categoryId: step.category.id, limit: parsed, month: nextMonth });
+      const result = addBudget({ categoryId: step.category.id, limit: parsed, month: nextMonth });
+      if (!result.ok) {
+        setSaveError(result.message);
+        return;
+      }
     }
     advance();
   };
@@ -122,6 +128,7 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
   const handleSkip = () => advance();
 
   const advance = () => {
+    setSaveError('');
     if (idx + 1 >= total) {
       onFinished();
       return;
@@ -132,6 +139,7 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
 
   const handleBack = () => {
     if (idx === 0) return;
+    setSaveError('');
     setDirection(-1);
     setIdx(i => i - 1);
   };
@@ -185,11 +193,17 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
             <BudgetStepCard
               step={step}
               value={value}
-              onChange={v => setValues(prev => ({ ...prev, [step.category.id]: v }))}
+              onChange={v => { setSaveError(''); setValues(prev => ({ ...prev, [step.category.id]: v })); }}
             />
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {saveError && (
+        <p className="pt-2 text-xs font-medium text-destructive" role="alert" data-testid="budget-step-save-error">
+          {saveError}
+        </p>
+      )}
 
       {/* Actions */}
       <div className="flex items-center justify-between gap-2 pt-3">

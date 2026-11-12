@@ -143,14 +143,44 @@ export function balanceThroughEndOf(transactions: readonly MetricTransaction[], 
 
 /** Outstanding card amount: all card purchases minus all bill payments, floored at zero. */
 export function outstandingCardAmount(transactions: readonly MetricTransaction[]): number {
+  return cardOutstanding(transactions, () => true);
+}
+
+/** Outstanding card amount counting only entries dated on or before the last day of `month`. */
+export function outstandingCardAmountThroughEndOf(transactions: readonly MetricTransaction[], month: string): number {
+  return cardOutstanding(transactions, tx => monthOf(tx.date) <= month);
+}
+
+function cardOutstanding(
+  transactions: readonly MetricTransaction[],
+  include: (tx: MetricTransaction) => boolean,
+): number {
   let purchases = 0;
   let payments = 0;
   for (const tx of transactions) {
-    if (tx.type !== 'expense') continue;
+    if (tx.type !== 'expense' || !include(tx)) continue;
     if (tx.paymentMethod === 'credit-card') purchases += tx.amount;
     else if (tx.paymentMethod === 'credit-card-payment') payments += tx.amount;
   }
   return Math.max(0, purchases - payments);
+}
+
+export function isCardBillPayment(tx: Pick<MetricTransaction, 'type' | 'paymentMethod'>): boolean {
+  return tx.type === 'expense' && tx.paymentMethod === 'credit-card-payment';
+}
+
+/** Card bill payments dated in `month`. */
+export function cardBillPaymentsIn(transactions: readonly MetricTransaction[], month: string): number {
+  return sumWhere(transactions, tx => isCardBillPayment(tx) && isInMonth(tx.date, month));
+}
+
+/**
+ * Bank balance the app expects at the end of `month` (month-end reconcile).
+ * Card purchases reduce the balance when made, but the bank only pays when
+ * the bill is paid, so the still-unpaid card amount is added back.
+ */
+export function expectedBankBalanceAtEndOf(transactions: readonly MetricTransaction[], month: string): number {
+  return balanceThroughEndOf(transactions, month) + outstandingCardAmountThroughEndOf(transactions, month);
 }
 
 /**

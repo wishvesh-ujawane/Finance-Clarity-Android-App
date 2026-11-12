@@ -1,14 +1,17 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { Transaction, Category, Budget, RecurringExpense, SavingsGoal, SAVINGS_CATEGORY_IDS, SYSTEM_ADJUSTMENT_CATEGORY_IDS, MonthReconciliation } from '@/lib/types';
-import { addMonths, currentMonth, localDateStr } from '@/lib/domain/periods';
+import { addMonths, currentMonth, lastDateOfMonth, localDateStr } from '@/lib/domain/periods';
 import {
   balanceThroughEndOf,
+  cardBillPaymentsIn,
   carryForward,
   categorySpent,
+  expectedBankBalanceAtEndOf,
   lifetimeBalance,
   monthlyNet,
   monthSummary,
   outstandingCardAmount,
+  outstandingCardAmountThroughEndOf,
   totalCommitments,
   totalConsumption,
   totalDayToDay,
@@ -18,6 +21,8 @@ import {
 } from '@/lib/domain/finance-metrics';
 import {
   canDeactivateCategory,
+  activeRecurringRulesIn,
+  activeRecurringBlockMessage,
   canDeleteCategory,
   duplicateNameMessage,
   findActiveNameClash,
@@ -206,6 +211,14 @@ interface FinanceContextType {
    * minus sum of credit-card-payment transfers. Floored at zero. Accuracy
    * depends on the user tagging paymentMethod on applicable transactions. */
   getOutstandingCardBalance: () => number;
+  /** Outstanding card amount counting entries dated through the last day of `month`. */
+  getOutstandingCardBalanceAtEndOf: (month: string) => number;
+  /** Card bill payments dated in `month`. */
+  getCardBillPaymentsIn: (month: string) => number;
+  /** Month-end reconcile target: balance through the month plus the card amount still unpaid then. */
+  getExpectedBankBalanceAtEndOf: (month: string) => number;
+  /** Records a card bill payment dated the last day of `month`; refuses more than the unpaid amount. */
+  recordCardBillPayment: (month: string, amount: number) => FinanceWriteResult;
   /** Return the reconciliation record for `month`, or null if the month
    * has not been reconciled yet. */
   getReconciliationFor: (month: string) => MonthReconciliation | null;
@@ -438,6 +451,10 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
     if (!active && !canDeactivateCategory(id)) {
       return { ok: false, message: 'This built-in category is needed by the app, so it can\u2019t be made inactive.' };
     }
+    if (!active) {
+      const blocking = activeRecurringRulesIn(id, latest.current.recurringExpenses);
+      if (blocking.length > 0) return { ok: false, message: activeRecurringBlockMessage(blocking) };
+    }
     const category = latest.current.categories.find(c => c.id === id);
     if (active && category && findActiveNameClash(latest.current.categories, category.name, id)) {
       return { ok: false, message: duplicateNameMessage(category.name) };
@@ -662,6 +679,40 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
 
   const getOutstandingCardBalance = useCallback(() => outstandingCardAmount(transactions), [transactions]);
 
+  const getOutstandingCardBalanceAtEndOf = useCallback(
+    (month: string) => outstandingCardAmountThroughEndOf(transactions, month),
+    [transactions],
+  );
+
+  const getCardBillPaymentsIn = useCallback((month: string) => cardBillPaymentsIn(transactions, month), [transactions]);
+
+  const getExpectedBankBalanceAtEndOf = useCallback(
+    (month: string) => expectedBankBalanceAtEndOf(transactions, month),
+    [transactions],
+  );
+
+  // A card bill payment is a transfer, not spending (PRD §6): it lowers the
+  // outstanding card amount and the expected bank balance only.
+  const recordCardBillPayment = useCallback((month: string, amount: number): FinanceWriteResult => {
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return { ok: false, message: 'Enter an amount greater than zero. Nothing was saved.' };
+    }
+    const owed = outstandingCardAmountThroughEndOf(latest.current.transactions, month);
+    if (amount > owed + 0.005) {
+      return { ok: false, message: 'That is more than the unpaid card amount. Nothing was saved.' };
+    }
+    const payment: Transaction = {
+      id: createId(),
+      type: 'expense',
+      amount,
+      categoryId: 'other',
+      note: 'Card bill payment',
+      date: lastDateOfMonth(month),
+      paymentMethod: 'credit-card-payment',
+    };
+    return commit({ transactions: [payment, ...latest.current.transactions] });
+  }, [commit]);
+
   const getReconciliationFor = useCallback(
     (month: string): MonthReconciliation | null =>
       reconciliations.find(r => r.month === month) ?? null,
@@ -780,7 +831,7 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
       isSheetOpen, editingTransaction, sheetInitialMode,
       openSheet, openEditSheet, closeSheet,
       isBudgetSheetOpen, openBudgetSheet, closeBudgetSheet,
-      getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getCumulativeNetBalanceThroughEndOf, getOutstandingCardBalance, getReconciliationFor, addReconciliation, getSpentForCategory,
+      getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getCumulativeNetBalanceThroughEndOf, getOutstandingCardBalance, getOutstandingCardBalanceAtEndOf, getCardBillPaymentsIn, getExpectedBankBalanceAtEndOf, recordCardBillPayment, getReconciliationFor, addReconciliation, getSpentForCategory,
       getTotalCommitments, getTotalDayToDay, getBudgetBreakdown,
       getMonthSummary,
       reloadFromStorage, processRecurring, lastChangedAt,

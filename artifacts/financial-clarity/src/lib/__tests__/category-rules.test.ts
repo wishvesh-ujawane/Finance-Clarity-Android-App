@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  activeRecurringBlockMessage,
+  activeRecurringRulesIn,
   canDeactivateCategory,
   canDeleteCategory,
   describeCategoryDeleteBlock,
@@ -72,5 +74,25 @@ describe('category status rules', () => {
     const cats = [{ id: 'a', active: true }, { id: 'b', active: false }, { id: 'c' }];
     expect(selectableCategories(cats).map(c => c.id)).toEqual(['a', 'c']);
     expect(selectableCategories(cats, 'b').map(c => c.id)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('active recurring rules block inactivation (owner decision, PRD FR-03)', () => {
+  const rules = [
+    { categoryId: 'leisure', active: true, description: 'Gym' },
+    { categoryId: 'leisure', active: false, description: 'Paused club' },
+    { categoryId: 'rent', active: true, description: 'Rent' },
+  ];
+
+  it('lists only active rules in the category', () => {
+    expect(activeRecurringRulesIn('leisure', rules).map(r => r.description)).toEqual(['Gym']);
+    expect(activeRecurringRulesIn('dining', rules)).toEqual([]);
+  });
+
+  it('names the rules and says what to do', () => {
+    expect(activeRecurringBlockMessage([{ description: 'Gym' }])).toBe(
+      '1 active recurring expense (\u201cGym\u201d) uses this category. Pause it or move it to another category in Recurring first. Nothing was changed.',
+    );
+    expect(activeRecurringBlockMessage([{ description: 'Gym' }, { description: 'Pool' }])).toContain('2 active recurring expenses');
   });
 });

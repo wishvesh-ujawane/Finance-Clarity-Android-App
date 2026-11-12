@@ -88,7 +88,7 @@ export interface MonthReconciliation {
   month: string;
   /** User-entered actual bank balance at the end of `month`. */
   actualBalance: number;
-  /** App-computed expected balance via `getCumulativeNetBalanceThroughEndOf`. */
+  /** App-computed expected bank balance when reconciled (`getExpectedBankBalanceAtEndOf` since 2026-11-12). */
   expectedBalance: number;
   /** If the user chose to log the gap, this is the id of the adjustment txn. */
   adjustmentTxnId?: string;

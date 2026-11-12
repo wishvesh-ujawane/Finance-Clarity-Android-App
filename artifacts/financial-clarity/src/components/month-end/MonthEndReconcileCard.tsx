@@ -22,9 +22,11 @@ interface Props {
  * accurate.
  */
 export function MonthEndReconcileCard({ reviewMonth, onContinue, onBack, onSkip }: Props) {
-  const { getCumulativeNetBalanceThroughEndOf, getReconciliationFor, addReconciliation } = useFinance();
+  const { getExpectedBankBalanceAtEndOf, getOutstandingCardBalanceAtEndOf, getReconciliationFor, addReconciliation } = useFinance();
 
-  const expected = getCumulativeNetBalanceThroughEndOf(reviewMonth);
+  // Unpaid card purchases have not left the bank yet, so they are added back.
+  const expected = getExpectedBankBalanceAtEndOf(reviewMonth);
+  const unpaidCard = getOutstandingCardBalanceAtEndOf(reviewMonth);
   const existing = getReconciliationFor(reviewMonth);
   const [input, setInput] = useState(() =>
     existing ? String(existing.actualBalance) : '',
@@ -129,6 +131,11 @@ export function MonthEndReconcileCard({ reviewMonth, onContinue, onBack, onSkip 
               {formatINR(expected)}
             </span>
           </div>
+          {unpaidCard > 0 && (
+            <p className="pb-1 text-[11px] text-muted-foreground" data-testid="reconcile-card-note">
+              Includes {formatINR(unpaidCard)} of card purchases not yet paid from your bank.
+            </p>
+          )}
           <div className="flex items-center justify-between py-1.5 text-sm">
             <span className="text-muted-foreground">You said</span>
             <span className={cn('font-semibold', hasInput ? 'text-foreground' : 'text-muted-foreground/60')} data-testid="reconcile-actual">

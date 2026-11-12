@@ -47,6 +47,28 @@ describe('category status (PRD FR-03)', () => {
     expect(result.current.categories.find(c => c.id === 'other')?.active).toBe(true);
   });
 
+  it('refuses to make a category inactive while an active recurring expense uses it', () => {
+    const { result } = renderHook(() => useFinance(), { wrapper });
+    act(() => {
+      result.current.addRecurring({ description: 'Gym', amount: 900, categoryId: 'leisure', dayOfMonth: 5, active: true, startMonth: '2026-11' });
+    });
+    const before = localStorage.getItem(CAT_KEY);
+    let outcome: ReturnType<typeof result.current.setCategoryActive> | undefined;
+    act(() => { outcome = result.current.setCategoryActive('leisure', false); });
+    expect(outcome).toMatchObject({ ok: false });
+    expect(outcome && !outcome.ok ? outcome.message : '').toContain('\u201cGym\u201d');
+    expect(localStorage.getItem(CAT_KEY)).toBe(before);
+    expect(result.current.categories.find(c => c.id === 'leisure')?.active).toBe(true);
+    expect(result.current.recurringExpenses[0].active).toBe(true);
+
+    // Once the rule is paused, the category can be made inactive.
+    const ruleId = result.current.recurringExpenses[0].id;
+    act(() => { result.current.toggleRecurringActive(ruleId); });
+    act(() => { outcome = result.current.setCategoryActive('leisure', false); });
+    expect(outcome).toEqual({ ok: true });
+    expect(result.current.recurringExpenses[0].active).toBe(false);
+  });
+
   it('refuses new transactions, budgets, and recurring rules in an inactive category', () => {
     const { result } = renderWithInactiveLeisure();
     const before = localStorage.getItem(TX_KEY);

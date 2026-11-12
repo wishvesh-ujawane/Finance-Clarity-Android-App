@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { Dialog, DialogPortal, DialogOverlay } from '@/components/ui/dialog';
@@ -6,46 +6,63 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useMonthEndReview } from '@/context/MonthEndReviewContext';
+import { useFinance } from '@/context/FinanceContext';
 import { MonthEndAnalysisCard } from './MonthEndAnalysisCard';
+import { MonthEndCardBillCard } from './MonthEndCardBillCard';
 import { MonthEndReconcileCard } from './MonthEndReconcileCard';
 import { MonthEndBudgetCard } from './MonthEndBudgetCard';
 import { Confetti } from './Confetti';
 
-type Step = 1 | 2 | 3;
+type Step = 'look-back' | 'card-bill' | 'reconcile' | 'plan';
 
 const STEP_LABEL: Record<Step, string> = {
-  1: 'Look back',
-  2: 'Reconcile',
-  3: 'Plan ahead',
+  'look-back': 'Look back',
+  'card-bill': 'Card bill',
+  reconcile: 'Reconcile',
+  plan: 'Plan ahead',
 };
 
 /**
- * Three-step month-end review modal.
+ * Month-end review modal.
  *  1. Analysis of the just-ended month (top categories, impulse, savings)
- *  2. Reconcile the month-end balance against the user's real bank
- *  3. Category-by-category budget setup for the next month
+ *  2. Card bill — only when the card had an unpaid amount or a bill payment
+ *     that month: record how much of the bill was paid
+ *  3. Reconcile the month-end balance against the user's real bank
+ *  4. Category-by-category budget setup for the next month
  *
  * Skip / X → `useMonthEndReview.skip()` / `.dismiss()` — banner stays up.
  * Finish   → `useMonthEndReview.complete()` — banner hides for that month.
  */
 export function MonthEndReviewFlow() {
   const { isOpen, pendingMonth, skip, dismiss, complete } = useMonthEndReview();
-  const [step, setStep] = useState<Step>(1);
+  const { getOutstandingCardBalanceAtEndOf, getCardBillPaymentsIn } = useFinance();
+  const [step, setStep] = useState<Step>('look-back');
   const [confettiKey, setConfettiKey] = useState(0);
 
-  // Fire opening confetti and reset to step 1 every time the modal opens.
+  // Fire opening confetti and reset to the first step every time the modal opens.
   useEffect(() => {
     if (!isOpen) return;
-    setStep(1);
+    setStep('look-back');
     setConfettiKey(k => k + 1);
   }, [isOpen]);
 
+  const showCardBill = pendingMonth !== null && (
+    getOutstandingCardBalanceAtEndOf(pendingMonth) > 0 || getCardBillPaymentsIn(pendingMonth) > 0
+  );
+  const steps = useMemo<Step[]>(
+    () => (showCardBill ? ['look-back', 'card-bill', 'reconcile', 'plan'] : ['look-back', 'reconcile', 'plan']),
+    [showCardBill],
+  );
+
   if (!pendingMonth) return null;
 
-  const handleContinueToReconcile = () => setStep(2);
-  const handleContinueToPlan = () => setStep(3);
-  const handleBackToAnalysis = () => setStep(1);
-  const handleBackToReconcile = () => setStep(2);
+  const stepNumber = steps.indexOf(step) + 1;
+  const handleContinueFromLookBack = () => setStep(showCardBill ? 'card-bill' : 'reconcile');
+  const handleContinueToReconcile = () => setStep('reconcile');
+  const handleContinueToPlan = () => setStep('plan');
+  const handleBackToAnalysis = () => setStep('look-back');
+  const handleBackFromReconcile = () => setStep(showCardBill ? 'card-bill' : 'look-back');
+  const handleBackToReconcile = () => setStep('reconcile');
 
   const handleBudgetFinished = () => {
     // Fire finale confetti before closing.
@@ -55,16 +72,16 @@ export function MonthEndReviewFlow() {
     window.setTimeout(() => complete(), 300);
   };
 
-  // Any close initiated once the user has moved past the analysis step counts
-  // as "reviewed" so the banner stops re-prompting. Closing from step 1
-  // (before the user saw anything) still just dismisses. See Bug #3.
+  // Any close initiated once the user has reached planning counts as
+  // "reviewed" so the banner stops re-prompting. Closing earlier still just
+  // dismisses. See Bug #3.
   const closeFromStep = () => {
-    if (step === 3) complete();
+    if (step === 'plan') complete();
     else dismiss();
   };
 
   const skipFromStep = () => {
-    if (step === 3) complete();
+    if (step === 'plan') complete();
     else skip();
   };
 
@@ -96,11 +113,11 @@ export function MonthEndReviewFlow() {
                   Month-end review
                 </p>
                 <p className="text-sm font-semibold text-foreground">
-                  Step {step} of 3 · {STEP_LABEL[step]}
+                  Step {stepNumber} of {steps.length} · {STEP_LABEL[step]}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <StepDots current={step} />
+                <StepDots current={stepNumber} total={steps.length} />
                 <button
                   type="button"
                   onClick={closeFromStep}
@@ -118,28 +135,37 @@ export function MonthEndReviewFlow() {
               <AnimatePresence initial={false} mode="wait">
                 <motion.div
                   key={step}
-                  initial={{ opacity: 0, x: step === 1 ? -40 : 40 }}
+                  initial={{ opacity: 0, x: step === 'look-back' ? -40 : 40 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: step === 1 ? 40 : -40 }}
+                  exit={{ opacity: 0, x: step === 'look-back' ? 40 : -40 }}
                   transition={{ type: 'spring', stiffness: 320, damping: 32 }}
                   className="h-full"
                 >
-                  {step === 1 && (
+                  {step === 'look-back' && (
                     <div className="h-full overflow-y-auto px-4 py-4">
                       <MonthEndAnalysisCard month={pendingMonth} />
                     </div>
                   )}
-                  {step === 2 && (
+                  {step === 'card-bill' && (
+                    <div className="h-full px-4 py-4">
+                      <MonthEndCardBillCard
+                        reviewMonth={pendingMonth}
+                        onContinue={handleContinueToReconcile}
+                        onBack={handleBackToAnalysis}
+                      />
+                    </div>
+                  )}
+                  {step === 'reconcile' && (
                     <div className="h-full px-4 py-4">
                       <MonthEndReconcileCard
                         reviewMonth={pendingMonth}
                         onContinue={handleContinueToPlan}
-                        onBack={handleBackToAnalysis}
+                        onBack={handleBackFromReconcile}
                         onSkip={handleContinueToPlan}
                       />
                     </div>
                   )}
-                  {step === 3 && (
+                  {step === 'plan' && (
                     <div className="h-full px-4 py-4">
                       <MonthEndBudgetCard reviewMonth={pendingMonth} onFinished={handleBudgetFinished} />
                     </div>
@@ -148,8 +174,8 @@ export function MonthEndReviewFlow() {
               </AnimatePresence>
             </div>
 
-            {/* Footer only for step 1; steps 2 and 3 own their own controls. */}
-            {step === 1 && (
+            {/* Footer only for the first step; later steps own their own controls. */}
+            {step === 'look-back' && (
               <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
                 <Button
                   variant="ghost"
@@ -161,14 +187,14 @@ export function MonthEndReviewFlow() {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={handleContinueToReconcile}
+                  onClick={handleContinueFromLookBack}
                   data-testid="month-end-continue"
                 >
-                  Continue → Reconcile
+                  {showCardBill ? 'Continue → Card bill' : 'Continue → Reconcile'}
                 </Button>
               </div>
             )}
-            {step === 3 && (
+            {step === 'plan' && (
               <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
                 <Button
                   variant="ghost"
@@ -195,10 +221,10 @@ export function MonthEndReviewFlow() {
   );
 }
 
-function StepDots({ current }: { current: Step }) {
+function StepDots({ current, total }: { current: number; total: number }) {
   return (
     <div className="flex items-center gap-1" aria-hidden="true">
-      {[1, 2, 3].map(n => (
+      {Array.from({ length: total }, (_, i) => i + 1).map(n => (
         <span
           key={n}
           className={cn(
