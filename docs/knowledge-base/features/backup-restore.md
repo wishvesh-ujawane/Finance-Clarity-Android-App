@@ -64,7 +64,7 @@ connection state.
   showing a diff summary; user must confirm before the payload overwrites
   local storage.
 - **Connect Drive** — banner CTA initiates the OAuth / Capacitor flow.
-- **CSV export** — writes Date, Category, Amount, Note, Type. Cells starting
+- **CSV export** — writes Date, Category, Amount, Note, Type and Savings correction. Cells starting
   with `=`, `+`, `-`, `@`, tab, or carriage return get a leading `'` so
   spreadsheets do not run them as formulas.
 - **CSV import** — parses the file, skips invalid rows (impossible dates,
@@ -74,16 +74,17 @@ connection state.
   Nothing is written until the user confirms. Expense rows match an existing
   savings, commitment, expense, or "both" category by name (in that order),
   so a round-trip keeps savings as savings. Files over 5 MB are refused.
-  CSV holds transactions only and is not a full backup.
+  Savings-correction rows are reported as invalid rather than imported as
+  ordinary transactions. CSV is not a full backup.
 
 ## Edge cases
 - Hash mismatch: restore is blocked and an error surfaces in the preview
   dialog.
 - Restoring an older payload may downgrade or invalidate
   [security.md](./security.md) PIN state — flagged to the user.
-- Backup schema is v5 (ADR 0006): categories carry `active`, budgets always
-  have a month. v1–v4 files migrate forward; v6 or newer is refused with
-  "Update the app". `appVersion` comes from the build version.
+- Backup schema is v6 (ADR 0008): confirmed savings corrections retain their
+  transaction metadata. v1–v5 files migrate forward; v7 or newer is refused
+  with "Update the app". `appVersion` comes from the build version.
 - Restore writes every key through `writeStorageEntries` and returns a typed
   failure; on failure every key is rolled back and the app does not reload.
 - If local storage can't be read, no backup is built (it would be empty).

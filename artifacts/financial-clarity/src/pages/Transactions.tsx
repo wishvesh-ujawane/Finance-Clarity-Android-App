@@ -9,6 +9,9 @@ import { formatDateLabel, formatAmount, localDateStr } from '@/lib/finance-utils
 import { buildTransactionsCsv, exportCsvFile } from '@/lib/csv';
 import { isCategoryActive } from '@/lib/category-rules';
 import { sumConsumption, sumIncome } from '@/lib/domain/finance-metrics';
+import type { Transaction } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 type RangePreset = 'current' | 'last1' | 'last3' | 'custom';
 
@@ -51,7 +54,7 @@ function formatPeriodLabel(preset: RangePreset, from: string, to: string): strin
 }
 
 export default function Transactions() {
-  const { transactions, categories, openEditSheet, openSheet } = useFinance();
+  const { transactions, categories, openEditSheet, openSheet, deleteTransaction } = useFinance();
 
   useDefaultFabMenu();
 
@@ -66,6 +69,8 @@ export default function Transactions() {
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [exportError, setExportError] = useState('');
+  const [correctionToDelete, setCorrectionToDelete] = useState<Transaction | null>(null);
+  const [deleteError, setDeleteError] = useState('');
 
   const { from: effectiveFrom, to: effectiveTo } = useMemo(
     () => getPresetRange(preset, customFrom, customTo),
@@ -128,8 +133,35 @@ export default function Transactions() {
     }
   }, [transactions, categories, effectiveFrom, effectiveTo, preset]);
 
+  const removeCorrection = () => {
+    if (!correctionToDelete) return;
+    const result = deleteTransaction(correctionToDelete.id);
+    if (!result.ok) {
+      setDeleteError(result.message);
+      return;
+    }
+    setDeleteError('');
+    setCorrectionToDelete(null);
+  };
+
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-8">
+      <AlertDialog open={correctionToDelete !== null} onOpenChange={open => { if (!open) { setCorrectionToDelete(null); setDeleteError(''); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove savings correction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove {correctionToDelete ? formatAmount(correctionToDelete.amount) : ''} of savings correction?
+              Savings, bank, and lifetime calculations will change. Earlier reconciliation records and bank adjustments stay unchanged.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && <p role="alert" className="text-sm text-destructive">{deleteError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button variant="destructive" onClick={removeCorrection} data-testid="confirm-delete-savings-correction">Remove correction</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="flex items-start justify-between mb-6">
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">History</p>
@@ -314,16 +346,16 @@ export default function Transactions() {
                     return (
                       <div
                         key={t.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => openEditSheet(t)}
+                        role={t.savingsCorrection ? undefined : 'button'}
+                        tabIndex={t.savingsCorrection ? undefined : 0}
+                        onClick={() => { if (!t.savingsCorrection) openEditSheet(t); }}
                         onKeyDown={e => {
-                          if (e.key === 'Enter' || e.key === ' ') {
+                          if (!t.savingsCorrection && (e.key === 'Enter' || e.key === ' ')) {
                             e.preventDefault();
                             openEditSheet(t);
                           }
                         }}
-                        className="group flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer"
+                        className={cn('group flex items-center gap-3 px-4 py-3', !t.savingsCorrection && 'hover:bg-muted/40 transition-colors cursor-pointer')}
                         data-testid={`txn-${t.id}`}
                       >
                         <div
@@ -345,6 +377,12 @@ export default function Transactions() {
                           <span className={cn('text-sm font-bold', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
                             {t.type === 'income' ? '+' : '-'}{formatAmount(t.amount)}
                           </span>
+                          {t.savingsCorrection && (
+                            <Button variant="ghost" size="sm" onClick={() => { setDeleteError(''); setCorrectionToDelete(t); }}
+                              aria-label="Remove savings correction" data-testid={`delete-savings-correction-${t.id}`}>
+                              Remove
+                            </Button>
+                          )}
                         </div>
                       </div>
                     );

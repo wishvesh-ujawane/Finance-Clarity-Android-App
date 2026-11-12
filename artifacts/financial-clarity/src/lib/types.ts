@@ -18,6 +18,8 @@ export interface Transaction {
   sourceSmsFingerprint?: string;
   /** Optional merchant / payee retained with legacy transactions. */
   merchant?: string;
+  /** Confirmed change to the combined savings balance during reconciliation. */
+  savingsCorrection?: 'increase' | 'spent' | 'transfer';
 }
 
 export interface Category {
@@ -52,6 +54,7 @@ export const SAVINGS_CATEGORY_IDS = ['savings-goal', 'savings-emergency'] as con
 export const SYSTEM_ADJUSTMENT_CATEGORY_IDS = [
   '_adjustment-missed-spend',
   '_adjustment-overlogged',
+  '_adjustment-savings',
 ] as const;
 
 export interface Budget {

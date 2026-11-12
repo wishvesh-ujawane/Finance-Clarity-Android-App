@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { addMonths, formatINR, formatMonthYear } from '@/lib/finance-utils';
 import { parseCurrencyInput } from '@/lib/currency-utils';
 import { useFinance } from '@/context/FinanceContext';
-import { Category } from '@/lib/types';
+import { SYSTEM_ADJUSTMENT_CATEGORY_IDS, type Category } from '@/lib/types';
 import { suggestBudgetForCategory } from '@/lib/month-end-review';
 import { isCategoryActive } from '@/lib/category-rules';
 
@@ -31,6 +31,7 @@ const CATEGORY_TYPE_ORDER: Record<Category['type'], number> = {
   savings: 3,
   income: 99,
 };
+const SYSTEM_CATEGORY_IDS: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
 
 export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
   const { transactions, categories, budgets, addBudget, getTotalIncome } = useFinance();
@@ -40,6 +41,7 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
     // Inactive categories are not offered for new budgets (PRD FR-03); one
     // that already has a next-month budget stays so its limit can be edited.
     const budgetableCats = categories
+      .filter(c => !SYSTEM_CATEGORY_IDS.has(c.id))
       .filter(c => c.type === 'expense' || c.type === 'commitment' || c.type === 'both' || c.type === 'savings')
       .filter(c => isCategoryActive(c) || budgets.some(b => b.categoryId === c.id && b.month === nextMonth))
       .slice()

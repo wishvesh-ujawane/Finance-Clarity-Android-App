@@ -105,3 +105,86 @@ test('[MER-002] a failed budget save in month-end planning shows an error and ke
   expect(budgets).toHaveLength(1);
   expect(budgets[0].limit).toBe(2500);
 });
+
+test('[MER-003] savings are excluded from the bank and only the confirmed difference changes lifetime balance', async ({ page }) => {
+    await page.route(/^https:\/\/(apis\.google\.com|accounts\.google\.com|www\.gstatic\.com)\//, route => route.abort());
+    await page.addInitScript(() => {
+      if (sessionStorage.getItem('e2e:seeded')) return;
+      sessionStorage.setItem('e2e:seeded', '1');
+      const now = new Date();
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const month = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+      localStorage.setItem('financial-clarity:first-run-done', '1');
+      localStorage.setItem('financial-clarity:transactions', JSON.stringify([
+        { id: 'income', type: 'income', amount: 200000, categoryId: 'salary', note: '', date: `${month}-01` },
+        { id: 'goal', type: 'expense', amount: 100000, categoryId: 'savings-goal', note: '', date: `${month}-02` },
+        { id: 'emergency', type: 'expense', amount: 30000, categoryId: 'savings-emergency', note: '', date: `${month}-03` },
+      ]));
+    });
+    await page.goto('/');
+    await page.getByTestId('month-end-continue').click();
+    await expect(page.getByTestId('reconcile-expected')).toContainText('70,000');
+    await page.getByTestId('reconcile-actual-input').fill('70000');
+    await page.getByTestId('reconcile-savings-input').fill('135000');
+    await expect(page.getByTestId('reconcile-savings-difference')).toContainText('5,000');
+    await page.getByTestId('reconcile-mark-done').click();
+    await expect(page.getByTestId('reconcile-continue')).toBeVisible();
+    const corrections = await page.evaluate(() => {
+      const txns = JSON.parse(localStorage.getItem('financial-clarity:transactions') ?? '[]') as Array<Record<string, unknown>>;
+      return txns.filter(tx => tx.savingsCorrection);
+    });
+    expect(corrections).toHaveLength(1);
+    expect(corrections[0]).toMatchObject({ amount: 5000, savingsCorrection: 'increase' });
+    await page.getByTestId('month-end-close').click();
+    await page.goto('/transactions');
+    await page.getByRole('button', { name: 'Last Month', exact: true }).click();
+    await page.getByTestId(`delete-savings-correction-${String(corrections[0].id)}`).click();
+    await expect(page.getByRole('alertdialog')).toContainText('reconciliation records and bank adjustments stay unchanged');
+    await page.getByTestId('confirm-delete-savings-correction').click();
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    const remaining = await page.evaluate(() => {
+      const txns = JSON.parse(localStorage.getItem('financial-clarity:transactions') ?? '[]') as Array<Record<string, unknown>>;
+      return txns.filter(tx => tx.savingsCorrection);
+    });
+    expect(remaining).toHaveLength(0);
+  });
+
+  test('[MER-004] lower savings needs a reason and a failed save keeps both amounts', async ({ page }) => {
+    await page.route(/^https:\/\/(apis\.google\.com|accounts\.google\.com|www\.gstatic\.com)\//, route => route.abort());
+    await page.addInitScript(() => {
+      if (sessionStorage.getItem('e2e:seeded')) return;
+      sessionStorage.setItem('e2e:seeded', '1');
+      const now = new Date();
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const month = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+      localStorage.setItem('financial-clarity:first-run-done', '1');
+      localStorage.setItem('financial-clarity:transactions', JSON.stringify([
+        { id: 'income', type: 'income', amount: 100000, categoryId: 'salary', note: '', date: `${month}-01` },
+        { id: 'saving', type: 'expense', amount: 30000, categoryId: 'savings-goal', note: '', date: `${month}-02` },
+      ]));
+    });
+    await page.goto('/');
+    await page.getByTestId('month-end-continue').click();
+    await page.getByTestId('reconcile-actual-input').fill('75000');
+    await page.getByTestId('reconcile-savings-input').fill('25000');
+    await expect(page.getByTestId('reconcile-mark-done')).toHaveCount(0);
+    await page.getByLabel('Transferred back to the bank').check();
+    await expect(page.getByTestId('reconcile-expected')).toContainText('75,000');
+    await page.evaluate(() => {
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'financial-clarity:reconciliations' && sessionStorage.getItem('e2e:fail-reconcile')) {
+          throw new DOMException('Simulated full storage', 'QuotaExceededError');
+        }
+        return original.call(this, key, value);
+      };
+      sessionStorage.setItem('e2e:fail-reconcile', '1');
+    });
+    await page.getByTestId('reconcile-mark-done').click();
+    await expect(page.getByTestId('reconcile-save-error')).toContainText('storage is full');
+    await expect(page.getByTestId('reconcile-actual-input')).toHaveValue('75000');
+    await expect(page.getByTestId('reconcile-savings-input')).toHaveValue('25000');
+    await page.evaluate(() => sessionStorage.removeItem('e2e:fail-reconcile'));
+    await page.getByTestId('reconcile-mark-done').click();
+    await expect(page.getByTestId('reconcile-continue')).toBeVisible();
+  });

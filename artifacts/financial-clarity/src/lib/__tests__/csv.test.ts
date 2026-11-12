@@ -51,6 +51,14 @@ describe('buildTransactionsCsv', () => {
     expect(invalidRows).toEqual([]);
     expect(rows.map(row => row.note).sort()).toEqual([...notes].sort());
   });
+
+  it('reports savings corrections instead of importing them as ordinary transactions', () => {
+    const correction = txn({ id: 'correction', type: 'income', amount: 5000, categoryId: '_adjustment-savings', savingsCorrection: 'increase' });
+    const csv = buildTransactionsCsv([correction], categories);
+    const result = parseTransactionsCsv(csv);
+    expect(result.rows).toEqual([]);
+    expect(result.invalidRows).toEqual([{ line: 2, reason: 'savings corrections require a full backup' }]);
+  });
 });
 
 describe('parseTransactionsCsv', () => {

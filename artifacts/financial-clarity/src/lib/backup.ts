@@ -21,7 +21,7 @@ import {
   isValidTransaction,
 } from './storage/schemas';
 
-export const BACKUP_VERSION = 5;
+export const BACKUP_VERSION = 6;
 
 export interface BackupCounts {
   transactions: number;
@@ -121,6 +121,14 @@ export const migrations: Record<number, (b: BackupFile) => BackupFile> = {
       data: { ...b.data, categories: categories as Category[], budgets: budgets as Budget[] },
       counts: { ...b.counts, budgets: Array.isArray(budgets) ? budgets.length : b.counts?.budgets },
     };
+  },
+  // v5 -> v6: transactions may carry savings-reconciliation metadata.
+  5: (b) => {
+    if ((Array.isArray(b.data?.categories) && b.data.categories.some(c => c?.id === '_adjustment-savings')) ||
+      (Array.isArray(b.data?.transactions) && b.data.transactions.some(t => t?.categoryId === '_adjustment-savings'))) {
+      throw new Error('Reserved savings correction category already in use');
+    }
+    return { ...b, schemaVersion: 6 };
   },
 };
 

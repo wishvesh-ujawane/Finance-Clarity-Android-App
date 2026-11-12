@@ -263,11 +263,11 @@ Storage keys are frozen. The full catalogue is in DATABASE §3.
 | `transferBudgetsToMonth` | `fromMonth`, `toMonth` | `{ ok: true, count }` | As above. Copies limits only; it never moves money (PRD §6) |
 | `addRecurring` / `updateRecurring` / `deleteRecurring` / `toggleRecurringActive` | A rule or `id` | `{ ok: true }` | As above. The cursor never moves back |
 | `setSavingsGoal` | Both buckets | `{ ok: true }` | As above |
-| `addReconciliation` | `month`, `actualBalance`, `expectedBalance`, optional `adjustmentAmount` and `note` | `{ ok: true, record }` | As above |
+| `addReconciliation` | `month`, bank `actualBalance`, `expectedBalance`, optional `adjustmentAmount`, `note`, and combined `savings` actual balance and decrease reason | `{ ok: true, record }` | As above; validates stale figures and commits corrections and record together |
 | `reloadFromStorage` | — (used after a restore) | State is re-read | If storage can't be read, state is unchanged and `storageError` is set |
 | `processRecurring` | — (called by `App.tsx` after unlock and on resume) | `{ ok: true, count }` — occurrences added | `{ ok: false, message }` and `storageError`; nothing is saved and cursors do not move |
 
-**Read API (selectors).** `getMonthSummary`, `getTotalIncome`, `getTotalExpenses`, `getTotalSavings`, `getTotalCommitments`, `getTotalDayToDay`, `getCarryForward`, `getNetBalanceToDate`, `getCumulativeNetBalanceThroughEndOf`, `getOutstandingCardBalance`, `getBudgetBreakdown`, `getSpentForCategory`, and `getReconciliationFor`. Each PRD §6 metric has **exactly one** implementation. Pages never re-sum transactions.
+**Read API (selectors).** `getMonthSummary`, `getTotalIncome`, `getTotalExpenses`, `getTotalSavings`, `getTotalCommitments`, `getTotalDayToDay`, `getCarryForward`, `getNetBalanceToDate`, `getCumulativeNetBalanceThroughEndOf`, `getOutstandingCardBalance`, `getExpectedBankBalanceAtEndOf`, `getSavingsBalanceAtEndOf`, `getBudgetBreakdown`, `getSpentForCategory`, and `getReconciliationFor`. Each PRD §6 metric has **exactly one** implementation. Pages never re-sum transactions.
 
 **Signals.** `lastChangedAt` is bumped on every mutation and drives the auto-backup debounce. `storageError` is set when a background save fails (for example during recurring generation).
 
@@ -377,7 +377,7 @@ These values are private to the app and limited to 124 bytes per key and value i
 
 | Key | Value |
 |---|---|
-| `schemaVersion` | Backup schema version, for example `5` |
+| `schemaVersion` | Backup schema version, for example `6` |
 | `appVersion` | App version string |
 | `exportedAt` | ISO-8601 UTC time |
 | `devicePlatform`, `deviceModel` | Platform and a shortened user-agent string |
@@ -408,7 +408,7 @@ Drive error bodies contain `error.code`, `error.message`, and `error.errors[0].r
 
 | Field | Type | Rule |
 |---|---|---|
-| `schemaVersion` | int | Currently `5` (v5 adds `categories.active` and a required budget `month`, ADR 0006). If it is newer than supported, refuse with `backup.newer_version` |
+| `schemaVersion` | int | Currently `6` (v6 adds savings-correction transaction metadata, ADR 0008). If it is newer than supported, refuse with `backup.newer_version` |
 | `appVersion` | string | The app's build version (`package.json` → Vite `__APP_VERSION__`) since 2026-11-12. Older backups say `1.0.0` |
 | `exportedAt` | ISO-8601 UTC | — |
 | `device` | `{ platform, model?, osVersion? }` | Not used for any decision |
@@ -420,7 +420,7 @@ Drive error bodies contain `error.code`, `error.message`, and `error.errors[0].r
 | `data.savingsGoal` | Object or `null` | `isValidSavingsGoal` |
 | `data.sms` | Legacy block | Must be present and well formed. It **never** reactivates SMS features |
 
-Versioning follows DATABASE §10.2: v1 → v2 → v3 → v4 step by step, and a planned v4 → v5. The data-block hash is SHA-256 of the serialized `data` block, ignoring `exportedAt`. Auto-backup uses it to skip unchanged data.
+Versioning follows DATABASE §10.2: v1 → v2 → v3 → v4 → v5 → v6 step by step. The data-block hash is SHA-256 of the serialized `data` block, ignoring `exportedAt`. Auto-backup uses it to skip unchanged data.
 
 **Excluded from backups** (this is disclosed to users): reconciliations, review state, onboarding, lock settings, the Google session, backup preferences, caches, and quarantine keys.
 
@@ -453,10 +453,11 @@ Versioning follows DATABASE §10.2: v1 → v2 → v3 → v4 step by step, and a 
 
 | Aspect | Contract |
 |---|---|
-| Columns | `Date, Category, Amount, Note, Type`. On import, header names are matched without regard to case. `Note` is optional |
+| Columns | `Date, Category, Amount, Note, Type, Savings correction`. On import, header names are matched without regard to case. `Note` and `Savings correction` are optional |
 | Export cell encoding | Every cell is quoted, and `"` becomes `""`. Cells starting with `=`, `+`, `-`, `@`, tab, or carriage return get a `'` prefix |
 | Import unguarding | A leading `'` before a formula trigger is removed, so a round trip keeps the original text |
 | Import limits | 5 MB file maximum. `Amount` must match `^\d+(\.\d+)?$` and be greater than 0. `Date` must be a valid `YYYY-MM-DD` date. `Type` must be `income` or `expense` |
+| Savings corrections | Exported with their correction kind; import reports those rows as invalid and directs the user to a full backup rather than treating them as ordinary transactions |
 | Duplicate rule | Same date, type, amount (2 decimal places), category, and note. Repeat counts are respected |
 | New categories | Created only for rows that are actually imported, in the same all-or-nothing commit |
 | Report | Imported, duplicate, and invalid counts. Invalid rows are listed by line number |

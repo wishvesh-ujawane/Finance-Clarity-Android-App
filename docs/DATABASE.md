@@ -110,6 +110,7 @@ This table records income, spending, and savings contributions. A **savings cont
 | `note` | string | No (may be `""`) | Free text. Searchable |
 | `paymentMethod` | `enum<cash, bank, credit-card, credit-card-payment>` | Yes | If absent, the entry is treated as consumption (legacy rows). `credit-card-payment` is a bill payment and is **excluded** from consumption (PRD §6). Rules about which payment methods are allowed with which transaction type are **deferred** for later planning |
 | `merchant` | string | Yes | Optional payee (PRD §9). Existing values came from legacy SMS import |
+| `savingsCorrection` | `enum<increase, spent, transfer>` | Yes | Confirmed combined-savings correction. Reserved for `_adjustment-savings`; `increase` uses income direction, `spent` and `transfer` use expense direction. Not ordinary income, consumption, or contribution |
 | `recurringRuleId` | `id` | Yes | Provenance link to `recurring_rules.id`. Set only by recurring generation |
 | `recurringMonth` | `month` | Yes | The occurrence month this generated entry represents. Both occurrence fields are present together or absent together |
 | `sourceSmsFingerprint` | string | Yes | **Legacy, read-only.** Never written by new code, never shown in the UI, never exported to CSV |
@@ -132,6 +133,7 @@ This table records income, spending, and savings contributions. A **savings cont
 | `savings-goal`, `savings-emergency` | `savings` | Savings contribution buckets (PRD FR-06) |
 | `other`, `other-income` | `expense`, `income` | Neutral catch-all categories |
 | `_adjustment-missed-spend`, `_adjustment-overlogged` | `expense`, `income` | Month-end reconciliation adjustments. Hidden from every picker |
+| `_adjustment-savings` | `both` | Combined savings correction. Hidden from pickers and not attributed to either savings bucket |
 
 ### 4.3 `budgets` — monthly category limits
 
@@ -182,7 +184,9 @@ Arbitrary named goals, withdrawals, independent balances, and target dates are *
 | `adjustmentTxnId` | `id` | Yes | **Soft FK → `transactions.id`**. The adjustment entry, if one was logged |
 | `reconciledAt` | `epoch_ms` | No | When the user confirmed |
 
-`expectedBalance` is a deliberate **point-in-time snapshot**, not duplicated derived data. It records what the user saw when they reconciled. Since 2026-11-12 (D8) it is the expected **bank** balance: the balance through the month plus the card amount still unpaid at month end. Older records keep the value they were saved with. Repeat-reconciliation and adjustment-duplication behavior remain **pending review (D8)**. This document does not change them.
+`expectedBalance` is a deliberate **point-in-time snapshot**, not duplicated derived data. It records what the user saw when they reconciled. The expected **bank** balance is lifetime-style balance through month end minus tracked combined savings plus the card amount still unpaid. The savings estimate includes contributions and confirmed savings corrections through the month. Older records and their adjustment transactions keep their saved values. A repeated savings reconciliation records only a newly confirmed difference; the existing bank-adjustment repeat behavior remains pending review (D8).
+
+The actual savings balance is not stored separately. A confirmed difference is stored as a dated `_adjustment-savings` transaction. An increase raises tracked savings and lifetime balance; spent or lost reduces both; a transfer to bank reduces savings and raises expected bank cash without changing lifetime balance. These entries are backed up as transactions, are not attributed to either savings bucket, and are not edited as ordinary transactions. They can be removed from Transactions after an explicit warning; existing reconciliation snapshots and bank adjustments remain unchanged. If the bank gap is not confirmed, it remains unresolved.
 
 A month-end **card bill payment** is an ordinary `transactions` row: `type = expense`, `paymentMethod = credit-card-payment`, `categoryId = other`, note "Card bill payment", dated the reviewed month's last day. No new field, key, or schema version is needed; it is excluded from consumption (PRD §6) and lowers the outstanding card amount.
 
@@ -232,7 +236,7 @@ The key exists only while a PIN is enabled.
 | `app_flags.onboarding-complete` | `"<reason>:<epoch_ms>"` or `"migrated:<reason>"` | Present means onboarding is complete |
 | `app_flags.first-run-done` | Legacy string | Read once to migrate older users, then ignored |
 | `app_flags.connect-drive-banner-dismissed` | `epoch_ms` string | Dashboard nudge has been dismissed |
-| `storage_meta` | `storage-version`: `int` | Highest local migration that has been applied (§10.1). Currently `2` after the first launch of a build with migrations 1 and 2 |
+| `storage_meta` | `storage-version`: `int` | Highest local migration that has been applied (§10.1). Currently `3` |
 | `legacy_sms` | Existing shapes, unchanged | **Read-only.** Carried in backups for compatibility. It never reactivates SMS features, and it is never silently deleted (PRD FR-10) |
 | `quarantine` | Raw text | Original text of a key or record that failed validation. It is never overwritten by normal writes |
 
@@ -497,6 +501,7 @@ Migrations (registered in `src/lib/storage/local-migrations.ts`, ADR 0006):
 |---|---|---|
 | 1 | Add `active: true` to every category that has no `active` value, so existing categories stay usable | Approved change (PRD FR-03, §9) |
 | 2 | Make `budgets.month` required. A legacy budget without a month gets the current month, which matches today's behavior when the data loads. If this creates a duplicate (`categoryId`, `month`), keep the row that already had a month and **quarantine** the other one. Never drop it silently | MVP-cleanup |
+| 3 | Reserve the savings correction category and metadata. Refuse migration if an older category or transaction already uses the reserved ID; do not overwrite it | Owner-approved savings reconciliation |
 
 These changes need **no migration**, because the fields are optional and a missing value means the default: `transactions.recurringRuleId` and `recurringMonth`, `security_settings.failedAttempts` and `cooldownUntil`, and ignoring `backup_preferences.signedInEmail`.
 
@@ -513,6 +518,7 @@ These existing migrations that run when data loads stay as they are:
 | 2 → 3 | Legacy SMS block added. Older backups get an empty block (Existing) |
 | **3 → 4** | Add optional `transactions.recurringRuleId` and `recurringMonth` as a paired occurrence identity. Existing v3 transactions remain valid without either field |
 | **4 → 5** | Add `categories.active`, defaulting missing values to `true`, and normalize month-less budgets as described by local migration 2. Implemented 2026-11-12 (ADR 0006); a month-less budget that collides is left out of the restore, and the Drive file keeps it |
+| **5 → 6** | Reserve the savings correction category and optional transaction metadata. Existing transactions remain unchanged; refuse an old backup that already uses the reserved ID (ADR 0008) |
 
 - A backup with a **newer** schema version is refused with an "update the app" message.
 - Older backups are migrated forward step by step, then validated with the same entity schemas.
@@ -549,7 +555,7 @@ These existing migrations that run when data loads stay as they are:
 | Path | Covers | Notes |
 |---|---|---|
 | **Google Drive backup** (optional) | `transactions`, `categories`, `budgets`, `recurring_rules`, `savings_targets`, and the legacy SMS block | Manual or automatic. Stored in the user's own Drive |
-| CSV export and import | Transactions only | **Not a complete backup.** The UI says so |
+| CSV export and import | Transactions only | **Not a complete backup.** Savings-correction rows are identified in exports and reported as invalid on import; restore them through a full backup |
 | Quarantine keys | Raw text of records that failed validation | Lets the data be recovered by hand. Never overwritten |
 | Android system backup | **None** (`allowBackup=false`) | Onboarding and the Backup screen say so |
 

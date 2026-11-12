@@ -45,16 +45,20 @@ original two-step version and remain accurate for Look back and Plan ahead.
    category `other`, note "Card bill payment", dated the month's last day
    (`FinanceContext.recordCardBillPayment`). It is not spending; it lowers
    the Dashboard card amount.
-3. **Reconcile** — compares the user's bank balance with the **expected bank
-   balance**: balance through the month plus the card amount still unpaid
-   then (`getExpectedBankBalanceAtEndOf`). A note shows the unpaid card part.
+3. **Reconcile** — compares bank cash with the balance through the month
+   minus tracked savings plus the unpaid card amount. The user enters the
+   actual combined savings and emergency-fund balance; only the confirmed
+   difference is recorded. A lower amount is classified as spent or lost,
+   or transferred back to bank. Bank-gap adjustments are separately
+   confirmed. Earlier records and transactions are not silently changed.
 4. **Plan ahead** — unchanged, except a failed budget save now shows an
    error, keeps the value, and stays on the category.
 
 Tests: [month-end-review.test.ts](../../../artifacts/financial-clarity/src/lib/__tests__/month-end-review.test.ts),
 [card-bill-payment.test.tsx](../../../artifacts/financial-clarity/src/context/__tests__/card-bill-payment.test.tsx),
-e2e MER-001 and MER-002 in [month-end.pw.ts](../../../artifacts/financial-clarity/e2e/month-end.pw.ts).
-Repeat reconciliation and adjustment duplication are still pending review.
+e2e MER-001 through MER-004 in [month-end.pw.ts](../../../artifacts/financial-clarity/e2e/month-end.pw.ts),
+and [savings-reconciliation.test.tsx](../../../artifacts/financial-clarity/src/context/__tests__/savings-reconciliation.test.tsx).
+Repeated savings reconciliation records no duplicate when the total is unchanged; existing bank-adjustment repeat behavior remains pending review.
 
 ## User-visible behavior
 A once-per-month, two-step guided modal that helps the user reflect on the

@@ -80,11 +80,11 @@ describe('registered migrations', () => {
 
   it('run once, write the version last, and do nothing on the next launch', () => {
     localStorage.setItem(CAT_KEY, '[{"id":"a","name":"A","icon":"X","color":"#000000","type":"expense"}]');
-    expect(runLocalMigrations(LOCAL_MIGRATIONS)).toMatchObject({ ok: true, version: 2, applied: [1, 2] });
-    expect(localStorage.getItem(STORAGE_KEYS.storageVersion)).toBe('2');
+    expect(runLocalMigrations(LOCAL_MIGRATIONS)).toMatchObject({ ok: true, version: 3, applied: [1, 2, 3] });
+    expect(localStorage.getItem(STORAGE_KEYS.storageVersion)).toBe('3');
 
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
-    expect(runLocalMigrations(LOCAL_MIGRATIONS)).toEqual({ ok: true, version: 2, applied: [] });
+    expect(runLocalMigrations(LOCAL_MIGRATIONS)).toEqual({ ok: true, version: 3, applied: [] });
     expect(setItem).not.toHaveBeenCalled();
   });
 
@@ -99,5 +99,14 @@ describe('registered migrations', () => {
 
     expect(runLocalMigrations(LOCAL_MIGRATIONS)).toEqual({ ok: false, error: 'quota', version: 0 });
     expect(localStorage.getItem(CAT_KEY)).toBe(raw);
+  });
+
+  it('refuses to reuse a savings correction category already present in older data', () => {
+    localStorage.setItem(STORAGE_KEYS.storageVersion, '2');
+    const categories = '[{"id":"_adjustment-savings","name":"Existing"}]';
+    localStorage.setItem(CAT_KEY, categories);
+    expect(runLocalMigrations(LOCAL_MIGRATIONS)).toEqual({ ok: false, error: 'migration-failed', version: 2 });
+    expect(localStorage.getItem(CAT_KEY)).toBe(categories);
+    expect(localStorage.getItem(STORAGE_KEYS.storageVersion)).toBe('2');
   });
 });

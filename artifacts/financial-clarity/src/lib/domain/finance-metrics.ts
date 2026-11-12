@@ -9,9 +9,10 @@ import { isBeforeMonth, isInMonth, monthOf } from './periods';
 
 export type MetricTransaction = Pick<Transaction, 'type' | 'amount' | 'categoryId' | 'date'> & {
   paymentMethod?: string;
+  savingsCorrection?: Transaction['savingsCorrection'];
 };
 
-type Classifiable = Pick<MetricTransaction, 'type' | 'categoryId' | 'paymentMethod'>;
+type Classifiable = Pick<MetricTransaction, 'type' | 'categoryId' | 'paymentMethod' | 'savingsCorrection'>;
 
 /** Limits a month total to entries dated on or before `through` (`YYYY-MM-DD`, inclusive). */
 export interface MonthScope {
@@ -24,8 +25,8 @@ export function isSavingsCategory(categoryId: string): boolean {
   return SAVINGS_CATEGORY_ID_SET.has(categoryId);
 }
 
-export function isIncome(tx: Pick<MetricTransaction, 'type'>): boolean {
-  return tx.type === 'income';
+export function isIncome(tx: Pick<MetricTransaction, 'type' | 'savingsCorrection'>): boolean {
+  return tx.type === 'income' && tx.savingsCorrection === undefined;
 }
 
 /**
@@ -36,13 +37,14 @@ export function isIncome(tx: Pick<MetricTransaction, 'type'>): boolean {
  */
 export function isConsumptionExpense(tx: Classifiable): boolean {
   if (tx.type !== 'expense') return false;
+  if (tx.savingsCorrection !== undefined) return false;
   if (tx.paymentMethod === 'credit-card-payment') return false;
   return !isSavingsCategory(tx.categoryId);
 }
 
 /** Savings contribution: an expense entry in a reserved savings category. */
 export function isSavingsContribution(tx: Classifiable): boolean {
-  return tx.type === 'expense' && isSavingsCategory(tx.categoryId);
+  return tx.type === 'expense' && tx.savingsCorrection === undefined && isSavingsCategory(tx.categoryId);
 }
 
 export function commitmentCategoryIds(categories: ReadonlyArray<Pick<Category, 'id' | 'type'>>): Set<string> {
@@ -115,30 +117,43 @@ export function monthlyNet(transactions: readonly MetricTransaction[], month: st
   );
 }
 
-/** Income minus consumption over the included entries. Savings stay in the balance (PRD §6). */
+/** Income minus consumption, adjusted by confirmed changes to held savings. */
 function cumulativeBalance(transactions: readonly MetricTransaction[], include: (tx: MetricTransaction) => boolean): number {
   let balance = 0;
   for (const tx of transactions) {
     if (!include(tx)) continue;
-    if (isIncome(tx)) balance += tx.amount;
+    if (tx.savingsCorrection === 'increase') balance += tx.amount;
+    else if (tx.savingsCorrection === 'spent') balance -= tx.amount;
+    else if (isIncome(tx)) balance += tx.amount;
     else if (isConsumptionExpense(tx)) balance -= tx.amount;
   }
   return balance;
 }
 
-/** Carry-forward: cumulative income minus consumption before `month`. */
+/** Carry-forward: lifetime-style balance before `month`. */
 export function carryForward(transactions: readonly MetricTransaction[], month: string): number {
   return cumulativeBalance(transactions, tx => isBeforeMonth(tx.date, month));
 }
 
-/** Lifetime balance: cumulative income minus consumption through `today` (future-dated entries excluded). */
+/** Lifetime balance through `today` (future-dated entries excluded). */
 export function lifetimeBalance(transactions: readonly MetricTransaction[], today: string): number {
   return cumulativeBalance(transactions, tx => tx.date <= today);
 }
 
-/** Cumulative income minus consumption through the last day of `month` (month-end review). */
+/** Lifetime-style balance through the last day of `month` (month-end review). */
 export function balanceThroughEndOf(transactions: readonly MetricTransaction[], month: string): number {
   return cumulativeBalance(transactions, tx => monthOf(tx.date) <= month);
+}
+
+/** Savings held outside the bank, including explicitly confirmed corrections. */
+export function savingsBalanceThroughEndOf(transactions: readonly MetricTransaction[], month: string): number {
+  let total = 0;
+  for (const tx of transactions) {
+    if (monthOf(tx.date) > month) continue;
+    if (isSavingsContribution(tx) || tx.savingsCorrection === 'increase') total += tx.amount;
+    else if (tx.savingsCorrection === 'spent' || tx.savingsCorrection === 'transfer') total -= tx.amount;
+  }
+  return total;
 }
 
 /** Outstanding card amount: all card purchases minus all bill payments, floored at zero. */
@@ -176,11 +191,12 @@ export function cardBillPaymentsIn(transactions: readonly MetricTransaction[], m
 
 /**
  * Bank balance the app expects at the end of `month` (month-end reconcile).
- * Card purchases reduce the balance when made, but the bank only pays when
- * the bill is paid, so the still-unpaid card amount is added back.
+ * Savings are held separately. Card purchases reduce lifetime balance when
+ * made, but the bank pays only when the bill is paid.
  */
 export function expectedBankBalanceAtEndOf(transactions: readonly MetricTransaction[], month: string): number {
-  return balanceThroughEndOf(transactions, month) + outstandingCardAmountThroughEndOf(transactions, month);
+  return balanceThroughEndOf(transactions, month) - savingsBalanceThroughEndOf(transactions, month) +
+    outstandingCardAmountThroughEndOf(transactions, month);
 }
 
 /**

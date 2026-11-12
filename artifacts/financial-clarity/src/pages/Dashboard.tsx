@@ -370,17 +370,18 @@ export default function Dashboard() {
                         return (
                           <div
                             key={t.id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => openEditSheet(t)}
+                            role={t.savingsCorrection ? undefined : 'button'}
+                            tabIndex={t.savingsCorrection ? undefined : 0}
+                            onClick={() => { if (!t.savingsCorrection) openEditSheet(t); }}
                             onKeyDown={e => {
-                              if (e.key === 'Enter' || e.key === ' ') {
+                              if (!t.savingsCorrection && (e.key === 'Enter' || e.key === ' ')) {
                                 e.preventDefault();
                                 openEditSheet(t);
                               }
                             }}
                             className={cn(
-                              'group flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-muted/60 transition-colors cursor-pointer',
+                              'group flex items-center gap-3 py-2.5 px-3 rounded-xl',
+                              !t.savingsCorrection && 'hover:bg-muted/60 transition-colors cursor-pointer',
                               isIncome && 'border-l-[3px] border-[#1D9E75] bg-[rgba(29,158,117,0.04)]',
                             )}
                             data-testid={`transaction-${t.id}`}

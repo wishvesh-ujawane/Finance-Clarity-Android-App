@@ -18,3 +18,4 @@ Rules:
 - [0005-storage-startup-and-migrations.md](./0005-storage-startup-and-migrations.md) — One key catalogue and validator set, quarantine with dedupe and visible notice, startup storage check, local migration runner.
 - [0006-category-status-and-backup-v5.md](./0006-category-status-and-backup-v5.md) — Active/inactive categories, local migrations 1–2, backup schema v5.
 - [0007-owner-decisions-d6-d9.md](./0007-owner-decisions-d6-d9.md) — Active recurring rules block category inactivation; month-end card bill payments and card-aware reconcile; crash reporting removed.
+- [0008-savings-reconciliation.md](./0008-savings-reconciliation.md) — Separate savings from bank reconciliation and record confirmed corrections; backup schema v6.

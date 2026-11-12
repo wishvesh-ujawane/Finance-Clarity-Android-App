@@ -85,7 +85,7 @@ describe('Backup storage boundary', () => {
     expect(buildBackup().appVersion).toBe(__APP_VERSION__);
   });
 
-  it('round-trips a v5 backup: build, serialize, validate, restore', () => {
+  it('round-trips a v6 backup: build, serialize, validate, restore', () => {
     const categories = [
       { id: 'groceries', name: 'Groceries', icon: 'ShoppingCart', color: '#10B981', type: 'expense', active: true },
       { id: 'old', name: 'Old', icon: 'X', color: '#000000', type: 'expense', active: false },
@@ -108,7 +108,7 @@ describe('Backup storage boundary', () => {
     const validation = validateBackup(file);
     expect(validation.ok).toBe(true);
     if (!validation.ok) return;
-    expect(validation.backup.schemaVersion).toBe(5);
+    expect(validation.backup.schemaVersion).toBe(6);
     expect(applyBackup(validation.backup)).toMatchObject({ ok: true });
 
     expect(JSON.parse(localStorage.getItem('financial-clarity:categories') ?? '[]')).toEqual(categories);
@@ -120,8 +120,33 @@ describe('Backup storage boundary', () => {
 });
 
 describe('Backup schema versioning', () => {
-  it('current BACKUP_VERSION is 5', () => {
-    expect(BACKUP_VERSION).toBe(5);
+  it('current BACKUP_VERSION is 6', () => {
+    expect(BACKUP_VERSION).toBe(6);
+  });
+
+  it('upgrades a v5 backup without changing its transactions', () => {
+    const backup = buildBackup();
+    backup.schemaVersion = 5;
+    backup.data.transactions = [{ id: 'legacy', type: 'expense', amount: 10, categoryId: 'savings-goal', note: '', date: '2026-11-01' }];
+    const result = validateBackup(backup);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.backup.schemaVersion).toBe(6);
+      expect(result.backup.data.transactions).toEqual(backup.data.transactions);
+    }
+  });
+
+  it('rejects malformed savings correction metadata', () => {
+    const backup = buildBackup();
+    backup.data.transactions = [{ id: 'bad', type: 'income', amount: 10, categoryId: 'salary', note: '', date: '2026-11-01', savingsCorrection: 'increase' }];
+    expect(validateBackup(backup)).toMatchObject({ ok: false, reason: 'invalid-data' });
+  });
+
+  it('refuses to reuse a savings correction category already present in a v5 backup', () => {
+    const backup = buildBackup();
+    backup.schemaVersion = 5;
+    backup.data.categories = [{ id: '_adjustment-savings', name: 'Existing', icon: 'X', color: '#000000', type: 'expense' }];
+    expect(validateBackup(backup)).toMatchObject({ ok: false, reason: 'migration-failed' });
   });
 
   it('migrates a v4 backup to v5: categories default to active and every budget gets a month', () => {
@@ -158,7 +183,7 @@ describe('Backup schema versioning', () => {
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.backup.schemaVersion).toBe(5);
+      expect(result.backup.schemaVersion).toBe(6);
       expect(result.backup.data.categories.map(c => c.active)).toEqual([true, false]);
       expect(result.backup.data.budgets).toEqual([
         { id: 'kept', categoryId: 'rent', limit: 200, month: '2026-11' },
@@ -218,7 +243,7 @@ describe('Backup schema versioning', () => {
     const result = validateBackup(v3Backup);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.backup.schemaVersion).toBe(5);
+      expect(result.backup.schemaVersion).toBe(6);
       expect(result.backup.data.transactions[0].paymentMethod).toBe('credit-card');
       expect(result.backup.data.transactions[0].merchant).toBe('Reliance Fresh');
       expect(result.backup.data.transactions[0].sourceSmsFingerprint).toBe('sha256-abc123');
@@ -366,7 +391,7 @@ describe('Backup schema versioning', () => {
     const result = validateBackup(v1Backup);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.backup.schemaVersion).toBe(5);
+      expect(result.backup.schemaVersion).toBe(6);
       expect(result.backup.data.transactions).toHaveLength(2);
       expect(result.backup.data.transactions[0].id).toBe('tx-001');
       expect(result.backup.data.transactions[1].id).toBe('tx-002');
@@ -419,7 +444,7 @@ describe('Backup schema versioning', () => {
     const result = validateBackup(v2Backup);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.backup.schemaVersion).toBe(5);
+      expect(result.backup.schemaVersion).toBe(6);
       expect(result.backup.data.transactions[0].paymentMethod).toBe('credit-card');
       expect(result.backup.data.sms.pendingSms).toEqual([]);
       expect(result.backup.data.sms.dismissedSmsFingerprints).toEqual([]);
@@ -435,9 +460,9 @@ describe('Backup schema versioning', () => {
     }
   });
 
-  it('rejects a backup with schemaVersion > current (v6)', () => {
+  it('rejects a backup with schemaVersion > current (v7)', () => {
     const futureBackup: unknown = {
-      schemaVersion: 6,
+      schemaVersion: 7,
       appVersion: '2.0.0',
       exportedAt: '2027-01-01T00:00:00.000Z',
       device: { platform: 'android' },
@@ -493,7 +518,7 @@ describe('Backup schema versioning', () => {
     const result = validateBackup(v1Backup);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.backup.schemaVersion).toBe(5);
+      expect(result.backup.schemaVersion).toBe(6);
       expect(result.backup.data.transactions[0].paymentMethod).toBeUndefined();
       expect(result.backup.data.sms.pendingSms).toEqual([]);
     }

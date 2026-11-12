@@ -39,7 +39,13 @@ export function isValidTransaction(value: unknown): value is Transaction {
       (value.type === 'expense' && typeof value.recurringRuleId === 'string' && value.recurringRuleId.length > 0 &&
         typeof value.recurringMonth === 'string' && MONTH_PATTERN.test(value.recurringMonth))) &&
     (value.sourceSmsFingerprint === undefined || typeof value.sourceSmsFingerprint === 'string') &&
-    (value.merchant === undefined || typeof value.merchant === 'string')
+    (value.merchant === undefined || typeof value.merchant === 'string') &&
+    (value.savingsCorrection === undefined ||
+      (value.categoryId === '_adjustment-savings' && value.amount > 0 &&
+        value.paymentMethod === undefined && value.recurringRuleId === undefined &&
+        ((value.savingsCorrection === 'increase' && value.type === 'income') ||
+          ((value.savingsCorrection === 'spent' || value.savingsCorrection === 'transfer') && value.type === 'expense')))) &&
+    (value.categoryId !== '_adjustment-savings' || value.savingsCorrection !== undefined)
   );
 }
 

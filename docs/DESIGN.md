@@ -761,6 +761,8 @@ Two cards, **Goal savings** and **Emergency fund**. Each has monthly and annual 
 
 Existing flow (Look back → Card bill → Reconcile → Plan ahead) in a full-height sheet with a step indicator. The **Card bill** step (approved 2026-11-12, D8) appears only when the card had an unpaid amount or a bill payment that month: it shows the unpaid amount, an amount field with a "Paid in full" shortcut, an inline error for more than the unpaid amount, and a status line after saving. Reconcile shows a caption when its expected balance includes unpaid card purchases. Any further redesign is still pending (PRD FR-09); apply the tokens, type, and accessibility rules only.
 
+Reconcile also asks for the combined actual savings and emergency-fund balance at month end, explains the tracked balance and the difference, and excludes separate savings from the expected bank figure. If savings are lower, the user selects spent or lost, or transferred back to bank. Saving records only the difference; a separate bank-gap adjustment requires its own explicit button. The user can save without a bank adjustment. Failed writes leave the inputs in place. A savings correction can be removed from Transactions after a confirmation that explains its effects.
+
 ### 13.15 Not found
 
 Standard page: title "Page not found", one sentence, primary button "Go to Dashboard". No illustration.

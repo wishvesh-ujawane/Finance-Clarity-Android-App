@@ -19,7 +19,8 @@ export function spendableBalance(transactions: readonly MetricTransaction[], tod
   let balance = 0;
   for (const tx of transactions) {
     if (tx.date > today) continue;
-    if (isIncome(tx)) balance += tx.amount;
+    if (tx.savingsCorrection === 'transfer') balance += tx.amount;
+    else if (isIncome(tx)) balance += tx.amount;
     else if (isConsumptionExpense(tx) || isSavingsContribution(tx)) balance -= tx.amount;
   }
   return balance;

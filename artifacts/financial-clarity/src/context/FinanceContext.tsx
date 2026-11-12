@@ -12,6 +12,7 @@ import {
   monthSummary,
   outstandingCardAmount,
   outstandingCardAmountThroughEndOf,
+  savingsBalanceThroughEndOf,
   totalCommitments,
   totalConsumption,
   totalDayToDay,
@@ -85,6 +86,7 @@ const OTHER_DEFAULTS: Category[] = [
 const ADJUSTMENT_DEFAULTS: Category[] = [
   { id: '_adjustment-missed-spend', name: 'Missed Spend', icon: 'HelpCircle', color: '#64748B', type: 'expense' },
   { id: '_adjustment-overlogged', name: 'Over-logged Reversal', icon: 'Undo2', color: '#64748B', type: 'income' },
+  { id: '_adjustment-savings', name: 'Savings reconciliation', icon: 'PiggyBank', color: '#64748B', type: 'both' },
 ];
 
 const DEFAULT_CATEGORIES: Category[] = ([
@@ -196,11 +198,8 @@ interface FinanceContextType {
   };
   getBalance: (month?: string) => number;
   getCarryForward: (month: string) => number;
-  /** Total cash in pocket through today — month-agnostic. Sum of all
-   * income minus consumption-only expenses (credit-card-payment transfers
-   * and savings transfers are excluded) for transactions with date <= today.
-   * Future-dated transactions are excluded so planned/recurring future txns
-   * don't change pocket cash. */
+  /** Lifetime balance through today, including confirmed savings corrections.
+   * Future-dated transactions are excluded. This is not bank cash. */
   getNetBalanceToDate: () => number;
   /** Expected cash balance at the END of a given calendar month. Same math
    * as getNetBalanceToDate but with a month-end cutoff. Used by Month-End
@@ -217,6 +216,7 @@ interface FinanceContextType {
   getCardBillPaymentsIn: (month: string) => number;
   /** Month-end reconcile target: balance through the month plus the card amount still unpaid then. */
   getExpectedBankBalanceAtEndOf: (month: string) => number;
+  getSavingsBalanceAtEndOf: (month: string) => number;
   /** Records a card bill payment dated the last day of `month`; refuses more than the unpaid amount. */
   recordCardBillPayment: (month: string, amount: number) => FinanceWriteResult;
   /** Return the reconciliation record for `month`, or null if the month
@@ -232,6 +232,7 @@ interface FinanceContextType {
     expectedBalance: number;
     adjustmentAmount?: number;
     note?: string;
+    savings?: { actualBalance: number; decreaseReason?: 'spent' | 'transfer' };
   }) => { ok: true; record: MonthReconciliation } | { ok: false; message: string };
   /** Amount counted against a category budget: savings contributions for a savings category, consumption otherwise. */
   getSpentForCategory: (categoryId: string, month: string) => number;
@@ -381,6 +382,9 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
   };
 
   const addTransaction = useCallback((t: Omit<Transaction, 'id'>): FinanceWriteResult => {
+    if (t.savingsCorrection || t.categoryId === '_adjustment-savings') {
+      return { ok: false, message: 'Savings corrections must be recorded in month-end reconciliation. Nothing was saved.' };
+    }
     if (isInactiveCategory(t.categoryId)) return { ok: false, message: INACTIVE_CATEGORY_MESSAGE };
     return commit({ transactions: [{ ...t, id: createId() }, ...latest.current.transactions] });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -391,6 +395,9 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
     newCategories: Category[] = [],
   ): { ok: true; count: number } | { ok: false; message: string } => {
     if (items.length === 0 && newCategories.length === 0) return { ok: true, count: 0 };
+    if (items.some(t => t.savingsCorrection || t.categoryId === '_adjustment-savings')) {
+      return { ok: false, message: 'Savings corrections cannot be imported as ordinary transactions. Nothing was saved.' };
+    }
     const changes: Partial<FinanceData> = {
       transactions: [...items.map(t => ({ ...t, id: createId() })), ...latest.current.transactions],
     };
@@ -406,6 +413,9 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
   // Editing may keep the entry's current category even if it is now inactive.
   const updateTransaction = useCallback((id: string, updates: Omit<Transaction, 'id'>): FinanceWriteResult => {
     const previous = latest.current.transactions.find(t => t.id === id);
+    if (previous?.savingsCorrection || updates.savingsCorrection) {
+      return { ok: false, message: 'Remove the savings correction in Transactions and record a new one in a later review. Nothing was changed.' };
+    }
     if (previous?.categoryId !== updates.categoryId && isInactiveCategory(updates.categoryId)) {
       return { ok: false, message: INACTIVE_CATEGORY_MESSAGE };
     }
@@ -691,6 +701,11 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
     [transactions],
   );
 
+  const getSavingsBalanceAtEndOf = useCallback(
+    (month: string) => savingsBalanceThroughEndOf(transactions, month),
+    [transactions],
+  );
+
   // A card bill payment is a transfer, not spending (PRD §6): it lowers the
   // outstanding card amount and the expected bank balance only.
   const recordCardBillPayment = useCallback((month: string, amount: number): FinanceWriteResult => {
@@ -732,8 +747,55 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
       expectedBalance: number;
       adjustmentAmount?: number;
       note?: string;
+      savings?: { actualBalance: number; decreaseReason?: 'spent' | 'transfer' };
     }): { ok: true; record: MonthReconciliation } | { ok: false; message: string } => {
-      const { month, actualBalance, expectedBalance, adjustmentAmount, note } = input;
+      const { month, actualBalance, expectedBalance, adjustmentAmount, note, savings } = input;
+
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) ||
+        !Number.isFinite(actualBalance) || actualBalance < 0 ||
+        !Number.isFinite(expectedBalance) ||
+        (adjustmentAmount !== undefined && !Number.isFinite(adjustmentAmount))) {
+        return { ok: false, message: 'Enter valid balances. Nothing was saved.' };
+      }
+
+      let savingsAdjustment: Transaction | undefined;
+      if (savings) {
+        if (!Number.isFinite(savings.actualBalance) || savings.actualBalance < 0) {
+          return { ok: false, message: 'Enter a valid savings balance. Nothing was saved.' };
+        }
+        const difference = savings.actualBalance - savingsBalanceThroughEndOf(latest.current.transactions, month);
+        if (!Number.isFinite(difference)) {
+          return { ok: false, message: 'These balances are too large to calculate. Nothing was saved.' };
+        }
+        if (Math.abs(difference) >= 0.005) {
+          if (difference < 0 && savings.decreaseReason !== 'spent' && savings.decreaseReason !== 'transfer') {
+            return { ok: false, message: 'Choose what happened to the lower savings balance. Nothing was saved.' };
+          }
+          const correction = difference > 0 ? 'increase' : savings.decreaseReason;
+          if (!correction) return { ok: false, message: 'Choose a savings correction. Nothing was saved.' };
+          savingsAdjustment = {
+            id: createId(),
+            type: correction === 'increase' ? 'income' : 'expense',
+            amount: Math.abs(difference),
+            categoryId: '_adjustment-savings',
+            note: correction === 'increase' ? 'Savings balance correction' :
+              correction === 'transfer' ? 'Savings transferred to bank' : 'Savings spent or lost',
+            date: lastDateOfMonth(month),
+            savingsCorrection: correction,
+          };
+        }
+        const withSavings = savingsAdjustment
+          ? [savingsAdjustment, ...latest.current.transactions]
+          : latest.current.transactions;
+        const currentExpected = expectedBankBalanceAtEndOf(withSavings, month);
+        if (!Number.isFinite(currentExpected) || !Number.isFinite(balanceThroughEndOf(withSavings, month))) {
+          return { ok: false, message: 'These balances are too large to calculate. Nothing was saved.' };
+        }
+        if (Math.abs(currentExpected - expectedBalance) >= 0.005 ||
+          (adjustmentAmount !== undefined && Math.abs(adjustmentAmount - (currentExpected - actualBalance)) >= 0.005)) {
+          return { ok: false, message: 'Balances changed while reviewing. Check the amounts and try again. Nothing was saved.' };
+        }
+      }
 
       let adjustmentTxnId: string | undefined;
       let adjustment: Transaction | undefined;
@@ -776,7 +838,13 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
       const changes: Partial<FinanceData> = {
         reconciliations: [record, ...latest.current.reconciliations.filter(r => r.month !== month)],
       };
-      if (adjustment) changes.transactions = [adjustment, ...latest.current.transactions];
+      if (adjustment || savingsAdjustment) {
+        changes.transactions = [
+          ...(adjustment ? [adjustment] : []),
+          ...(savingsAdjustment ? [savingsAdjustment] : []),
+          ...latest.current.transactions,
+        ];
+      }
       const result = commit(changes);
       return result.ok ? { ok: true, record } : result;
     },
@@ -831,7 +899,7 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
       isSheetOpen, editingTransaction, sheetInitialMode,
       openSheet, openEditSheet, closeSheet,
       isBudgetSheetOpen, openBudgetSheet, closeBudgetSheet,
-      getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getCumulativeNetBalanceThroughEndOf, getOutstandingCardBalance, getOutstandingCardBalanceAtEndOf, getCardBillPaymentsIn, getExpectedBankBalanceAtEndOf, recordCardBillPayment, getReconciliationFor, addReconciliation, getSpentForCategory,
+      getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getCumulativeNetBalanceThroughEndOf, getOutstandingCardBalance, getOutstandingCardBalanceAtEndOf, getCardBillPaymentsIn, getExpectedBankBalanceAtEndOf, getSavingsBalanceAtEndOf, recordCardBillPayment, getReconciliationFor, addReconciliation, getSpentForCategory,
       getTotalCommitments, getTotalDayToDay, getBudgetBreakdown,
       getMonthSummary,
       reloadFromStorage, processRecurring, lastChangedAt,

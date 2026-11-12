@@ -15,6 +15,7 @@ import {
   monthSummary,
   outstandingCardAmount,
   outstandingCardAmountThroughEndOf,
+  savingsBalanceThroughEndOf,
   totalCommitments,
   totalConsumption,
   totalDayToDay,
@@ -111,10 +112,44 @@ describe('outstanding card amount', () => {
 });
 
 describe('expected bank balance for month-end reconcile', () => {
-  it('adds the still-unpaid card amount to the balance through the month', () => {
-    // October: 50000 - 15000 - 2000 = 33000, plus 500 not yet paid from the bank.
-    expect(expectedBankBalanceAtEndOf(tx, '2026-10')).toBe(33000 + 500);
-    expect(expectedBankBalanceAtEndOf(tx, NOV)).toBe(73500 + 500);
+  it('excludes savings through the month and adds the still-unpaid card amount', () => {
+    expect(expectedBankBalanceAtEndOf(tx, '2026-10')).toBe(33000 - 5000 + 500);
+    expect(expectedBankBalanceAtEndOf(tx, NOV)).toBe(73500 - 9000 + 500);
+  });
+
+  it('corrects combined savings without double counting or changing ordinary income and spending', () => {
+    const base: MetricTransaction[] = [
+      { type: 'income', amount: 200000, categoryId: 'salary', date: '2026-10-01' },
+      { type: 'expense', amount: 100000, categoryId: 'savings-goal', date: '2026-10-02' },
+      { type: 'expense', amount: 30000, categoryId: 'savings-emergency', date: '2026-11-02' },
+      { type: 'expense', amount: 9000, categoryId: 'savings-goal', date: '2026-12-01' },
+    ];
+    const increase: MetricTransaction = { type: 'income', amount: 5000, categoryId: '_adjustment-savings', date: '2026-11-30', savingsCorrection: 'increase' };
+    const corrected = [...base, increase];
+    expect(savingsBalanceThroughEndOf(corrected, NOV)).toBe(135000);
+    expect(balanceThroughEndOf(corrected, NOV)).toBe(205000);
+    expect(expectedBankBalanceAtEndOf(corrected, NOV)).toBe(70000);
+    expect(totalIncome(corrected, NOV)).toBe(0);
+    expect(totalSavingsContributions(corrected, NOV)).toBe(30000);
+    expect(totalConsumption(corrected, NOV)).toBe(0);
+    expect(savingsBalanceThroughEndOf(corrected, '2026-10')).toBe(100000);
+  });
+
+  it('distinguishes savings spent from a transfer back to the bank', () => {
+    const base: MetricTransaction[] = [
+      { type: 'income', amount: 100000, categoryId: 'salary', date: '2026-11-01' },
+      { type: 'expense', amount: 30000, categoryId: 'savings-goal', date: '2026-11-02' },
+    ];
+    const correction: MetricTransaction = { type: 'expense', amount: 5000, categoryId: '_adjustment-savings', date: '2026-11-30', savingsCorrection: 'spent' };
+    const spent = [...base, correction];
+    const transferred = [...base, { ...correction, savingsCorrection: 'transfer' as const }];
+    expect(savingsBalanceThroughEndOf(spent, NOV)).toBe(25000);
+    expect(balanceThroughEndOf(spent, NOV)).toBe(95000);
+    expect(expectedBankBalanceAtEndOf(spent, NOV)).toBe(70000);
+    expect(savingsBalanceThroughEndOf(transferred, NOV)).toBe(25000);
+    expect(balanceThroughEndOf(transferred, NOV)).toBe(100000);
+    expect(expectedBankBalanceAtEndOf(transferred, NOV)).toBe(75000);
+    expect(totalConsumption(spent, NOV)).toBe(0);
   });
 
   it('drops by exactly the bill payment, which is not spending', () => {

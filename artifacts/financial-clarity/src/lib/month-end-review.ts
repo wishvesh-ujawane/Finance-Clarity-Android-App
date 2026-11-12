@@ -166,6 +166,7 @@ export function computeReviewSnapshot(
   const bySpend: Record<string, number> = {};
 
   for (const t of monthTxns) {
+    if (t.savingsCorrection) continue;
     if (t.type === 'income') {
       income += t.amount;
       continue;

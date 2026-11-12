@@ -93,3 +93,17 @@ export const requireBudgetMonth: LocalMigration = {
     return writes;
   },
 };
+
+/** Version 3 reserves transaction metadata for savings reconciliation. */
+export const reserveSavingsCorrections: LocalMigration = {
+  version: 3,
+  migrate: () => {
+    const categories = readArray(STORAGE_KEYS.categories);
+    const transactions = readArray(STORAGE_KEYS.transactions);
+    if (categories?.items.some(item => isObject(item) && item.id === '_adjustment-savings') ||
+      transactions?.items.some(item => isObject(item) && item.categoryId === '_adjustment-savings')) {
+      throw new Error('Reserved savings correction category already in use');
+    }
+    return [];
+  },
+};

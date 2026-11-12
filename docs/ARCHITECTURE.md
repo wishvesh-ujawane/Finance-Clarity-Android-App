@@ -228,6 +228,8 @@ Stored entities → Domain selectors (shared period boundaries, PRD §6 definiti
 
 Income, consumption spending, savings contributions, monthly net, carry-forward, lifetime balance, commitments, and outstanding card amount each have **exactly one implementation** in the domain layer.
 
+Savings reconciliation uses the same transaction ledger: the domain derives combined savings from contributions and marked corrections, and expected bank balance from lifetime balance minus combined savings plus unpaid card debt. Marked corrections are not ordinary income, spending, or contributions. The context commits savings and explicitly confirmed bank adjustments together with the reconciliation record; no separate account-balance field is stored.
+
 ### 6.4 Recurring generation (PRD FR-07, D4)
 
 - **Occurrence identity.** Each occurrence is identified by rule ID + month (`YYYY-MM`). Every generated transaction stores that identity.

@@ -135,6 +135,7 @@ export default function Categories() {
       expense: [], commitment: [], income: [],
     };
     for (const cat of categories) {
+      if (cat.id === '_adjustment-savings') continue;
       const key: CategoryType =
         cat.type === 'both' || cat.type === 'savings' ? 'expense' : cat.type;
       buckets[key].push(cat);

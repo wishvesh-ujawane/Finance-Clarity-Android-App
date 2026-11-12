@@ -36,7 +36,7 @@ test('[UPG-001] data saved by an older build is migrated and still shown after u
   }));
   const now = new Date();
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  expect(stored.version).toBe('2');
+  expect(stored.version).toBe('3');
   expect(stored.categories.filter((c: { id: string }) => ['groceries', 'rent'].includes(c.id))
     .every((c: { active?: boolean }) => c.active === true)).toBe(true);
   expect(stored.budgets).toEqual([{ id: 'legacy-budget', categoryId: 'groceries', limit: 4000, month }]);

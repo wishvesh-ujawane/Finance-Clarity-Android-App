@@ -6,7 +6,7 @@
  */
 import { writeStorageEntries } from './finance-storage';
 import { STORAGE_KEYS } from './keys';
-import { addCategoryActiveFlag, requireBudgetMonth } from './local-migrations';
+import { addCategoryActiveFlag, requireBudgetMonth, reserveSavingsCorrections } from './local-migrations';
 
 export interface LocalMigration {
   /** Storage version after this step. Versions start at 1 and increase by 1. */
@@ -19,7 +19,7 @@ export interface LocalMigration {
 }
 
 /** Registered steps, in order (DATABASE §10.1). */
-export const LOCAL_MIGRATIONS: readonly LocalMigration[] = [addCategoryActiveFlag, requireBudgetMonth];
+export const LOCAL_MIGRATIONS: readonly LocalMigration[] = [addCategoryActiveFlag, requireBudgetMonth, reserveSavingsCorrections];
 
 export type MigrationResult =
   | { ok: true; version: number; applied: number[] }

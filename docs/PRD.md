@@ -157,7 +157,8 @@ Drive backup is recovery, not live synchronization. Analysis is based on recorde
 - **Approved change (owner, 2026-11-12, D8):**
   - Month-end spending figures (spent, top categories, impulse rows, month-over-month change, budget suggestions) exclude card bill payments, per Section 6.
   - A **Card bill** step, shown when the card had an unpaid amount or a bill payment that month, lets the user record how much of the outstanding card amount was paid. It is saved as a card bill payment entry dated the month's last day; it lowers the outstanding card amount and is not spending. Amounts above the unpaid amount are refused.
-  - Reconcile expects the bank balance to be the balance through the month plus the card amount still unpaid then, because card purchases leave the bank only when the bill is paid.
+  - Reconcile includes the card amount still unpaid in expected bank balance, because card purchases leave the bank only when the bill is paid.
+  - **Owner-approved savings reconciliation:** exclude cumulative savings held in separate accounts from expected bank balance. Ask for the actual combined savings and emergency-fund balance, and record only the confirmed difference. A decrease is classified by the user as spent or lost, or transferred back to the bank. A bank discrepancy is adjusted only with explicit confirmation; prior reconciliation records and transactions are not silently changed.
   - Plan Ahead reports a failed budget save and keeps the entered value.
 - **Pending review:** Any other month-end workflow or accounting change.
 - Investigate review eligibility, completion, reminders, repeat reconciliation, and adjustment duplication before proposing changes.
@@ -202,13 +203,13 @@ The owner approved the financial baseline below. This approval does not mean all
 | Consumption spending | Expense entries excluding reserved savings and credit-card bill payments |
 | Savings contributions | Expense entries in reserved savings categories |
 | Monthly net | Income minus consumption minus savings |
-| Carry-forward | Cumulative income minus consumption before the selected month |
-| Lifetime balance | Cumulative income minus consumption through today |
+| Carry-forward | Cumulative income minus consumption, plus confirmed savings increases and minus confirmed savings spent or lost, before the selected month |
+| Lifetime balance | Cumulative income minus consumption, plus confirmed savings increases and minus confirmed savings spent or lost, through today |
 | Commitments | Consumption in commitment categories |
 | Outstanding card amount | Aggregate recorded card purchases minus bill payments, floored at zero |
 | Budget copying | Copy limits; do not transfer money |
 
-Carry-forward and lifetime balance retain savings and are not necessarily spendable bank cash. Card purchases count as consumption; paying their bill must not count that consumption twice.
+Carry-forward and lifetime balance retain savings and are not necessarily spendable bank cash. Savings corrections are not ordinary income, consumption, or savings contributions; transfers back to bank do not change lifetime balance. Card purchases count as consumption; paying their bill must not count that consumption twice.
 
 Use shared financial helpers and consistent period boundaries. Do not introduce a new monetary storage model under this approval. Exact rounding, refunds, and unspecified future-date edge cases require a concrete proposal if existing rules do not resolve them.
 
@@ -368,7 +369,7 @@ Proposed acceptance checks:
 | D5 | Approved: Remove SMS functionality and active implementation; keep SMS planning aside. |
 | D6 | Approved: No deletion once used; Delete only when unused and otherwise eligible; support active/inactive. **Confirmed 2026-11-12:** pickers offer active categories only (an edited entry keeps its own); a category cannot be made inactive while an active recurring rule uses it. |
 | D7 | Deferred enhancements: Keep backup requirements and existing behavior; no further expansion now. **Confirmed 2026-11-12:** no backup download size guard and no blocking pre-restore copy for now. |
-| D8 | **Approved in part 2026-11-12:** month-end spending excludes card bill payments; a Card bill step records bill payments; Reconcile adds the unpaid card amount to the expected bank balance; Plan ahead reports budget save failures. Other month-end changes remain pending review. |
+| D8 | **Approved in part 2026-11-12:** month-end spending excludes card bill payments; a Card bill step records bill payments; Reconcile adds the unpaid card amount and excludes separate savings from expected bank balance; confirmed savings differences update lifetime balance as described in FR-09; Plan ahead reports budget save failures. Other month-end changes remain pending review. |
 | D9 | **Decided 2026-11-12:** remove crash reporting (Firebase Crashlytics); the app sends no diagnostics. Privacy policy, Data safety form, and store disclosures still need to be completed before submission. |
 | D10 | Explained: Practical readiness checks; detailed thresholds remain unapproved. |
 | Execution | Approved now: PRD update only. No app implementation changes authorized in this step. |
