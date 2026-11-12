@@ -23,7 +23,7 @@ Fiscal Focus has **no first-party API, no backend, and no server endpoints** (PR
 
 1. **Internal contracts:** React context actions, the storage layer, and platform adapters, all inside one Android WebView.
 2. **One remote API:** Google Drive REST v3, used for optional backups. Google Sign-In authorizes it.
-3. **One diagnostics SDK:** Firebase Crashlytics. Its use is **pending D9 review**.
+3. **No diagnostics SDK.** Firebase Crashlytics was removed on 2026-11-12 (D9).
 4. **User-started device intents:** the share sheet, email, and WhatsApp.
 
 The app has no inbound endpoints and no webhooks. Every finance feature works when all network access is removed.
@@ -41,7 +41,7 @@ Only these destinations are allowed. Adding one needs an ADR and owner approval 
 | `accounts.google.com` and Google OAuth endpoints, called by the auth plugin and Play services | Google sign-in and token refresh for Drive | Existing |
 | `https://www.googleapis.com/drive/v3` | Drive metadata: find, create, and patch files | Existing |
 | `https://www.googleapis.com/upload/drive/v3` | Upload backup file content | Existing |
-| Firebase Crashlytics endpoints, called by the native SDK | Crash diagnostics | Existing, **Pending review (D9)** |
+| Firebase Crashlytics endpoints | Crash diagnostics | **Removed 2026-11-12 (D9).** The app sends no diagnostics |
 | `fonts.googleapis.com`, `fonts.gstatic.com` | Runtime web fonts | **Removed 2026-11-12 (DESIGN G7).** Fonts are bundled locally |
 
 The app never calls bank, payment, SMS, analytics, advertising, remote-config, or AI services (PRD §13).
@@ -71,7 +71,6 @@ The app never calls bank, payment, SMS, analytics, advertising, remote-config, o
 | `BackupContext` | `googleAuth` and `googleDrive` adapters, backup codec (`lib/backup.ts`) | Google Sign-In, Drive REST v3 | HTTPS with a bearer token |
 | Backup and Restore, and Analysis pages | Export adapter (CSV and PNG) | Filesystem and Share plugins | Capacitor bridge, then Android intent |
 | Feedback sheet | Feedback intents | Email and WhatsApp apps | `mailto:` and `https://wa.me/` intents |
-| App shell (`main.tsx`) | Crash reporter adapter | Firebase Crashlytics | Native SDK |
 
 Layer rule (ARCHITECTURE §4.1): pages and components never import `localStorage`, `@capacitor/*`, or Google modules. Only platform adapters call plugins or Google APIs.
 
@@ -315,7 +314,6 @@ Every adapter checks that its capability exists. In the browser it returns `plat
 | `googleDrive` | `findOrCreateBackupFolder`, `findBackupFile`, `downloadBackup`, `uploadBackup`, `uploadSnapshot` | Same calls over HTTPS |
 | `biometric` | `getBiometricAvailability`, `verifyBiometric`, `addBiometryChangeListener`, `openBiometricEnrollmentSettings` | Reports "not available" |
 | `screen-security` | `setScreenSecure(enabled)` | `unsupported` |
-| `crashlytics` | `initCrashlytics`, `reportHandledError` | No-op |
 | Export | `exportCsvFile(filename, csv)`, Analysis PNG share | Browser download |
 | Feedback | Open `mailto:` or `https://wa.me/<number>?text=` | Opens a new tab or the mail client |
 | App lifecycle | `appStateChange` and back-button listeners | Listener unavailable; ignored |
@@ -469,19 +467,9 @@ Versioning follows DATABASE §10.2: v1 → v2 → v3 → v4 step by step, and a 
 
 The app renders the Analysis Overview to a PNG with html-to-image, writes it to the app cache, and opens the share sheet through the platform adapter `lib/platform/share-image.ts`. Since 2026-11-12 (DESIGN G16) a failure shows a "Couldn't share the image" toast (`export.share_failed`); closing the share sheet is a cancellation and shows nothing.
 
-### 6.7 Firebase Crashlytics (Pending review: D9)
+### 6.7 Firebase Crashlytics (Removed 2026-11-12, D9)
 
-| Aspect | Contract |
-|---|---|
-| When it is active | Native builds, and only when `google-services.json` was present at build time. Otherwise it does nothing |
-| What it receives | Non-fatal exceptions from global `error` and `unhandledrejection` handlers, plus handled reports |
-| Allowed content | Error category, code, operation name, scrubbed stack frames, and device or OS metadata |
-| Forbidden content | Amounts, notes, merchants, category names, emails, Google IDs, tokens, file contents, URLs with query strings, and raw server error text |
-| User ID | **Never set.** `setCrashlyticsUserId` must not be called with the email or any Google identifier |
-| Opt-out | Part of the D9 decision |
-| Failure | Crash reporting never affects app behavior. Its own failures are ignored |
-
-**MVP-cleanup:** today the raw `error.message` and `String(reason)` are sent without scrubbing. Add a scrubber that sends the code and stack frames only.
+The owner decided to remove crash reporting. The `@capacitor-firebase/app` and `@capacitor-firebase/crashlytics` packages, the `crashlytics.ts` module, its start-up call, the Crashlytics Gradle plugin, and the Capacitor module links were removed. `src/__tests__/crash-reporting-removed.test.ts` fails if any of them return. Adding diagnostics back needs a new owner decision, an ADR, scrubbing rules, and a Data safety update.
 
 ### 6.8 Feedback intents
 
@@ -559,7 +547,7 @@ These open only when the user taps them. The prefilled text is static, and the a
 | `serverClientId` | `capacitor.config.ts` | Android sign-in | No (public Web client ID) | Yes, on Android |
 | `server_client_id` | `android/app/src/main/res/values/strings.xml` | Android sign-in plugin | No | Yes. Must equal `serverClientId` |
 | Android OAuth clients (package and SHA-1) | Google Cloud Console | Google verification of the caller | No | One per signing key: debug, upload, and Play App Signing |
-| `google-services.json` | `android/app/` (gitignored) | Firebase and Crashlytics | Configuration, kept out of the repo | Optional. Without it, Crashlytics does nothing |
+| `google-services.json` | `android/app/` (gitignored) | Google services Gradle plugin (no Firebase SDK since D9) | Configuration, kept out of the repo | Optional |
 | Upload keystore and `keystore.properties` | Outside the repo (gitignored), with an offline backup | Release signing | **Yes** | Release builds only. Never enters the app bundle |
 | `versionCode` and `versionName` | `android/app/build.gradle` | Release versioning, and the backup `appVersion` (MVP-cleanup) | No | Yes |
 | `PORT`, `BASE_PATH`, `NODE_ENV` | Shell environment for Vite | Development server and asset base path | No | Development and build |
@@ -580,7 +568,6 @@ Rules:
 |---|---|---|---|---|
 | User's own Google Drive | **Full backup with financial data**, unencrypted, plus `appProperties` holding counts and device information | Manual backup, or auto-backup after one successful manual backup | Connect or disconnect, auto-backup toggle | In-app text and the Data safety form |
 | Google OAuth | Account authentication exchange | Connect or refresh | Connect or disconnect | Data safety form |
-| Firebase Crashlytics | Scrubbed crash data and device metadata | Errors | Opt-out pending D9 | Data safety form (**Pending review**) |
 | Share targets | CSV or PNG the user chose | User taps Share | The user picks the target | CSV is labeled "not a full backup" |
 | Email or WhatsApp | A message the user writes | User taps the feedback option | The user edits or cancels | — |
 
@@ -635,7 +622,7 @@ These gaps are reported here, not fixed. None of them is authorized for implemen
 | G4 | Manual backup, check, and restore do not check for offline state before calling | `BackupContext.tsx` | §12 |
 | G5 | **Resolved 2026-11-12.** `driveFetch` logs the method, status, and Drive reason only | `googleDrive.ts` | §11.2 |
 | G6 | `lastAutoBackupError` can store raw Drive error text | `BackupContext.tsx` | §11.2, DATABASE §4.9 |
-| G7 | Crashlytics receives unscrubbed messages and rejection reasons | `crashlytics.ts` | §6.7 |
+| G7 | **Resolved 2026-11-12 (D9):** Crashlytics removed, so nothing is sent | — | §6.7 |
 | G8 | **Partly resolved 2026-11-12:** fonts are bundled. Still open: no Content Security Policy (needs a device check of the Google sign-in domains) | `index.html` | §1.1, ARCHITECTURE §15.3 |
 | G9 | Metadata is patched before content, which is not atomic | `googleDrive.ts` | §6.2.3 |
 | G10 | D3 has no `orderBy`, so the choice among same-named files is ambiguous | `googleDrive.ts` | §7 |

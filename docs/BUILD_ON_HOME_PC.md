@@ -154,12 +154,16 @@ pnpm --filter @workspace/financial-clarity run test:run
 
 All three must succeed before you build an APK.
 
-### 3.1 Optional: `google-services.json` (crash reporting)
+### 3.1 Optional: `google-services.json`
 
 `artifacts\financial-clarity\android\app\google-services.json` is **not** in
-git. Without it the app builds and runs normally; only Firebase Crashlytics
-crash reporting is off. To enable it, copy the file from the Firebase console
-(project settings → your Android app) to that path. **Never commit it.**
+git and is optional; the app builds and runs normally without it. Crash
+reporting (Firebase Crashlytics) was removed on 2026-11-12 (PRD D9), so the
+file no longer enables any diagnostics. **Never commit it.**
+
+After pulling this change, run `pnpm install` and then
+`pnpm --filter @workspace/financial-clarity exec cap sync android` so the
+generated `capacitor.plugins.json` no longer lists the Firebase plugins.
 
 ---
 
