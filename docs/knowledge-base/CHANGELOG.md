@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-11-12 — decisions/0007-owner-decisions-d6-d9.md; features/month-end-review.md; features/categories.md; PRD FR-03, FR-07, FR-09, FR-12, §15; ARCHITECTURE §19 A9, A12; API §6.7, G7; DATABASE §4.6, §6.2, §6.3, §9; DESIGN §7.5, §13.14 — Owner decisions: active recurring rules block category inactivation; month-end Card bill step and card-aware reconcile; budget save errors in Plan ahead; Crashlytics removed.
 2026-11-12 — ARCHITECTURE.md §19 A11; testing.md "Release verification"; BUILD_AND_DEPLOY.md "Continuous Integration"; audits/2026-11-12-phases-implementation-review.md — Phase 10: minimal pull-request CI (install, typecheck, Vitest, build); UPG-001 upgrade test; PRD §14 checklist with manual device steps; final implementation review and decision log.
 2026-11-12 — DESIGN.md §15 G1–G5, G7–G11, G15; ARCHITECTURE.md §19 A5, A15; API.md §1, G5, G8 — Phase 9: "Fiscal Focus" branding, bundled fonts, compact amount display, 11 px minimum text, worded status chips, single 75% threshold, safe areas, reduced motion, 48 px sheet icon targets, disabled-submit hint, Red 600 destructive token, Drive logs without URLs or server text.
 2026-11-12 — features/backup-restore.md; features/analysis.md; API.md §6.3, §6.6, G14–G15; ARCHITECTURE.md §13.3, §19 A7; DESIGN.md §15 G16 — Phase 8: backup `appVersion` from the build; Analysis image sharing moved to `lib/platform/share-image.ts` with a visible failure toast; v5 backup round-trip test.

@@ -479,3 +479,20 @@ used for implementation is in the previous revision of this file
   (pending D9). This machine has no Android SDK or device.
 - Final review, decision log, and owner decisions still needed:
   [2026-11-12 phases implementation review](./audits/2026-11-12-phases-implementation-review.md).
+
+### Owner decisions follow-up — Done (branch `fix/owner-decisions-d8`)
+
+- Done:
+  - The owner answered PRD FR-03, FR-07, D7, D8, D9, and CI pinning on 2026-11-12.
+  - A category with an active recurring rule cannot be made inactive.
+  - Month-end no longer counts card bill payments as spending.
+  - A Card bill step records card bill payments.
+  - Reconcile adds the unpaid card amount to the expected bank balance.
+  - Plan ahead shows budget save failures.
+  - Crashlytics is removed.
+  - ADR-0007; E2E MER-001 and MER-002.
+- Open:
+  - Privacy policy and Play Data safety form.
+  - DESIGN §4.6 "Card payment" row label.
+  - Device check of the Card bill step.
+  - Other month-end items (repeat reconciliation, adjustment duplication) remain pending D8 review.

@@ -55,9 +55,11 @@ Reads / writes `categories` on
   load.
 - New transactions, new budgets, and new or edited recurring rules are
   refused in an inactive category. Editing a transaction may keep its current
-  inactive category (PRD FR-03 assumption, pending owner confirmation).
-- An active recurring rule whose category becomes inactive keeps generating;
-  it is not paused or deleted (PRD FR-03 pending detail).
+  inactive category (PRD FR-03, owner-confirmed 2026-11-12).
+- A category cannot be made inactive while an active (not paused) recurring
+  rule uses it. The message names the rules and asks the user to pause them
+  or move them to another category first; the app never pauses or deletes a
+  rule itself (owner decision 2026-11-12, ADR-0007).
 - CSV import may still match an existing inactive category by name, because
   it restores history.
 - Data saved before 2026-11-12 has no `active` value; local migration 1 and

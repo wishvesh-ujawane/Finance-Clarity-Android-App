@@ -79,4 +79,6 @@ with this phase.
 
 ## Supersedes / superseded by
 
-None.
+Decision 2 is amended by
+[ADR-0007](./0007-owner-decisions-d6-d9.md) (owner decisions, 2026-11-12):
+a category with an active recurring rule can no longer be made inactive.

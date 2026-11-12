@@ -75,6 +75,18 @@ Anything the PRD labels Pending, Deferred, or Future was not implemented.
 | 53 | 10 | GitHub Actions are pinned to major tags (`actions/checkout@v4`, `pnpm/action-setup@v4`, `actions/setup-node@v4`), Node 24, pnpm from `packageManager`; the workflow uses no secrets and read-only `contents` permission. | Agent | Official actions; Node 24 matches BUILD_AND_DEPLOY. SHA pinning is stricter and can be adopted if the owner prefers. |
 | 54 | 10 | Added UPG-001 (browser test seeding pre-migration storage) as the automated stand-in for "install over the previous release". | Agent | A real upgrade install needs a device; this proves the migrations keep and show existing records and are idempotent. |
 | 55 | 10 | PRD §14 release checks are recorded in testing.md "Release verification" with automated evidence and the manual step still needed; no check is reported as passed unless it ran. | Agent | AGENTS §11; the plan says not to claim release readiness. |
+| 56 | Follow-up | Used categories can only be made inactive; pickers offer active categories only, and an edited entry keeps its own. | Owner | PRD FR-03 confirmed (already implemented in Phase 4). |
+| 57 | Follow-up | A category cannot be made inactive while an active (not paused) recurring rule uses it; the user pauses or moves the rule first. | Owner | Chosen over auto-pausing with confirmation or leaving the rule generating. |
+| 58 | Follow-up | Deleting a generated occurrence does not suppress it permanently; the cursor already prevents re-creation. | Owner | PRD FR-07. No code change. |
+| 59 | Follow-up | Month-end figures (spent, top categories, impulse rows, month-over-month change, suggestions) use the shared consumption rule; card bill payments are not spending. | Owner | PRD D8. |
+| 60 | Follow-up | A Card bill step records how much of the card was paid, only from month-end (not the Add entry sheet). | Owner | The "Credit Card (due)" purchase option already existed; only bill payments had no screen. |
+| 61 | Follow-up | The bill payment is saved as an expense with `paymentMethod: 'credit-card-payment'`, category `other`, note "Card bill payment", dated the reviewed month's last day; more than the unpaid amount at month end is refused. | Agent | No schema change (the value already existed); `other` is always active; the last day matches the reconcile cut-off. A new reserved category or a date picker can be added later. |
+| 62 | Follow-up | The Card bill step appears only when the card had an unpaid amount at month end or a bill payment that month; users without card use keep the three-step flow. | Agent | Avoid an irrelevant step every month. |
+| 63 | Follow-up | Reconcile's expected bank balance = balance through the month + card amount still unpaid then. | Owner | Card purchases leave the bank only when the bill is paid; otherwise an unpaid bill showed as an "over-logged" gap. |
+| 64 | Follow-up | Plan ahead checks each budget save, stays on the category, and keeps the value on failure. | Owner | AGENTS §8. |
+| 65 | Follow-up | Crashlytics removed (packages, init, Gradle plugin and classpath, Capacitor links); the `google-services` Gradle plugin is kept. A guard test blocks its return. | Owner + Agent | D9 "remove". Google sign-in configuration may rely on `google-services`, so only the Crashlytics parts were removed. |
+| 66 | Follow-up | No backup size guard and no blocking pre-restore copy for now; CI actions stay pinned to major tags. | Owner | D7 and decision 53. No code change. |
+| 67 | Follow-up | Bill payments show in lists as "Other" with the note "Card bill payment"; the DESIGN §4.6 "Card payment" row label is left as a follow-up. | Agent | Keeps this change focused; the note identifies the entry. |
 
 ---
 
@@ -171,13 +183,30 @@ Other documented gaps not covered by the plan's phases and left untouched: ARCHI
 
 ### Owner decisions needed
 
-1. **PRD FR-03:** confirm that pickers hide inactive categories except on an edited entry's own category, and what happens to an active recurring rule whose category becomes inactive (today: it keeps generating).
-2. **PRD FR-07:** should deleting a generated occurrence suppress it permanently?
-3. **PRD D8 / FR-09:** approve month-end changes (stop counting card bill payments in the snapshot, report budget save failures, move to the compact formatter).
-4. **PRD D9:** Crashlytics scrubbing and consent, privacy disclosures, and the Play Data safety answers.
-5. **PRD D7:** backup download size guard and whether the pre-restore safety copy must block a restore.
-6. **CI:** keep actions pinned by major tag or switch to commit SHAs (decision 53).
+**All six were answered on 2026-11-12** and implemented on `fix/owner-decisions-d8` (see "Owner decisions follow-up" below).
+
+1. **PRD FR-03:** confirm that pickers hide inactive categories except on an edited entry's own category, and what happens to an active recurring rule whose category becomes inactive (today: it keeps generating). → **Confirmed; a category with an active recurring rule cannot be made inactive.**
+2. **PRD FR-07:** should deleting a generated occurrence suppress it permanently? → **No.**
+3. **PRD D8 / FR-09:** approve month-end changes (stop counting card bill payments in the snapshot, report budget save failures, move to the compact formatter). → **Card bill payments are no longer spending; a Card bill step records payments; Reconcile counts the unpaid card amount; budget save failures are shown.** The compact formatter for month-end cards was not part of the answer and is unchanged.
+4. **PRD D9:** Crashlytics scrubbing and consent, privacy disclosures, and the Play Data safety answers. → **Remove Crashlytics.** Privacy policy and Data safety form still to do (outside the code).
+5. **PRD D7:** backup download size guard and whether the pre-restore safety copy must block a restore. → **No, not now.**
+6. **CI:** keep actions pinned by major tag or switch to commit SHAs (decision 53). → **Major tags.**
 
 ### Manual checks for the owner
 
 Follow testing.md "Release verification" items 1, 4–8, and 10 on a phone with a release build: airplane-mode add and restart, recurring catch-up after the app stays closed across a due date, `gradlew :app:processReleaseMainManifest` shows no `READ_SMS`, install over the previous release, 130% font size and keyboard-open forms, a TalkBack pass, safe areas on a notched or gesture-nav phone, and Drive back up → reinstall → restore.
+
+### Owner decisions follow-up (branch `fix/owner-decisions-d8`)
+
+- **Completed:**
+  - Category inactivation is blocked by active recurring rules (decision 57).
+  - Month-end spending excludes card bill payments; new Card bill step; card-aware Reconcile; Plan ahead budget save errors (decisions 59–64).
+  - Crashlytics removed (decision 65).
+  - PRD FR-03, FR-07, FR-09, FR-12, §10, §15 (D6–D9) record the answers. ADR-0007. ARCHITECTURE A9 resolved, API G7 resolved, DATABASE and DESIGN updated.
+  - Tests: unit/context (`card-bill-payment`, `month-end-review`, `category-status`, `category-rules`, `finance-metrics`, `crash-reporting-removed`) and e2e MER-001, MER-002.
+- **Pending:**
+  - Privacy policy and Play Data safety form (outside the code).
+  - DESIGN §4.6 "Card payment" row label.
+  - `cap sync android` to regenerate the ignored plugin list.
+  - A device check of the Card bill step.
+  - Month-end repeat reconciliation and adjustment duplication remain pending D8 review.

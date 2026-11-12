@@ -504,6 +504,7 @@ Priority order: **lock screen → onboarding → month-end review prompt**. Only
 
 - Copy-budgets and apply-suggestions flows list the exact categories that will be overwritten and the ones that will be untouched before confirmation (PRD FR-05, FR-08).
 - Category Delete appears **only** for unused, non-system categories. Used categories show "Mark inactive" instead, with a caption explaining why ("Used in 24 transactions. Mark it inactive to hide it from new entries.").
+- "Mark inactive" is refused while an active recurring expense uses the category; the error names the rules and asks the user to pause or move them first (owner decision 2026-11-12).
 
 ---
 
@@ -758,7 +759,7 @@ Two cards, **Goal savings** and **Emergency fund**. Each has monthly and annual 
 
 ### 13.14 Month-end review
 
-Existing three-step flow (Look back → Reconcile → Plan ahead) in a full-height sheet with a step indicator. **Redesign is pending (PRD FR-09).** Apply the tokens, type, and accessibility rules only. Do not change the flow or its accounting behavior without an approved proposal.
+Existing flow (Look back → Card bill → Reconcile → Plan ahead) in a full-height sheet with a step indicator. The **Card bill** step (approved 2026-11-12, D8) appears only when the card had an unpaid amount or a bill payment that month: it shows the unpaid amount, an amount field with a "Paid in full" shortcut, an inline error for more than the unpaid amount, and a status line after saving. Reconcile shows a caption when its expected balance includes unpaid card purchases. Any further redesign is still pending (PRD FR-09); apply the tokens, type, and accessibility rules only.
 
 ### 13.15 Not found
 

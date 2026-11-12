@@ -2,12 +2,13 @@
 id: feature-month-end-review
 title: Month-End Review flow (analysis + guided budget setup)
 date: 2026-07-05
-updated: 2026-07-05
+updated: 2026-11-12
 status: current
 scope: [financial-clarity]
 related:
   - ../architecture/financial-clarity.md
   - ../decisions/0003-month-end-review-flow.md
+  - ../decisions/0007-owner-decisions-d6-d9.md
   - ./dashboard.md
   - ./budgets.md
   - ./analysis.md
@@ -17,6 +18,8 @@ source-of-truth-files:
   - artifacts/financial-clarity/src/context/MonthEndReviewContext.tsx
   - artifacts/financial-clarity/src/components/month-end/MonthEndReviewFlow.tsx
   - artifacts/financial-clarity/src/components/month-end/MonthEndAnalysisCard.tsx
+  - artifacts/financial-clarity/src/components/month-end/MonthEndCardBillCard.tsx
+  - artifacts/financial-clarity/src/components/month-end/MonthEndReconcileCard.tsx
   - artifacts/financial-clarity/src/components/month-end/MonthEndBudgetCard.tsx
   - artifacts/financial-clarity/src/components/month-end/Confetti.tsx
   - artifacts/financial-clarity/src/components/MonthEndReviewBanner.tsx
@@ -25,6 +28,33 @@ source-of-truth-files:
 ---
 
 # Month-End Review
+
+## Current steps (updated 2026-11-12, owner decision D8)
+
+The flow now has three or four steps; the sections below describe the
+original two-step version and remain accurate for Look back and Plan ahead.
+
+1. **Look back** — the analysis snapshot. Spending uses the shared PRD §6
+   consumption rule, so card bill payments are not counted in "Spent", top
+   categories, impulse rows, the month-over-month change, or budget
+   suggestions.
+2. **Card bill** — shown only when the card had an unpaid amount at month
+   end or a bill payment in the month. Shows the unpaid card amount, accepts
+   the amount paid ("Paid in full" fills it in), refuses more than the unpaid
+   amount, and saves an expense with `paymentMethod: 'credit-card-payment'`,
+   category `other`, note "Card bill payment", dated the month's last day
+   (`FinanceContext.recordCardBillPayment`). It is not spending; it lowers
+   the Dashboard card amount.
+3. **Reconcile** — compares the user's bank balance with the **expected bank
+   balance**: balance through the month plus the card amount still unpaid
+   then (`getExpectedBankBalanceAtEndOf`). A note shows the unpaid card part.
+4. **Plan ahead** — unchanged, except a failed budget save now shows an
+   error, keeps the value, and stays on the category.
+
+Tests: [month-end-review.test.ts](../../../artifacts/financial-clarity/src/lib/__tests__/month-end-review.test.ts),
+[card-bill-payment.test.tsx](../../../artifacts/financial-clarity/src/context/__tests__/card-bill-payment.test.tsx),
+e2e MER-001 and MER-002 in [month-end.pw.ts](../../../artifacts/financial-clarity/e2e/month-end.pw.ts).
+Repeat reconciliation and adjustment duplication are still pending review.
 
 ## User-visible behavior
 A once-per-month, two-step guided modal that helps the user reflect on the

@@ -70,7 +70,7 @@ The stack below is mostly what already exists. The recommendation is to **keep i
 | `@capacitor/filesystem`, `@capacitor/share` | CSV and image export through the system share sheet |
 | `@capgo/capacitor-native-biometric` | Optional biometric unlock |
 | `@codetrix-studio/capacitor-google-auth` | Google sign-in for Drive authorization only |
-| `@capacitor-firebase/app`, `@capacitor-firebase/crashlytics` | Crash diagnostics, pending privacy review (D9) |
+| ~~`@capacitor-firebase/app`, `@capacitor-firebase/crashlytics`~~ | **Removed 2026-11-12 (D9).** The app sends no crash diagnostics |
 | Local `ScreenSecurity` plugin (`android/app/.../ScreenSecurityPlugin.java`) | Sets `FLAG_SECURE` while the app lock is enabled (§15.3) |
 
 ### 2.3 Explicitly not used in the MVP
@@ -118,11 +118,11 @@ The stack below is mostly what already exists. The recommendation is to **keep i
 │   │                               └─▶ Platform adapters ─▶ Capacitor plugins      │   │
 │   └───────────────────────────────────────────────────────────────────────────────┘   │
 │        Native: BiometricPrompt · App lifecycle · Filesystem · Share sheet             │
-└──────────┬──────────────────────────────┬───────────────────────────────┬─────────────┘
-           │ HTTPS + OAuth (drive.file)   │ HTTPS (native SDK)            │ User-initiated intents
-           ▼                              ▼                               ▼
-   Google Sign-In + Drive API     Firebase Crashlytics           Share targets, Email, WhatsApp
-   (optional backup/restore)      (if configured; D9 pending)    (exports and feedback)
+└──────────┬──────────────────────────────────────────────────────────────┬─────────────┘
+           │ HTTPS + OAuth (drive.file)                                   │ User-initiated intents
+           ▼                                                              ▼
+   Google Sign-In + Drive API                                     Share targets, Email, WhatsApp
+   (optional backup/restore)                                      (exports and feedback)
 ```
 
 There are no other network destinations. Every finance feature works with all network arrows removed.
@@ -238,7 +238,7 @@ Income, consumption spending, savings contributions, monthly net, carry-forward,
 - **Idempotency.** Before generating, look for an existing transaction with the same occurrence identity. Running the processor any number of times produces each occurrence at most once, even if the app was interrupted mid-run.
 - **Single-flight.** Only one processing run at a time. All new occurrences and updated rule tracking are saved in one persist-first commit.
 - **Implementation.** The pure planner is `planRecurringGeneration` in `lib/domain/recurring.ts`. `FinanceContext.processRecurring` saves its plan. `App.tsx` calls it once the app is unlocked and on every `visibilitychange` back to visible; rule changes made while unlocked call it too. Nothing is generated while the lock screen is shown (DATABASE §8.2).
-- **Pending (PRD FR-07):** whether deleting a generated occurrence suppresses it permanently. Until that is decided, never recreate a transaction the user deleted. The forward-only cursor already guarantees this; no separate suppression record is kept (DATABASE §6.3).
+- **Decided (PRD FR-07, 2026-11-12):** deleting a generated occurrence does not suppress it permanently with a separate record. Never recreate a transaction the user deleted; the forward-only cursor already guarantees this (DATABASE §6.3).
 
 ### 6.5 Backup and restore (PRD FR-11, existing behavior preserved)
 
@@ -316,7 +316,7 @@ src/
     ├── storage/                # key catalogue, entity schemas, local migrations, repository
     ├── backup/                 # backup format, hash, backup-schema migrations
     ├── platform/               # biometric, googleAuth, googleDrive, share/filesystem,
-    │                           #   crashlytics, app lifecycle
+    │                           #   app lifecycle
     ├── csv.ts
     ├── format.ts               # canonical amount and date formatters
     └── types.ts                # domain entity types
@@ -477,19 +477,13 @@ Prerequisites: ADR, privacy review, Data safety update, and owner approval.
 |---|---|---|---|---|---|
 | Google Sign-In | Authorize Drive | Google account auth exchange | No | Local use continues | MVP |
 | Google Drive API | Backup and restore | **Full backup file with financial data**, stored in the user's own Drive | No | Status line + retry; local data untouched | MVP |
-| Firebase Crashlytics | Crash diagnostics | Stack traces, device/OS metadata. **No amounts, notes, merchants, category names, emails, or tokens** | No | Silent | MVP, **pending D9 privacy review** |
+| ~~Firebase Crashlytics~~ | — | — | — | — | **Removed 2026-11-12 (D9):** no crash or diagnostic data leaves the device |
 | Android share sheet + Filesystem | CSV and PNG export | Only what the user chooses to share | No | Visible error | MVP |
 | Email / WhatsApp intents | User feedback | User-written message | No | Visible error | MVP |
 | Google Play | Distribution and app signing | Store metadata | — | — | MVP |
 | Google Fonts (runtime) | — | — | — | — | **Removed:** bundle fonts (DESIGN G7) |
 
-No analytics, advertising, bank, payment, SMS, or AI services.
-
-Crashlytics rules:
-
-- Do not set a user ID from the Google email.
-- Disclose Crashlytics accurately in the Data safety form.
-- Whether users get an in-app opt-out is part of the D9 decision.
+No analytics, advertising, crash-reporting, bank, payment, SMS, or AI services. Adding crash reporting back needs a new owner decision, an ADR, and a Data safety update.
 
 ---
 
@@ -523,7 +517,7 @@ If AI is ever approved (Future), it must:
 | `VITE_GOOGLE_WEB_CLIENT_ID` | `.env.local` (gitignored) | No, public OAuth client ID | Browser-dev Google sign-in |
 | `serverClientId` | `capacitor.config.ts` | No, public OAuth client ID | Android Google sign-in |
 | `appId` `com.bytetobrain.fiscalfocus` | `capacitor.config.ts` | No | **Frozen** Android package identity |
-| `google-services.json` | `android/app/` (gitignored) | Config, not a secret; kept out of the repo | Firebase/Crashlytics |
+| `google-services.json` | `android/app/` (gitignored) | Config, not a secret; kept out of the repo | Google services Gradle plugin (no Firebase SDK since D9) |
 | Upload keystore + `keystore.properties` | Outside the repo (gitignored), backed up offline | **Yes** | Release signing; Play App Signing holds the app signing key |
 | `versionCode` / `versionName` | `android/app/build.gradle` | No | Release versioning |
 | `PORT`, `BASE_PATH`, `NODE_ENV` | Shell env for Vite | No | Dev server and asset base path |
@@ -584,7 +578,7 @@ If AI is ever approved (Future), it must:
 | B2 | App ↔ local storage | Stored data may be corrupt or old | Schema validation on read, migrations, quarantine |
 | B3 | App ↔ imported files (backup JSON, CSV) | **File content** | Size limits, schema validation, version check, migration, preview, explicit confirmation; text rendered as text only (no raw HTML from data) |
 | B4 | App ↔ Google | Network | TLS only; OAuth; `drive.file` least-privilege scope; tokens never stored by the app |
-| B5 | App ↔ Crashlytics | Third party | Scrubbed payloads; disclosure; D9 review |
+| B5 | ~~App ↔ Crashlytics~~ | — | Removed 2026-11-12 (D9) |
 | B6 | App ↔ share targets | Destination app | User-initiated only; CSV formula escaping; label matches content |
 
 ### 15.2 Threat model
@@ -600,7 +594,7 @@ If AI is ever approved (Future), it must:
 | OS backup | Keep `allowBackup="false"` |
 | WebView | Load bundled assets only; no remote pages; no cleartext traffic. Add a restrictive Content Security Policy allowing only `self` plus the Google API domains in use; verify it on a device |
 | Rendering | No raw HTML injection of user or imported data |
-| Secrets | None in source. Keystore and Firebase config are gitignored |
+| Secrets | None in source. Keystore and `google-services.json` are gitignored |
 | Dependencies | `.npmrc` release-age gate, committed lockfile, pre-release dependency audit, removal of unused packages |
 | Encryption at rest | **Deferred** (PRD FR-11, D7). The app says storage is not encrypted |
 | Recents/screenshot privacy | **Owner decision 2026-11-06:** `FLAG_SECURE` is set while the app lock is enabled, so the app is blank in the recent-apps screen and screenshots are blocked. It is cleared when the lock is disabled |
@@ -664,9 +658,9 @@ Google Play does not allow downgrades. **Fix forward**: halt the staged rollout 
 | Identity | Local lock + Google for Drive only | With a backend → server-verified Google ID tokens |
 | Platforms | Android only | Approved iOS release → same codebase with the Capacitor iOS target |
 | Analysis / AI | Deterministic local rules | Approved AI → opt-in, on-device first, explanations only (§12) |
-| Diagnostics | Crashlytics, pending D9 | Opt-in toggle and stricter scrubbing based on D9 outcome |
+| Diagnostics | None (Crashlytics removed, D9) | Any future diagnostics need an owner decision and ADR |
 | Money model | Positive rupee number + type | Precision or refund needs (D3) → integer paise through an ADR and a migration |
-| Month-end review | Existing flow preserved | D8 resolved → redesign following this architecture |
+| Month-end review | Existing flow plus the D8 card-bill step, card-aware reconcile, and budget save errors (2026-11-12) | Further D8 items → redesign following this architecture |
 | Security | App lock, unencrypted storage | Approved → encrypted storage (Android Keystore-backed key) and privacy screen |
 
 ---
@@ -685,10 +679,10 @@ None of these items is authorized by this document alone. Each needs owner appro
 | A6 | **Resolved 2026-11-06.** Removed the unused React Query provider, the `@workspace/api-client-react` dependency, 42 unused `components/ui` primitives, the unused `use-mobile` hook, and the 31 packages only they used | Remove | §2.3 |
 | A7 | **Resolved 2026-11-12.** Backup app version comes from the build version (`__APP_VERSION__`) | Take it from the build version | §13.3 |
 | A8 | **Resolved 2026-11-06.** While locked, `App.tsx` renders only the lock screen (no pages, sheets, FAB, navigation, or toasts) | Lock screen topmost; content not mounted while locked | DESIGN G12; §4.3 |
-| A9 | Crash reporting not yet privacy-reviewed | Scrubbed payloads; disclosure; D9 decision | PRD FR-12 |
+| A9 | **Resolved 2026-11-12 (D9).** Crashlytics removed: packages, init, Gradle plugin, and Capacitor module; guarded by `crash-reporting-removed.test.ts` | — | PRD FR-12 |
 | A10 | `FinanceContext` mixes state, rules, and persistence (about 1,400 lines) | Split into `domain/` + `storage/`; same public hook API | §4.2 |
 | A11 | **Resolved 2026-11-12.** `.github/workflows/ci.yml` runs on pull requests: frozen-lockfile install → typecheck → Vitest → web build | Minimal PR workflow | §16.2 |
-| A12 | **Mostly resolved 2026-11-12:** every PRD §6 metric has one implementation in `lib/domain/finance-metrics.ts`; `FinanceContext`, Dashboard, and the shared Analysis totals use it, and a cross-screen consistency test covers them. Still open: the month-end review snapshot, which still counts card bill payments (pending D8). Transactions list totals (Phase 6) and the Analysis-only figures — safe-to-spend, weekday heatmap, daily spend, burndown, known future expenses, Trends savings rate (Phase 7) — use the shared rules since 2026-11-12 | Shared selectors for every displayed total; cross-screen consistency test | AGENTS §5; PRD §6 |
+| A12 | **Mostly resolved 2026-11-12:** every PRD §6 metric has one implementation in `lib/domain/finance-metrics.ts`; `FinanceContext`, Dashboard, and the shared Analysis totals use it, and a cross-screen consistency test covers them. Still open: nothing for the month-end snapshot, which uses the shared consumption rule since the D8 decision (2026-11-12). Transactions list totals (Phase 6) and the Analysis-only figures — safe-to-spend, weekday heatmap, daily spend, burndown, known future expenses, Trends savings rate (Phase 7) — use the shared rules since 2026-11-12 | Shared selectors for every displayed total; cross-screen consistency test | AGENTS §5; PRD §6 |
 | A13 | Capacitor modules imported both statically and dynamically, so the dynamic imports split nothing | One import style per module | Audit 2026-06-28 |
 | A14 | File names that break AGENTS §4 (`backupHash.ts`, `googleAuth.ts`, `googleDrive.ts`, `not-found.tsx`) | Rename when the file is next changed | AGENTS §3.2, §4 |
 | A15 | **Resolved 2026-11-12.** Drive errors log the method, HTTP status, and Drive reason only; Drive's message text is no longer shown or logged | Log method, status, and Drive reason only | §14.4 |
