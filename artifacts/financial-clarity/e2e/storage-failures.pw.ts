@@ -137,3 +137,72 @@ test('[REC-002] resuming a paused rule skips past months and stays idempotent', 
     .filter((transaction: { recurringRuleId?: string }) => transaction.recurringRuleId === 'e2e-paused-rule').length);
   expect(afterReload).toBe(1);
 });
+
+const QUARANTINE_PREFIX = 'financial-clarity:backup:transactions:';
+
+async function seedOneBrokenTransaction(page: Page) {
+  await page.addInitScript(() => {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    localStorage.setItem('financial-clarity:transactions', JSON.stringify([
+      { id: 'e2e-readable', type: 'expense', amount: 75, categoryId: 'groceries', note: 'E2E readable entry', date: today },
+      { id: 'e2e-broken', amount: 'not-a-number' },
+    ]));
+  });
+}
+
+async function quarantineCopies(page: Page, prefix: string) {
+  return page.evaluate(p => Object.keys(localStorage).filter(key => key.startsWith(p)).length, prefix);
+}
+
+test('[STO-005] unreadable records are kept aside and reported without blocking the app', async ({ page }) => {
+  await prepare(page);
+  await seedOneBrokenTransaction(page);
+  await page.goto('/transactions');
+
+  await expect(page.getByTestId('storage-notice-banner')).toContainText('1 saved record couldn\u2019t be read');
+  await expect(page.getByText('E2E readable entry')).toBeVisible();
+  expect(await quarantineCopies(page, QUARANTINE_PREFIX)).toBe(1);
+
+  await page.reload();
+  await expect(page.getByTestId('storage-notice-banner')).toBeVisible();
+  expect(await quarantineCopies(page, QUARANTINE_PREFIX)).toBe(1);
+
+  await page.getByTestId('storage-notice-banner').getByRole('button', { name: 'Dismiss' }).click();
+  await expect(page.getByTestId('storage-notice-banner')).toHaveCount(0);
+});
+
+test('[STO-006] data from a newer app version is not opened or changed', async ({ page }) => {
+  await prepare(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('financial-clarity:storage-version', '99');
+    localStorage.setItem('financial-clarity:transactions', '[{"id":"future-shape"}]');
+  });
+  await page.goto('/');
+
+  await expect(page.getByRole('heading', { name: 'Update Fiscal Focus' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('financial-clarity:transactions'))).toBe('[{"id":"future-shape"}]');
+  expect(await quarantineCopies(page, QUARANTINE_PREFIX)).toBe(0);
+});
+
+test('[STO-007] when a safe copy cannot be saved, continuing needs confirmation', async ({ page }) => {
+  await prepare(page);
+  await seedOneBrokenTransaction(page);
+  await page.addInitScript(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+      if (k.startsWith('financial-clarity:backup:')) throw new DOMException('Simulated full storage', 'QuotaExceededError');
+      return original.call(this, k, v);
+    };
+  });
+  await page.goto('/');
+
+  await expect(page.getByTestId('startup-error-screen')).toContainText('Nothing was changed');
+  await page.getByTestId('startup-continue').click();
+  await expect(page.getByTestId('startup-continue-dialog')).toContainText('permanently replaced');
+  await page.getByTestId('startup-continue-confirm').click();
+
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('financial-clarity:transactions') ?? '[]').length)).toBe(2);
+});

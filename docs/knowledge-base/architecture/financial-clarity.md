@@ -95,7 +95,6 @@ Under [src/lib/](../../../artifacts/financial-clarity/src/lib/):
 - `analysis-utils.ts` — derived metrics for the Analysis screen.
 - `backup.ts`, `backupHash.ts` — serialization + integrity hash for backups.
 - `biometric.ts` — Capacitor biometric bridge.
-- `crashlytics.ts` — Firebase Crashlytics wrapper.
 - `csv.ts` — CSV import/export.
 
 ## Persistence model

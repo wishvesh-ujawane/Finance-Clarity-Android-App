@@ -72,7 +72,7 @@ General rules:
 
 ## 3. Storage Key Catalogue
 
-All key names live in **one module** in `src/lib/storage/`. No other file contains key strings (ARCHITECTURE §8.2). **MVP-cleanup:** today the key strings are spread across `FinanceContext`, `backup.ts`, `security.ts`, `onboarding.ts`, `googleAuth.ts`, `month-end-review.ts`, and `BackupContext`.
+All key names live in **one module**, `src/lib/storage/keys.ts`. No other file contains key strings (ARCHITECTURE §8.2); a unit test enforces this. Moved there on 2026-11-11 from `FinanceContext`, `backup.ts`, `security.ts`, `onboarding.ts`, `googleAuth.ts`, `month-end-review.ts`, and `BackupContext`.
 
 | Logical table | Storage key | Shape | In Drive backup? |
 |---|---|---|---|
@@ -88,7 +88,7 @@ All key names live in **one module** in `src/lib/storage/`. No other file contai
 | `drive_folder_cache` | `financial-clarity:backup-folder-id` | String | No |
 | `google_profile_cache` | `financial-clarity:google-user` | Object, singleton | No (disclosed exclusion) |
 | `app_flags` | `financial-clarity:onboarding-complete`, `financial-clarity:first-run-done` (legacy, read-only), `financial-clarity:connect-drive-banner-dismissed` | String values | No (disclosed exclusion) |
-| `storage_meta` | `financial-clarity:storage-version` | Integer, **MVP-cleanup (new)** | No |
+| `storage_meta` | `financial-clarity:storage-version` | Integer. Written by the migration runner | No |
 | `legacy_sms` | `financial-clarity:sms-pending`, `sms-dismissed`, `sms-linked`, `sms-last-scan` | Legacy, **read-only** | Carried for compatibility only |
 | `quarantine` | `financial-clarity:backup:<key>:<epoch_ms>` | Raw original text | No |
 
@@ -110,6 +110,7 @@ This table records income, spending, and savings contributions. A **savings cont
 | `note` | string | No (may be `""`) | Free text. Searchable |
 | `paymentMethod` | `enum<cash, bank, credit-card, credit-card-payment>` | Yes | If absent, the entry is treated as consumption (legacy rows). `credit-card-payment` is a bill payment and is **excluded** from consumption (PRD §6). Rules about which payment methods are allowed with which transaction type are **deferred** for later planning |
 | `merchant` | string | Yes | Optional payee (PRD §9). Existing values came from legacy SMS import |
+| `savingsCorrection` | `enum<increase, spent, transfer>` | Yes | Confirmed combined-savings correction. Reserved for `_adjustment-savings`; `increase` uses income direction, `spent` and `transfer` use expense direction. Not ordinary income, consumption, or contribution |
 | `recurringRuleId` | `id` | Yes | Provenance link to `recurring_rules.id`. Set only by recurring generation |
 | `recurringMonth` | `month` | Yes | The occurrence month this generated entry represents. Both occurrence fields are present together or absent together |
 | `sourceSmsFingerprint` | string | Yes | **Legacy, read-only.** Never written by new code, never shown in the UI, never exported to CSV |
@@ -132,6 +133,7 @@ This table records income, spending, and savings contributions. A **savings cont
 | `savings-goal`, `savings-emergency` | `savings` | Savings contribution buckets (PRD FR-06) |
 | `other`, `other-income` | `expense`, `income` | Neutral catch-all categories |
 | `_adjustment-missed-spend`, `_adjustment-overlogged` | `expense`, `income` | Month-end reconciliation adjustments. Hidden from every picker |
+| `_adjustment-savings` | `both` | Combined savings correction. Hidden from pickers and not attributed to either savings bucket |
 
 ### 4.3 `budgets` — monthly category limits
 
@@ -182,7 +184,11 @@ Arbitrary named goals, withdrawals, independent balances, and target dates are *
 | `adjustmentTxnId` | `id` | Yes | **Soft FK → `transactions.id`**. The adjustment entry, if one was logged |
 | `reconciledAt` | `epoch_ms` | No | When the user confirmed |
 
-`expectedBalance` is a deliberate **point-in-time snapshot**, not duplicated derived data. It records what the user saw when they reconciled. Repeat-reconciliation and adjustment-duplication behavior are **pending review (D8)**. This document does not change them.
+`expectedBalance` is a deliberate **point-in-time snapshot**, not duplicated derived data. It records what the user saw when they reconciled. The expected **bank** balance is lifetime-style balance through month end minus tracked combined savings plus the card amount still unpaid. The savings estimate includes contributions and confirmed savings corrections through the month. Older records and their adjustment transactions keep their saved values. A repeated savings reconciliation records only a newly confirmed difference; the existing bank-adjustment repeat behavior remains pending review (D8).
+
+The actual savings balance is not stored separately. A confirmed difference is stored as a dated `_adjustment-savings` transaction. An increase raises tracked savings and lifetime balance; spent or lost reduces both; a transfer to bank reduces savings and raises expected bank cash without changing lifetime balance. These entries are backed up as transactions, are not attributed to either savings bucket, and are not edited as ordinary transactions. They can be removed from Transactions after an explicit warning; existing reconciliation snapshots and bank adjustments remain unchanged. If the bank gap is not confirmed, it remains unresolved.
+
+A month-end **card bill payment** is an ordinary `transactions` row: `type = expense`, `paymentMethod = credit-card-payment`, `categoryId = other`, note "Card bill payment", dated the reviewed month's last day. No new field, key, or schema version is needed; it is excluded from consumption (PRD §6) and lowers the outstanding card amount.
 
 ### 4.7 `month_reviews` — per-month review state
 
@@ -230,7 +236,7 @@ The key exists only while a PIN is enabled.
 | `app_flags.onboarding-complete` | `"<reason>:<epoch_ms>"` or `"migrated:<reason>"` | Present means onboarding is complete |
 | `app_flags.first-run-done` | Legacy string | Read once to migrate older users, then ignored |
 | `app_flags.connect-drive-banner-dismissed` | `epoch_ms` string | Dashboard nudge has been dismissed |
-| `storage_meta` | `storage-version`: `int` | **MVP-cleanup.** Highest local migration that has been applied (§10.1) |
+| `storage_meta` | `storage-version`: `int` | Highest local migration that has been applied (§10.1). Currently `3` |
 | `legacy_sms` | Existing shapes, unchanged | **Read-only.** Carried in backups for compatibility. It never reactivates SMS features, and it is never silently deleted (PRD FR-10) |
 | `quarantine` | Raw text | Original text of a key or record that failed validation. It is never overwritten by normal writes |
 
@@ -329,7 +335,7 @@ Restore and legacy data can produce an **orphaned `categoryId`**, meaning it poi
 | Layer | Enforces | Location |
 |---|---|---|
 | Form validation (controlled state + the entity validator) | Field formats and ranges. Entered values are kept on error | Sheets and forms |
-| Entity validator (TypeScript type guard) | The same rules for storage reads, backup restore, and CSV import. **One validator per entity** | `src/lib/storage/` |
+| Entity validator (TypeScript type guard) | The same rules for storage reads, backup restore, and CSV import. **One validator per entity** | `src/lib/storage/schemas.ts` |
 | Domain mutation | Cross-record invariants: uniqueness, references, delete restrictions, eligibility | `src/lib/domain/` |
 
 Invariants are enforced in the **domain mutation**, not only by hiding UI (PRD FR-03, ARCHITECTURE §8.5). A record that fails its schema when read is **quarantined**, never silently dropped (§9.4).
@@ -343,7 +349,7 @@ Invariants are enforced in the **domain mutation**, not only by hiding UI (PRD F
 | `transactions` | `date` is a valid `YYYY-MM-DD` calendar date. Future-dated entries are allowed and are excluded from "through today" metrics by the existing domain rule. No new future-date rule is introduced (PRD §6) |
 | `transactions` | `type` is compatible with the category type: `income` needs `income` or `both`. `expense` needs `expense`, `commitment`, `savings`, or `both`. The adjustment categories are exempt; only reconciliation writes them |
 | `transactions` | `recurringRuleId` and `recurringMonth` are **both present or both absent**. If present, `type = expense` |
-| `transactions` | **New** entries require `categories.active = true`. Editing an existing entry may keep its current inactive category (PRD FR-03 assumption, pending confirmation) |
+| `transactions` | **New** entries require `categories.active = true`. Editing an existing entry may keep its current inactive category (PRD FR-03, owner-confirmed 2026-11-12) |
 | `categories` | `name` is non-empty after trimming. `color` matches `^#[0-9A-Fa-f]{6}$`. `type` is a valid enum value. `active` is a boolean |
 | `categories` | **Delete is allowed only if** the category is not reserved **and** no transaction, budget, or recurring rule references it (Approved change, D6) |
 | `categories` | **Owner-approved:** reserved categories (savings buckets, `other`, `other-income`, adjustment categories) cannot be made inactive. They must stay usable for their features |
@@ -371,7 +377,7 @@ These rules implement PRD FR-07 and D4 using only the cursor and the occurrence 
 | Nothing before `startMonth` or before the due date | The processor starts at `max(startMonth, cursor + 1)` and stops at the last occurrence whose date is on or before today |
 | Skip paused months | Paused rules are not processed. **On resume**, the domain moves the cursor forward to the last month whose occurrence date is **before the resume date**, so those months are never generated |
 | Catch up active missed months once | When the app reopens, every due month after the cursor is generated in one commit |
-| Never recreate a transaction the user deleted | The cursor has already passed that month, so it is not regenerated. No separate suppression list is needed. Making suppression permanent remains **pending (PRD FR-07)** |
+| Never recreate a transaction the user deleted | The cursor has already passed that month, so it is not regenerated. No separate suppression list is kept; the owner decided against permanent suppression (PRD FR-07, 2026-11-12) |
 
 Transactions generated by older app versions have no occurrence key. Their forward cursor normally covers those months; if a prior interrupted write left a transaction without its cursor, the processor uses an exact scheduled-date legacy match once. New generated transactions always carry the stable key.
 
@@ -458,9 +464,9 @@ Pages and components never access storage directly. **Only the storage layer rea
 
 | Class | Data | Handling |
 |---|---|---|
-| **Financial (high)** | `transactions` (amount, note, merchant, date), `budgets`, `recurring_rules`, `savings_targets`, `reconciliations`, CSV and PNG exports, backup files | Stored only on the device or in the user's Drive. Never logged. Never sent to Crashlytics |
+| **Financial (high)** | `transactions` (amount, note, merchant, date), `budgets`, `recurring_rules`, `savings_targets`, `reconciliations`, CSV and PNG exports, backup files | Stored only on the device or in the user's Drive. Never logged. Never sent to any diagnostics service |
 | **Credential-derived (high)** | `security_settings.pinHash` and `pinSalt` | The PIN itself is never stored. The hash is never logged or exported. Excluded from backups |
-| **Personal (medium)** | `google_profile_cache` (email, name, photo URL) | Display only. Excluded from backups. Cleared when Google is disconnected. Never used as a Crashlytics user ID |
+| **Personal (medium)** | `google_profile_cache` (email, name, photo URL) | Display only. Excluded from backups. Cleared when Google is disconnected. Never sent off the device by the app |
 | **Legacy (medium)** | `legacy_sms`, `transactions.sourceSmsFingerprint` | Read-only. Not shown in the UI or CSV. Carried in backups for compatibility. Any purge needs a separate proposal (PRD FR-10) |
 | **Operational (low)** | Flags, caches, `backup_preferences`, `storage_meta` | `lastAutoBackupError` holds only an error category |
 | **Secrets** | OAuth access and refresh tokens | **Never stored** by the app. The auth plugin manages them |
@@ -469,7 +475,7 @@ Pages and components never access storage directly. **Only the storage layer rea
 
 - **No encryption at rest** in the MVP (PRD FR-11 defers encryption). The UI says that the app lock does not encrypt storage, and that someone with file-system access can brute-force a 4-digit PIN hash (ARCHITECTURE §9.2).
 - `android:allowBackup="false"` stays. Android's own cloud backup does not copy finance data.
-- **Diagnostics:** Crashlytics receives stack traces and device metadata only. It never receives amounts, notes, merchants, category names, emails, or tokens. The D9 privacy review is pending.
+- **Diagnostics:** none. Crash reporting was removed (D9, 2026-11-12), so no financial or personal data leaves the device except a backup the user sends to their own Drive or a file they choose to share.
 - **CSV export:** cells that start with `=`, `+`, `-`, or `@` are escaped. Exports are marked as **not a full backup**.
 - **Quarantine** keys hold raw financial text. They have the same sensitivity as the original data and are removed by the forgotten-PIN reset.
 
@@ -487,13 +493,15 @@ Pages and components never access storage directly. **Only the storage layer rea
 | Atomicity | Snapshot the affected keys → write → roll back on failure. The version is written **last** |
 | Failure | Keep the old data unchanged and show a full-screen explanation. Never overwrite data without confirmation |
 | No rollback releases | Google Play cannot downgrade an app. A migration must never leave data that the current code cannot read |
+| Implementation | `runLocalMigrations` in `src/lib/storage/migrations.ts`, called by `prepareStorage` at startup (ADR 0005). A stored version higher than the app knows is refused with an "Update the app" screen and left unchanged. Each step writes its data and then the version in one rolled-back unit |
 
-Planned migrations:
+Migrations (registered in `src/lib/storage/local-migrations.ts`, ADR 0006):
 
 | Version | Change | Source |
 |---|---|---|
 | 1 | Add `active: true` to every category that has no `active` value, so existing categories stay usable | Approved change (PRD FR-03, §9) |
 | 2 | Make `budgets.month` required. A legacy budget without a month gets the current month, which matches today's behavior when the data loads. If this creates a duplicate (`categoryId`, `month`), keep the row that already had a month and **quarantine** the other one. Never drop it silently | MVP-cleanup |
+| 3 | Reserve the savings correction category and metadata. Refuse migration if an older category or transaction already uses the reserved ID; do not overwrite it | Owner-approved savings reconciliation |
 
 These changes need **no migration**, because the fields are optional and a missing value means the default: `transactions.recurringRuleId` and `recurringMonth`, `security_settings.failedAttempts` and `cooldownUntil`, and ignoring `backup_preferences.signedInEmail`.
 
@@ -509,7 +517,8 @@ These existing migrations that run when data loads stay as they are:
 | 1 → 2 | `transactions.paymentMethod` added (Existing) |
 | 2 → 3 | Legacy SMS block added. Older backups get an empty block (Existing) |
 | **3 → 4** | Add optional `transactions.recurringRuleId` and `recurringMonth` as a paired occurrence identity. Existing v3 transactions remain valid without either field |
-| **4 → 5 (planned)** | Add `categories.active`, defaulting missing values to `true`, and normalize month-less budgets as described by local migration 2 |
+| **4 → 5** | Add `categories.active`, defaulting missing values to `true`, and normalize month-less budgets as described by local migration 2. Implemented 2026-11-12 (ADR 0006); a month-less budget that collides is left out of the restore, and the Drive file keeps it |
+| **5 → 6** | Reserve the savings correction category and optional transaction metadata. Existing transactions remain unchanged; refuse an old backup that already uses the reserved ID (ADR 0008) |
 
 - A backup with a **newer** schema version is refused with an "update the app" message.
 - Older backups are migrated forward step by step, then validated with the same entity schemas.
@@ -546,7 +555,7 @@ These existing migrations that run when data loads stay as they are:
 | Path | Covers | Notes |
 |---|---|---|
 | **Google Drive backup** (optional) | `transactions`, `categories`, `budgets`, `recurring_rules`, `savings_targets`, and the legacy SMS block | Manual or automatic. Stored in the user's own Drive |
-| CSV export and import | Transactions only | **Not a complete backup.** The UI says so |
+| CSV export and import | Transactions only | **Not a complete backup.** Savings-correction rows are identified in exports and reported as invalid on import; restore them through a full backup |
 | Quarantine keys | Raw text of records that failed validation | Lets the data be recovered by hand. Never overwritten |
 | Android system backup | **None** (`allowBackup=false`) | Onboarding and the Backup screen say so |
 

@@ -241,7 +241,7 @@ function KpiTile({ label, value, tone, icon: Icon, hint, testId }: KpiTileProps)
       className="rounded-xl border border-border bg-card p-3"
       data-testid={testId}
     >
-      <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <p className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
       <div className={cn('mt-1 flex items-center gap-1 text-lg font-bold leading-tight', toneClass)}>
@@ -249,7 +249,7 @@ function KpiTile({ label, value, tone, icon: Icon, hint, testId }: KpiTileProps)
         <span className="truncate">{value}</span>
       </div>
       {hint && (
-        <p className="mt-0.5 text-[10px] text-muted-foreground truncate">{hint}</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground truncate">{hint}</p>
       )}
     </div>
   );
@@ -375,7 +375,7 @@ function SpendingPie({ snapExpenses, topCategories }: SpendingPieProps) {
         </ResponsiveContainer>
         {/* Center label */}
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Total spent
           </p>
           <p className="text-base font-bold text-foreground">{formatINR(snapExpenses)}</p>

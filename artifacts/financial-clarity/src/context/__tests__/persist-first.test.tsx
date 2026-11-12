@@ -130,6 +130,7 @@ describe('FinanceContext persist-first writes', () => {
     failWritesTo(TX_KEY);
 
     const { result } = renderHook(() => useFinance(), { wrapper });
+    act(() => { result.current.processRecurring(); });
 
     await waitFor(() => expect(result.current.storageError).toMatch(/Recurring expenses could not be added/));
     expect(result.current.transactions).toHaveLength(0);
@@ -216,9 +217,13 @@ describe('FinanceContext persist-first writes', () => {
       { id: 'stable-rule', description: 'Synthetic monthly', amount: 200, categoryId: 'rent', dayOfMonth: 1, active: true, startMonth: month },
     ]));
     const { result, rerender } = renderHook(() => useFinance(), { wrapper });
+    // Nothing is generated until the app shell asks (after unlock).
+    expect(result.current.transactions).toHaveLength(0);
+    act(() => { result.current.processRecurring(); });
 
     await waitFor(() => expect(result.current.transactions).toHaveLength(1));
     expect(result.current.transactions[0]).toMatchObject({ recurringRuleId: 'stable-rule', recurringMonth: month });
+    act(() => { result.current.processRecurring(); });
     rerender();
     expect(result.current.transactions).toHaveLength(1);
   });

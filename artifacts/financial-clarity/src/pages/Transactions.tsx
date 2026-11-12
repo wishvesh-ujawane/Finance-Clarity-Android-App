@@ -5,8 +5,13 @@ import { useFinance } from '@/context/FinanceContext';
 import { useDefaultFabMenu } from '@/hooks/useDefaultFabMenu';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
-import { formatDateLabel, formatINR, localDateStr } from '@/lib/finance-utils';
+import { formatDateLabel, formatAmount, localDateStr } from '@/lib/finance-utils';
 import { buildTransactionsCsv, exportCsvFile } from '@/lib/csv';
+import { isCategoryActive } from '@/lib/category-rules';
+import { sumConsumption, sumIncome } from '@/lib/domain/finance-metrics';
+import type { Transaction } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 type RangePreset = 'current' | 'last1' | 'last3' | 'custom';
 
@@ -49,7 +54,7 @@ function formatPeriodLabel(preset: RangePreset, from: string, to: string): strin
 }
 
 export default function Transactions() {
-  const { transactions, categories, openEditSheet, openSheet } = useFinance();
+  const { transactions, categories, openEditSheet, openSheet, deleteTransaction } = useFinance();
 
   useDefaultFabMenu();
 
@@ -64,6 +69,8 @@ export default function Transactions() {
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [exportError, setExportError] = useState('');
+  const [correctionToDelete, setCorrectionToDelete] = useState<Transaction | null>(null);
+  const [deleteError, setDeleteError] = useState('');
 
   const { from: effectiveFrom, to: effectiveTo } = useMemo(
     () => getPresetRange(preset, customFrom, customTo),
@@ -105,8 +112,10 @@ export default function Transactions() {
     return Object.keys(map).sort((a, b) => b.localeCompare(a)).map(date => ({ date, txns: map[date] }));
   }, [filtered]);
 
-  const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const totalExpenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  // PRD §6: "Spending" is consumption — savings contributions and card bill
+  // payments are listed but not counted.
+  const totalIncome = sumIncome(filtered);
+  const totalSpending = sumConsumption(filtered);
 
   const getCategoryById = (id: string) => categoryById.get(id);
 
@@ -124,8 +133,35 @@ export default function Transactions() {
     }
   }, [transactions, categories, effectiveFrom, effectiveTo, preset]);
 
+  const removeCorrection = () => {
+    if (!correctionToDelete) return;
+    const result = deleteTransaction(correctionToDelete.id);
+    if (!result.ok) {
+      setDeleteError(result.message);
+      return;
+    }
+    setDeleteError('');
+    setCorrectionToDelete(null);
+  };
+
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-8">
+      <AlertDialog open={correctionToDelete !== null} onOpenChange={open => { if (!open) { setCorrectionToDelete(null); setDeleteError(''); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove savings correction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove {correctionToDelete ? formatAmount(correctionToDelete.amount) : ''} of savings correction?
+              Savings, bank, and lifetime calculations will change. Earlier reconciliation records and bank adjustments stay unchanged.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && <p role="alert" className="text-sm text-destructive">{deleteError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button variant="destructive" onClick={removeCorrection} data-testid="confirm-delete-savings-correction">Remove correction</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="flex items-start justify-between mb-6">
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">History</p>
@@ -195,7 +231,7 @@ export default function Transactions() {
         {preset === 'custom' && (
           <div className="flex gap-2 items-center">
             <div className="flex-1">
-              <label className="text-[10px] text-muted-foreground font-medium block mb-1">From</label>
+              <label className="text-[11px] text-muted-foreground font-medium block mb-1">From</label>
               <input
                 data-testid="from-date"
                 type="date"
@@ -206,7 +242,7 @@ export default function Transactions() {
             </div>
             <Calendar size={14} className="text-muted-foreground mt-4 flex-shrink-0" />
             <div className="flex-1">
-              <label className="text-[10px] text-muted-foreground font-medium block mb-1">To</label>
+              <label className="text-[11px] text-muted-foreground font-medium block mb-1">To</label>
               <input
                 data-testid="to-date"
                 type="date"
@@ -219,7 +255,7 @@ export default function Transactions() {
         )}
 
         {/* Active range label */}
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[11px] text-muted-foreground">
           Showing: <span className="font-semibold text-foreground">{formatPeriodLabel(preset, effectiveFrom, effectiveTo)}</span>
           {preset !== 'custom' && (
             <span className="ml-1">({effectiveFrom} — {effectiveTo})</span>
@@ -249,16 +285,16 @@ export default function Transactions() {
       {/* Summary Bar */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div className="bg-card border border-border rounded-xl p-3 text-center">
-          <p className="text-[10px] text-muted-foreground">Transactions</p>
+          <p className="text-[11px] text-muted-foreground">Transactions</p>
           <p className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{filtered.length}</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-3 text-center">
-          <p className="text-[10px] text-muted-foreground">Income</p>
-          <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 truncate">{formatINR(totalIncome)}</p>
+          <p className="text-[11px] text-muted-foreground">Income</p>
+          <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 truncate">{formatAmount(totalIncome)}</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-3 text-center">
-          <p className="text-[10px] text-muted-foreground">Expenses</p>
-          <p className="text-xs font-bold text-red-500 truncate">{formatINR(totalExpenses)}</p>
+          <p className="text-[11px] text-muted-foreground">Spending</p>
+          <p className="text-xs font-bold text-red-500 truncate" data-testid="transactions-spending-total">{formatAmount(totalSpending)}</p>
         </div>
       </div>
 
@@ -283,8 +319,8 @@ export default function Transactions() {
       ) : (
         <div className="space-y-5">
           {grouped.map(({ date, txns }, gi) => {
-            const dayIncome = txns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-            const dayExpense = txns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+            const dayIncome = sumIncome(txns);
+            const dayExpense = sumConsumption(txns);
 
             return (
               <motion.div
@@ -298,9 +334,9 @@ export default function Transactions() {
                   <p className="text-xs font-bold text-foreground">
                     {formatDateLabel(date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                   </p>
-                  <div className="flex items-center gap-3 text-[10px] font-semibold">
-                    {dayIncome > 0 && <span className="text-emerald-600 dark:text-emerald-400">+{formatINR(dayIncome)}</span>}
-                    {dayExpense > 0 && <span className="text-red-500">-{formatINR(dayExpense)}</span>}
+                  <div className="flex items-center gap-3 text-[11px] font-semibold">
+                    {dayIncome > 0 && <span className="text-emerald-600 dark:text-emerald-400">+{formatAmount(dayIncome)}</span>}
+                    {dayExpense > 0 && <span className="text-red-500">-{formatAmount(dayExpense)}</span>}
                   </div>
                 </div>
 
@@ -310,16 +346,16 @@ export default function Transactions() {
                     return (
                       <div
                         key={t.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => openEditSheet(t)}
+                        role={t.savingsCorrection ? undefined : 'button'}
+                        tabIndex={t.savingsCorrection ? undefined : 0}
+                        onClick={() => { if (!t.savingsCorrection) openEditSheet(t); }}
                         onKeyDown={e => {
-                          if (e.key === 'Enter' || e.key === ' ') {
+                          if (!t.savingsCorrection && (e.key === 'Enter' || e.key === ' ')) {
                             e.preventDefault();
                             openEditSheet(t);
                           }
                         }}
-                        className="group flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer"
+                        className={cn('group flex items-center gap-3 px-4 py-3', !t.savingsCorrection && 'hover:bg-muted/40 transition-colors cursor-pointer')}
                         data-testid={`txn-${t.id}`}
                       >
                         <div
@@ -329,13 +365,24 @@ export default function Transactions() {
                           <CategoryIcon icon={cat?.icon || 'DollarSign'} color={cat?.color || '#6366F1'} size={16} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground">{cat?.name || 'Unknown'}</p>
+                          <p className="text-sm font-medium text-foreground">
+                            {cat?.name || 'Unknown'}
+                            {cat && !isCategoryActive(cat) && (
+                              <span className="ml-1.5 rounded-lg bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground align-middle">Inactive</span>
+                            )}
+                          </p>
                           {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           <span className={cn('text-sm font-bold', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
-                            {t.type === 'income' ? '+' : '-'}{formatINR(t.amount)}
+                            {t.type === 'income' ? '+' : '-'}{formatAmount(t.amount)}
                           </span>
+                          {t.savingsCorrection && (
+                            <Button variant="ghost" size="sm" onClick={() => { setDeleteError(''); setCorrectionToDelete(t); }}
+                              aria-label="Remove savings correction" data-testid={`delete-savings-correction-${t.id}`}>
+                              Remove
+                            </Button>
+                          )}
                         </div>
                       </div>
                     );

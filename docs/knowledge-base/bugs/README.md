@@ -9,6 +9,8 @@ File naming: `YYYYMMDD-<short-slug>.md` (date the bug was observed).
 
 ## Index
 
+- [2026-11-12 — A quick double tap on the entry sheet saved the transaction twice](./20261112-transaction-double-submit.md) — fixed (Phase 6)
+- [2026-11-06 — Card bill payments counted as spending on some screens](./20261106-card-bill-double-count.md) — fixed (Phase 3); month-end snapshot pending D8
 - [2026-11-06 — Failed saves looked successful (finance writes ignored errors)](./20261106-swallowed-storage-writes.md) — fixed (E1–E3)
 - [2026-11-11 — Recurring rules replayed paused months and used fuzzy occurrence matching](./20261111-recurring-paused-months.md) — fixed; Android verification outstanding
 - [2026-11-06 — Back up now could replace a larger Drive backup with an empty or smaller one](./20261106-drive-backup-overwrite.md) — fixed

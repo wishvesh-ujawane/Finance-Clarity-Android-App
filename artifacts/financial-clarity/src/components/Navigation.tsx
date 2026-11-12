@@ -2,7 +2,7 @@ import { Link, useLocation } from 'wouter';
 import { LayoutDashboard, PieChart, BarChart3, TrendingUp, Receipt, Settings } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { cn } from '@/lib/utils';
-import { formatINR } from '@/lib/finance-utils';
+import { formatAmount } from '@/lib/finance-utils';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -32,10 +32,9 @@ export function Navigation() {
             <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
               <TrendingUp size={16} className="text-white" />
             </div>
-            <div>
-              <p className="text-xs text-white/50 font-medium tracking-wider uppercase">Financial</p>
-              <p className="text-sm font-bold text-white leading-tight" style={{ fontFamily: 'var(--font-display)' }}>Clarity</p>
-            </div>
+            <p className="text-base font-bold text-white leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
+              Fiscal Focus
+            </p>
           </div>
         </div>
 
@@ -63,24 +62,24 @@ export function Navigation() {
 
         <div className="p-4 border-t border-white/10">
           <div className="bg-white/5 rounded-xl p-4 space-y-3">
-            <p className="text-xs text-white/40 uppercase tracking-wider font-medium">Overview</p>
+            <p className="text-xs text-white/60 uppercase tracking-wider font-medium">Overview</p>
             <div>
-              <p className="text-xs text-white/50">Lifetime balance</p>
+              <p className="text-xs text-white/60">Lifetime balance</p>
               <p className={cn(
                 'text-xl font-bold',
                 balance >= 0 ? 'text-emerald-400' : 'text-red-400'
               )} style={{ fontFamily: 'var(--font-display)' }}>
-                {formatINR(balance)}
+                {formatAmount(balance)}
               </p>
             </div>
             <div className="flex gap-3">
               <div className="flex-1">
-                <p className="text-[10px] text-white/40">Income (this month)</p>
-                <p className="text-xs font-semibold text-emerald-400">{formatINR(income)}</p>
+                <p className="text-[11px] text-white/60">Income (this month)</p>
+                <p className="text-xs font-semibold text-emerald-400">{formatAmount(income)}</p>
               </div>
               <div className="flex-1">
-                <p className="text-[10px] text-white/40">Expenses (this month)</p>
-                <p className="text-xs font-semibold text-red-400">{formatINR(expenses)}</p>
+                <p className="text-[11px] text-white/60">Expenses (this month)</p>
+                <p className="text-xs font-semibold text-red-400">{formatAmount(expenses)}</p>
               </div>
             </div>
           </div>
@@ -88,7 +87,11 @@ export function Navigation() {
       </aside>
 
       {/* Mobile Bottom Nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[hsl(222,65%,12%)] border-t border-border z-40" data-testid="bottom-nav">
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[hsl(222,65%,12%)] border-t border-border z-40"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        data-testid="bottom-nav"
+      >
         <div className="flex">
           {NAV_ITEMS.map(({ path, label, icon: Icon }) => {
             const isActive = location === path;
@@ -102,7 +105,7 @@ export function Navigation() {
                   )}
                 >
                   <Icon size={19} />
-                  <span className="text-[9px] font-medium">{label}</span>
+                  <span className="text-[11px] font-medium">{label}</span>
                 </div>
               </Link>
             );

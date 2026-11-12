@@ -6,6 +6,7 @@ Complete guide for building the Android APK and deploying to mobile devices.
 - [Prerequisites](#prerequisites)
 - [Environment Setup](#environment-setup)
 - [Daily Development Workflow](#daily-development-workflow)
+- [Continuous Integration](#continuous-integration)
 - [Build Debug APK](#build-debug-apk)
 - [Clean Build (From Scratch)](#clean-build-from-scratch)
 - [Install APK on Device](#install-apk-on-device)
@@ -133,6 +134,18 @@ Use this when you need to test:
 - Performance on real device
 - Touch gestures and haptics
 - APK distribution
+
+---
+
+## Continuous Integration
+
+`.github/workflows/ci.yml` runs on every pull request (ARCHITECTURE §16.2):
+frozen-lockfile install, `pnpm run typecheck`, the Vitest suite, and the web
+build. It uses the pnpm version from `packageManager` and Node 24. It needs no
+secrets and does not build the APK or run Playwright; run
+`pnpm --filter @workspace/financial-clarity run test:e2e` locally before a
+release, and follow the device checks in [testing.md](./testing.md)
+("Release verification").
 
 ---
 

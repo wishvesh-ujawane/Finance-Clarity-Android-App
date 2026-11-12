@@ -8,8 +8,9 @@ import { cn } from '@/lib/utils';
 import { addMonths, formatINR, formatMonthYear } from '@/lib/finance-utils';
 import { parseCurrencyInput } from '@/lib/currency-utils';
 import { useFinance } from '@/context/FinanceContext';
-import { Category } from '@/lib/types';
+import { SYSTEM_ADJUSTMENT_CATEGORY_IDS, type Category } from '@/lib/types';
 import { suggestBudgetForCategory } from '@/lib/month-end-review';
+import { isCategoryActive } from '@/lib/category-rules';
 
 interface Props {
   reviewMonth: string;
@@ -30,14 +31,19 @@ const CATEGORY_TYPE_ORDER: Record<Category['type'], number> = {
   savings: 3,
   income: 99,
 };
+const SYSTEM_CATEGORY_IDS: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
 
 export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
   const { transactions, categories, budgets, addBudget, getTotalIncome } = useFinance();
   const nextMonth = useMemo(() => addMonths(reviewMonth, 1), [reviewMonth]);
 
   const steps = useMemo<Step[]>(() => {
+    // Inactive categories are not offered for new budgets (PRD FR-03); one
+    // that already has a next-month budget stays so its limit can be edited.
     const budgetableCats = categories
+      .filter(c => !SYSTEM_CATEGORY_IDS.has(c.id))
       .filter(c => c.type === 'expense' || c.type === 'commitment' || c.type === 'both' || c.type === 'savings')
+      .filter(c => isCategoryActive(c) || budgets.some(b => b.categoryId === c.id && b.month === nextMonth))
       .slice()
       .sort((a, b) => {
         const t = (CATEGORY_TYPE_ORDER[a.type] ?? 50) - (CATEGORY_TYPE_ORDER[b.type] ?? 50);
@@ -59,6 +65,7 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
   const total = steps.length;
   const [idx, setIdx] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
+  const [saveError, setSaveError] = useState('');
   // Per-step input value keyed by categoryId. Prefill on first render.
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
@@ -108,9 +115,14 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
   const parsed = parseCurrencyInput(value);
   const canSave = parsed > 0;
 
+  // Stay on the category and keep the value when the save fails (AGENTS §8).
   const handleSaveAndNext = () => {
     if (canSave) {
-      addBudget({ categoryId: step.category.id, limit: parsed, month: nextMonth });
+      const result = addBudget({ categoryId: step.category.id, limit: parsed, month: nextMonth });
+      if (!result.ok) {
+        setSaveError(result.message);
+        return;
+      }
     }
     advance();
   };
@@ -118,6 +130,7 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
   const handleSkip = () => advance();
 
   const advance = () => {
+    setSaveError('');
     if (idx + 1 >= total) {
       onFinished();
       return;
@@ -128,6 +141,7 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
 
   const handleBack = () => {
     if (idx === 0) return;
+    setSaveError('');
     setDirection(-1);
     setIdx(i => i - 1);
   };
@@ -181,11 +195,17 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
             <BudgetStepCard
               step={step}
               value={value}
-              onChange={v => setValues(prev => ({ ...prev, [step.category.id]: v }))}
+              onChange={v => { setSaveError(''); setValues(prev => ({ ...prev, [step.category.id]: v })); }}
             />
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {saveError && (
+        <p className="pt-2 text-xs font-medium text-destructive" role="alert" data-testid="budget-step-save-error">
+          {saveError}
+        </p>
+      )}
 
       {/* Actions */}
       <div className="flex items-center justify-between gap-2 pt-3">
@@ -334,7 +354,7 @@ function BudgetTotalTracker({ budgetedTotal, referenceIncome, delta }: BudgetTot
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             <TrendingUp className="h-3 w-3 text-primary" />
             Budget allocated
           </p>
@@ -357,7 +377,7 @@ function BudgetTotalTracker({ budgetedTotal, referenceIncome, delta }: BudgetTot
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.35 }}
-                  className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400"
+                  className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400"
                   data-testid="budget-total-delta"
                 >
                   +{formatINR(delta)}
@@ -368,7 +388,7 @@ function BudgetTotalTracker({ budgetedTotal, referenceIncome, delta }: BudgetTot
         </div>
         {hasReference && (
           <div className="shrink-0 text-right">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">of income</p>
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">of income</p>
             <p className="text-xs font-semibold text-foreground tabular-nums">
               {formatINR(referenceIncome)}
             </p>
@@ -385,14 +405,14 @@ function BudgetTotalTracker({ budgetedTotal, referenceIncome, delta }: BudgetTot
               transition={{ type: 'spring', stiffness: 200, damping: 28 }}
             />
           </div>
-          <p className="mt-1 text-[10px] text-muted-foreground">
+          <p className="mt-1 text-[11px] text-muted-foreground">
             {ratioPct > 100
               ? `Over income by ${formatINR(budgetedTotal - referenceIncome)}`
               : `${ratioPct.toFixed(0)}% of last month's income`}
           </p>
         </>
       ) : (
-        <p className="mt-2 text-[10px] text-muted-foreground">
+        <p className="mt-2 text-[11px] text-muted-foreground">
           No income recorded last month — tracking absolute amount only.
         </p>
       )}

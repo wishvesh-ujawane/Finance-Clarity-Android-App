@@ -3,7 +3,7 @@ import { Link } from 'wouter';
 import { ChevronRight, Cloud, Heart, MessageCircle, PiggyBank, Repeat, Shapes, ShieldCheck } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { useSecurity } from '@/context/SecurityContext';
-import { formatINR } from '@/lib/finance-utils';
+import { formatAmount } from '@/lib/finance-utils';
 import { FeedbackSheet } from '@/components/FeedbackSheet';
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -88,7 +88,7 @@ export default function Settings() {
               <p className="text-sm font-bold text-foreground">Savings</p>
               <p className="text-xs text-muted-foreground">
                 {hasSavingsTarget
-                  ? `Goal ${formatINR(savingsGoal.goal.monthly)}/mo \u2022 Emergency ${formatINR(savingsGoal.emergency.monthly)}/mo`
+                  ? `Goal ${formatAmount(savingsGoal.goal.monthly)}/mo \u2022 Emergency ${formatAmount(savingsGoal.emergency.monthly)}/mo`
                   : 'Set goal savings and emergency fund targets.'}
               </p>
             </div>

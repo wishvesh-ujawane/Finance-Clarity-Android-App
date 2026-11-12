@@ -2,6 +2,7 @@ import {
   SAVINGS_CATEGORY_IDS,
   SYSTEM_ADJUSTMENT_CATEGORY_IDS,
   type Budget,
+  type Category,
   type RecurringExpense,
   type Transaction,
 } from '@/lib/types';
@@ -10,6 +11,77 @@ const RESERVED_CATEGORY_IDS: ReadonlySet<string> = new Set([
   ...SAVINGS_CATEGORY_IDS,
   ...SYSTEM_ADJUSTMENT_CATEGORY_IDS,
 ]);
+
+/**
+ * Categories that must stay usable for their features, so they can never be
+ * made inactive (DATABASE §6.2, owner-approved): the reserved categories plus
+ * the "Other" fallbacks used by CSV import.
+ */
+const ALWAYS_ACTIVE_CATEGORY_IDS: ReadonlySet<string> = new Set([
+  ...RESERVED_CATEGORY_IDS,
+  'other',
+  'other-income',
+]);
+
+export const INACTIVE_CATEGORY_MESSAGE =
+  'This category is inactive. Choose another category, or reactivate it in Settings \u2192 Categories. Nothing was saved.';
+
+/** An absent `active` value (data saved before local migration 1) means active. */
+export function isCategoryActive(category: Pick<Category, 'active'>): boolean {
+  return category.active !== false;
+}
+
+/**
+ * Active category names are unique, ignoring case and surrounding spaces
+ * (DATABASE §6.2). `exceptId` skips the category being edited.
+ */
+export function findActiveNameClash<T extends Pick<Category, 'id' | 'name' | 'active'>>(
+  categories: readonly T[],
+  name: string,
+  exceptId?: string,
+): T | undefined {
+  const wanted = name.trim().toLocaleLowerCase('en-IN');
+  return categories.find(
+    c => c.id !== exceptId && isCategoryActive(c) && c.name.trim().toLocaleLowerCase('en-IN') === wanted,
+  );
+}
+
+export function duplicateNameMessage(name: string): string {
+  return `An active category called \u201c${name.trim()}\u201d already exists. Use a different name. Nothing was saved.`;
+}
+
+export function canDeactivateCategory(categoryId: string): boolean {
+  return !ALWAYS_ACTIVE_CATEGORY_IDS.has(categoryId);
+}
+
+/**
+ * Active (not paused) recurring rules in a category. A category with any of
+ * these cannot be made inactive (owner decision, PRD FR-03): the user pauses
+ * or moves the rule first, so the app never pauses it silently.
+ */
+export function activeRecurringRulesIn<T extends Pick<RecurringExpense, 'categoryId' | 'active'>>(
+  categoryId: string,
+  rules: readonly T[],
+): T[] {
+  return rules.filter(r => r.categoryId === categoryId && r.active);
+}
+
+export function activeRecurringBlockMessage(rules: readonly Pick<RecurringExpense, 'description'>[]): string {
+  const count = rules.length;
+  const names = rules.map(r => `\u201c${r.description}\u201d`).join(', ');
+  return `${count} active recurring expense${count === 1 ? '' : 's'} (${names}) use${count === 1 ? 's' : ''} this category. Pause ${count === 1 ? 'it' : 'them'} or move ${count === 1 ? 'it' : 'them'} to another category in Recurring first. Nothing was changed.`;
+}
+
+/**
+ * Categories offered for a new entry: active ones only. When editing, the
+ * entry's current category stays available even if it is inactive.
+ */
+export function selectableCategories<T extends Pick<Category, 'id' | 'active'>>(
+  categories: readonly T[],
+  currentCategoryId?: string,
+): T[] {
+  return categories.filter(c => isCategoryActive(c) || c.id === currentCategoryId);
+}
 
 export interface CategoryUsage {
   transactions: number;

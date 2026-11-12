@@ -1,10 +1,42 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { Transaction, Category, Budget, RecurringExpense, SavingsGoal, SAVINGS_CATEGORY_IDS, SYSTEM_ADJUSTMENT_CATEGORY_IDS, MonthReconciliation } from '@/lib/types';
-import { addMonths, currentMonth, localDateStr, isConsumptionExpense } from '@/lib/finance-utils';
-import { canDeleteCategory, type CategoryDeleteCheck } from '@/lib/category-rules';
+import { addMonths, currentMonth, lastDateOfMonth, localDateStr } from '@/lib/domain/periods';
+import {
+  balanceThroughEndOf,
+  cardBillPaymentsIn,
+  carryForward,
+  categorySpent,
+  expectedBankBalanceAtEndOf,
+  lifetimeBalance,
+  monthlyNet,
+  monthSummary,
+  outstandingCardAmount,
+  outstandingCardAmountThroughEndOf,
+  savingsBalanceThroughEndOf,
+  totalCommitments,
+  totalConsumption,
+  totalDayToDay,
+  totalIncome,
+  totalSavingsContributions,
+  type MonthSummary,
+} from '@/lib/domain/finance-metrics';
+import {
+  canDeactivateCategory,
+  activeRecurringRulesIn,
+  activeRecurringBlockMessage,
+  canDeleteCategory,
+  duplicateNameMessage,
+  findActiveNameClash,
+  INACTIVE_CATEGORY_MESSAGE,
+  isCategoryActive,
+  type CategoryDeleteCheck,
+} from '@/lib/category-rules';
 import { createId } from '@/lib/ids';
 import { writeFinanceData, type FinanceStorageKey } from '@/lib/storage/finance-storage';
-import { getLastDueMonthBeforeDate, getRecurringOccurrenceDate } from '@/lib/recurring-utils';
+import { readFinanceData, type StoredFinanceData } from '@/lib/storage/finance-read';
+import type { FinanceLoad } from '@/lib/storage/startup';
+import { getLastDueMonthBeforeDate, planRecurringGeneration } from '@/lib/domain/recurring';
+import { applyBudgetCopy, budgetCopyCount, planBudgetCopy } from '@/lib/domain/budgets';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 const SYSTEM_ADJUSTMENT_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
@@ -31,23 +63,8 @@ const STORAGE_KEY_FOR: Record<keyof FinanceData, FinanceStorageKey> = {
   savingsGoal: 'savingsGoal',
 };
 
-/**
- * Canonical per-month summary. Single source of truth for screen-level totals.
- * - totalExpenses excludes savings-category transactions.
- * - totalSavings is the sum of expense-typed transactions in savings categories.
- * - netFlow = totalIncome - totalExpenses - totalSavings.
- * - savingsRate = totalSavings / totalIncome * 100, or 0 when income is 0.
- * - hasData = true when any transaction exists in the month.
- */
-export interface MonthSummary {
-  totalIncome: number;
-  totalExpenses: number;
-  totalSavings: number;
-  netFlow: number;
-  savingsRate: number;
-  transactionCount: number;
-  hasData: boolean;
-}
+/** Canonical per-month summary (defined in `lib/domain/finance-metrics`). */
+export type { MonthSummary };
 
 const SAVINGS_DEFAULTS: Category[] = [
   { id: 'savings-goal', name: 'Goal Savings', icon: 'PiggyBank', color: '#0EA5E9', type: 'savings' },
@@ -69,9 +86,10 @@ const OTHER_DEFAULTS: Category[] = [
 const ADJUSTMENT_DEFAULTS: Category[] = [
   { id: '_adjustment-missed-spend', name: 'Missed Spend', icon: 'HelpCircle', color: '#64748B', type: 'expense' },
   { id: '_adjustment-overlogged', name: 'Over-logged Reversal', icon: 'Undo2', color: '#64748B', type: 'income' },
+  { id: '_adjustment-savings', name: 'Savings reconciliation', icon: 'PiggyBank', color: '#64748B', type: 'both' },
 ];
 
-const DEFAULT_CATEGORIES: Category[] = [
+const DEFAULT_CATEGORIES: Category[] = ([
   { id: 'groceries', name: 'Groceries', icon: 'ShoppingCart', color: '#10B981', type: 'expense' },
   { id: 'rent', name: 'Rent', icon: 'Home', color: '#6366F1', type: 'expense' },
   { id: 'leisure', name: 'Leisure', icon: 'Smile', color: '#F59E0B', type: 'expense' },
@@ -84,14 +102,15 @@ const DEFAULT_CATEGORIES: Category[] = [
   ...SAVINGS_DEFAULTS,
   ...OTHER_DEFAULTS,
   ...ADJUSTMENT_DEFAULTS,
-];
+] as Category[]).map(c => ({ ...c, active: true }));
 
 /**
  * Ensure hardcoded required categories exist in the array with the correct
  * `type`. Covers the two Savings buckets, the two "Other" catch-alls, and
  * the two hidden Adjustment categories used by the
  * Month-End Review reconciliation step. Missing entries are appended;
- * entries with a wrong `type` are corrected in place. Preserves user ordering.
+ * entries with a wrong `type` are corrected in place, and they are always
+ * active because their features depend on them. Preserves user ordering.
  */
 function ensureRequiredCategories(list: Category[]): Category[] {
   const seeds = [...SAVINGS_DEFAULTS, ...OTHER_DEFAULTS, ...ADJUSTMENT_DEFAULTS];
@@ -100,10 +119,10 @@ function ensureRequiredCategories(list: Category[]): Category[] {
   for (const seed of seeds) {
     const existing = byId.get(seed.id);
     if (!existing) {
-      byId.set(seed.id, { ...seed });
+      byId.set(seed.id, { ...seed, active: true });
       mutated = true;
-    } else if (existing.type !== seed.type) {
-      byId.set(seed.id, { ...existing, type: seed.type });
+    } else if (existing.type !== seed.type || existing.active === false) {
+      byId.set(seed.id, { ...existing, type: seed.type, active: existing.active === false ? true : existing.active });
       mutated = true;
     }
   }
@@ -139,6 +158,8 @@ interface FinanceContextType {
   deleteTransaction: (id: string) => FinanceWriteResult;
   addCategory: (c: Omit<Category, 'id'>) => { ok: true; category: Category } | { ok: false; message: string };
   updateCategory: (id: string, updates: Omit<Category, 'id'>) => FinanceWriteResult;
+  /** Makes a category active or inactive. Built-in categories can't be made inactive. */
+  setCategoryActive: (id: string, active: boolean) => FinanceWriteResult;
   deleteCategory: (id: string) => DeleteCategoryResult;
   addBudget: (b: Omit<Budget, 'id'>) => FinanceWriteResult;
   updateBudget: (id: string, limit: number) => FinanceWriteResult;
@@ -177,11 +198,8 @@ interface FinanceContextType {
   };
   getBalance: (month?: string) => number;
   getCarryForward: (month: string) => number;
-  /** Total cash in pocket through today — month-agnostic. Sum of all
-   * income minus consumption-only expenses (credit-card-payment transfers
-   * and savings transfers are excluded) for transactions with date <= today.
-   * Future-dated transactions are excluded so planned/recurring future txns
-   * don't change pocket cash. */
+  /** Lifetime balance through today, including confirmed savings corrections.
+   * Future-dated transactions are excluded. This is not bank cash. */
   getNetBalanceToDate: () => number;
   /** Expected cash balance at the END of a given calendar month. Same math
    * as getNetBalanceToDate but with a month-end cutoff. Used by Month-End
@@ -192,6 +210,15 @@ interface FinanceContextType {
    * minus sum of credit-card-payment transfers. Floored at zero. Accuracy
    * depends on the user tagging paymentMethod on applicable transactions. */
   getOutstandingCardBalance: () => number;
+  /** Outstanding card amount counting entries dated through the last day of `month`. */
+  getOutstandingCardBalanceAtEndOf: (month: string) => number;
+  /** Card bill payments dated in `month`. */
+  getCardBillPaymentsIn: (month: string) => number;
+  /** Month-end reconcile target: balance through the month plus the card amount still unpaid then. */
+  getExpectedBankBalanceAtEndOf: (month: string) => number;
+  getSavingsBalanceAtEndOf: (month: string) => number;
+  /** Records a card bill payment dated the last day of `month`; refuses more than the unpaid amount. */
+  recordCardBillPayment: (month: string, amount: number) => FinanceWriteResult;
   /** Return the reconciliation record for `month`, or null if the month
    * has not been reconciled yet. */
   getReconciliationFor: (month: string) => MonthReconciliation | null;
@@ -205,12 +232,19 @@ interface FinanceContextType {
     expectedBalance: number;
     adjustmentAmount?: number;
     note?: string;
+    savings?: { actualBalance: number; decreaseReason?: 'spent' | 'transfer' };
   }) => { ok: true; record: MonthReconciliation } | { ok: false; message: string };
+  /** Amount counted against a category budget: savings contributions for a savings category, consumption otherwise. */
   getSpentForCategory: (categoryId: string, month: string) => number;
   /** Canonical per-month summary — use this from all screens. */
   getMonthSummary: (month?: string) => MonthSummary;
   /** Re-reads all entities from localStorage. Used after a Drive restore. */
   reloadFromStorage: () => void;
+  /**
+   * Adds every due recurring occurrence once and advances rule cursors.
+   * Called by the app shell after unlock and on resume (ARCHITECTURE §6.4).
+   */
+  processRecurring: () => { ok: true; count: number } | { ok: false; message: string };
   /** Monotonic timestamp bumped on every mutation; consumed by auto-backup. */
   lastChangedAt: number;
   /** Set when a background save (for example recurring generation) fails. */
@@ -220,190 +254,55 @@ interface FinanceContextType {
 }
 
 const FinanceContext = createContext<FinanceContextType | null>(null);
-const skippedInitialStorageWrites = new Set<string>();
 
-function getStorageKey(key: string) {
-  return `financial-clarity:${key}`;
+const RELOAD_FAILED_MESSAGE =
+  'Couldn\u2019t reload your saved data. Close and reopen the app to see the latest saved data.';
+
+function emptySavingsGoal(): SavingsGoal {
+  return { goal: { monthly: 0, annual: 0 }, emergency: { monthly: 0, annual: 0 } };
 }
 
-function getBackupStorageKey(key: string) {
-  return `financial-clarity:backup:${key}:${Date.now()}`;
+const EMPTY_STORED_DATA: StoredFinanceData = {
+  transactions: [],
+  categories: [],
+  budgets: [],
+  recurringExpenses: [],
+  reconciliations: [],
+  savingsGoal: null,
+};
+
+/** Applies the load-time defaults to validated stored data (DATABASE §10.3). */
+function toFinanceData(stored: StoredFinanceData): FinanceData {
+  return {
+    transactions: stored.transactions.map(t => ({ ...t, note: t.note || '' })),
+    categories: stored.categories.length === 0 ? DEFAULT_CATEGORIES : ensureRequiredCategories(stored.categories),
+    budgets: stored.budgets.map(b => ({ ...b, month: b.month || currentMonth() })),
+    recurringExpenses: stored.recurringExpenses,
+    reconciliations: stored.reconciliations,
+    savingsGoal: stored.savingsGoal ?? emptySavingsGoal(),
+  };
 }
 
-function preserveRawStorage(key: string, raw: string): void {
-  try {
-    localStorage.setItem(getBackupStorageKey(key), raw);
-  } catch {
-    // ignore
-  }
-  skippedInitialStorageWrites.add(key);
+interface FinanceProviderProps {
+  children: ReactNode;
+  /** Data already read by the startup storage check. Read here when absent. */
+  initialLoad?: FinanceLoad;
 }
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-const VALID_PAYMENT_METHODS = new Set(['cash', 'bank', 'credit-card', 'credit-card-payment']);
-
-function isValidTransaction(value: unknown): value is Transaction {
-  return (
-    isObject(value) &&
-    typeof value.id === 'string' &&
-    value.id.length > 0 &&
-    (value.type === 'income' || value.type === 'expense') &&
-    typeof value.amount === 'number' &&
-    Number.isFinite(value.amount) &&
-    typeof value.categoryId === 'string' &&
-    value.categoryId.length > 0 &&
-    (value.note === undefined || typeof value.note === 'string') &&
-    typeof value.date === 'string' &&
-    value.date.length > 0 &&
-    (value.paymentMethod === undefined ||
-      (typeof value.paymentMethod === 'string' && VALID_PAYMENT_METHODS.has(value.paymentMethod))) &&
-    ((value.recurringRuleId === undefined && value.recurringMonth === undefined) ||
-      (value.type === 'expense' && typeof value.recurringRuleId === 'string' && value.recurringRuleId.length > 0 &&
-        typeof value.recurringMonth === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.recurringMonth))) &&
-    (value.sourceSmsFingerprint === undefined || typeof value.sourceSmsFingerprint === 'string') &&
-    (value.merchant === undefined || typeof value.merchant === 'string')
-  );
-}
-
-function isValidCategory(value: unknown): value is Category {
-  return (
-    isObject(value) &&
-    typeof value.id === 'string' &&
-    value.id.length > 0 &&
-    typeof value.name === 'string' &&
-    value.name.length > 0 &&
-    typeof value.icon === 'string' &&
-    typeof value.color === 'string' &&
-    (value.type === 'income' || value.type === 'expense' || value.type === 'commitment' || value.type === 'savings' || value.type === 'both')
-  );
-}
-
-function isValidBudget(value: unknown): value is Budget {
-  return (
-    isObject(value) &&
-    typeof value.id === 'string' &&
-    value.id.length > 0 &&
-    typeof value.categoryId === 'string' &&
-    value.categoryId.length > 0 &&
-    typeof value.limit === 'number' &&
-    Number.isFinite(value.limit) &&
-    (value.month === undefined || typeof value.month === 'string')
-  );
-}
-
-function isValidRecurring(value: unknown): value is RecurringExpense {
-  return (
-    isObject(value) &&
-    typeof value.id === 'string' &&
-    value.id.length > 0 &&
-    typeof value.description === 'string' &&
-    typeof value.amount === 'number' &&
-    Number.isFinite(value.amount) &&
-    typeof value.categoryId === 'string' &&
-    value.categoryId.length > 0 &&
-    typeof value.dayOfMonth === 'number' &&
-    value.dayOfMonth >= 1 &&
-    value.dayOfMonth <= 31 &&
-    typeof value.active === 'boolean' &&
-    typeof value.startMonth === 'string' &&
-    (value.lastGeneratedMonth === undefined || typeof value.lastGeneratedMonth === 'string')
-  );
-}
-
-function isValidReconciliation(value: unknown): value is MonthReconciliation {
-  return (
-    isObject(value) &&
-    typeof value.month === 'string' &&
-    /^\d{4}-\d{2}$/.test(value.month) &&
-    typeof value.actualBalance === 'number' &&
-    Number.isFinite(value.actualBalance) &&
-    typeof value.expectedBalance === 'number' &&
-    Number.isFinite(value.expectedBalance) &&
-    (value.adjustmentTxnId === undefined || typeof value.adjustmentTxnId === 'string') &&
-    typeof value.reconciledAt === 'number' &&
-    Number.isFinite(value.reconciledAt)
-  );
-}
-
-function loadArrayFromStorage<T>(key: string, fallback: T[], isValid: (value: unknown) => value is T): T[] {
-  try {
-    const raw = localStorage.getItem(getStorageKey(key));
-    if (!raw) return fallback;
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      preserveRawStorage(key, raw);
-      return fallback;
-    }
-    const filtered = parsed.filter(isValid);
-    if (filtered.length !== parsed.length) {
-      preserveRawStorage(key, raw);
-    }
-    return filtered;
-  } catch {
-    try {
-      const raw = localStorage.getItem(getStorageKey(key));
-      if (raw) preserveRawStorage(key, raw);
-    } catch {
-      // ignore
-    }
-    return fallback;
-  }
-}
-
-export function FinanceProvider({ children }: { children: ReactNode }) {
-  const [transactions, setTransactions] = useState<Transaction[]>(() =>
-    loadArrayFromStorage('transactions', [], isValidTransaction).map(t => ({ ...t, note: t.note || '' }))
-  );
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const stored = loadArrayFromStorage('categories', [], isValidCategory);
-    if (stored.length === 0) return DEFAULT_CATEGORIES;
-    return ensureRequiredCategories(stored);
+export function FinanceProvider({ children, initialLoad }: FinanceProviderProps) {
+  const [initial] = useState(() => {
+    if (initialLoad) return { data: toFinanceData(initialLoad.data), skipWrite: new Set(initialLoad.quarantined.map(r => r.key)) };
+    const read = readFinanceData();
+    if (read.ok) return { data: toFinanceData(read.data), skipWrite: new Set(read.quarantined.map(r => r.key)) };
+    // Storage could not be read: never write over it from this empty state.
+    return { data: toFinanceData(EMPTY_STORED_DATA), skipWrite: new Set<FinanceStorageKey>(['transactions', 'categories']) };
   });
-  const [budgets, setBudgets] = useState<Budget[]>(() =>
-    loadArrayFromStorage('budgets', [], isValidBudget).map(b => ({ ...b, month: b.month || currentMonth() }))
-  );
-  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(() =>
-    loadArrayFromStorage('recurring', [], isValidRecurring)
-  );
-  const [reconciliations, setReconciliations] = useState<MonthReconciliation[]>(() =>
-    loadArrayFromStorage('reconciliations', [], isValidReconciliation)
-  );
-  const [savingsGoal, setSavingsGoalState] = useState<SavingsGoal>(() => {
-    const empty: SavingsGoal = { goal: { monthly: 0, annual: 0 }, emergency: { monthly: 0, annual: 0 } };
-    const validEntry = (v: unknown): v is { monthly: number; annual: number; createdAt?: string } =>
-      isObject(v) && typeof v.monthly === 'number' && Number.isFinite(v.monthly)
-      && typeof v.annual === 'number' && Number.isFinite(v.annual)
-      && (v.createdAt === undefined || typeof v.createdAt === 'string');
-    const pickEntry = (v: unknown) => {
-      if (!validEntry(v)) return { monthly: 0, annual: 0 };
-      const out: { monthly: number; annual: number; createdAt?: string } = { monthly: v.monthly, annual: v.annual };
-      if (v.createdAt) out.createdAt = v.createdAt;
-      return out;
-    };
-    try {
-      const raw = localStorage.getItem(getStorageKey('savings-goal'));
-      if (!raw) return empty;
-      const parsed = JSON.parse(raw) as unknown;
-      if (!isObject(parsed)) return empty;
-      // New shape
-      if (validEntry(parsed.goal) || validEntry(parsed.emergency)) {
-        return {
-          goal: pickEntry(parsed.goal),
-          emergency: pickEntry(parsed.emergency),
-        };
-      }
-      // Legacy shape { monthly, annual } -> migrate into `goal`.
-      if (validEntry(parsed)) {
-        return { goal: pickEntry(parsed), emergency: { monthly: 0, annual: 0 } };
-      }
-      return empty;
-    } catch {
-      return empty;
-    }
-  });
+  const [transactions, setTransactions] = useState<Transaction[]>(initial.data.transactions);
+  const [categories, setCategories] = useState<Category[]>(initial.data.categories);
+  const [budgets, setBudgets] = useState<Budget[]>(initial.data.budgets);
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(initial.data.recurringExpenses);
+  const [reconciliations, setReconciliations] = useState<MonthReconciliation[]>(initial.data.reconciliations);
+  const [savingsGoal, setSavingsGoalState] = useState<SavingsGoal>(initial.data.savingsGoal);
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -444,15 +343,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // quarantined). A failure here loses nothing: the same values are rebuilt
   // from storage on the next launch.
   useEffect(() => {
-    const initial: Partial<Record<FinanceStorageKey, unknown>> = {};
+    const writes: Partial<Record<FinanceStorageKey, unknown>> = {};
     for (const key of ['transactions', 'categories'] as const) {
-      if (skippedInitialStorageWrites.has(key)) {
-        skippedInitialStorageWrites.delete(key);
-        continue;
-      }
-      initial[key] = latest.current[key];
+      if (!initial.skipWrite.has(key)) writes[key] = latest.current[key];
     }
-    writeFinanceData(initial);
+    writeFinanceData(writes);
     setLastChangedAt(Date.now());
   }, []);
 
@@ -480,30 +375,53 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const addTransaction = useCallback((t: Omit<Transaction, 'id'>): FinanceWriteResult =>
-    commit({ transactions: [{ ...t, id: createId() }, ...latest.current.transactions] }),
-  [commit]);
+  // New entries need an active category (PRD FR-03, DATABASE §6.2).
+  const isInactiveCategory = (categoryId: string): boolean => {
+    const category = latest.current.categories.find(c => c.id === categoryId);
+    return category !== undefined && !isCategoryActive(category);
+  };
+
+  const addTransaction = useCallback((t: Omit<Transaction, 'id'>): FinanceWriteResult => {
+    if (t.savingsCorrection || t.categoryId === '_adjustment-savings') {
+      return { ok: false, message: 'Savings corrections must be recorded in month-end reconciliation. Nothing was saved.' };
+    }
+    if (isInactiveCategory(t.categoryId)) return { ok: false, message: INACTIVE_CATEGORY_MESSAGE };
+    return commit({ transactions: [{ ...t, id: createId() }, ...latest.current.transactions] });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commit]);
 
   const importTransactions = useCallback((
     items: Omit<Transaction, 'id'>[],
     newCategories: Category[] = [],
   ): { ok: true; count: number } | { ok: false; message: string } => {
     if (items.length === 0 && newCategories.length === 0) return { ok: true, count: 0 };
+    if (items.some(t => t.savingsCorrection || t.categoryId === '_adjustment-savings')) {
+      return { ok: false, message: 'Savings corrections cannot be imported as ordinary transactions. Nothing was saved.' };
+    }
     const changes: Partial<FinanceData> = {
       transactions: [...items.map(t => ({ ...t, id: createId() })), ...latest.current.transactions],
     };
     if (newCategories.length > 0) {
       // Savings type is reserved for the two hardcoded categories.
-      const safe = newCategories.map(c => (c.type === 'savings' ? { ...c, type: 'expense' as const } : c));
+      const safe = newCategories.map(c => ({ ...c, type: c.type === 'savings' ? 'expense' as const : c.type, active: true }));
       changes.categories = [...latest.current.categories, ...safe];
     }
     const result = commit(changes);
     return result.ok ? { ok: true, count: items.length } : result;
   }, [commit]);
 
-  const updateTransaction = useCallback((id: string, updates: Omit<Transaction, 'id'>): FinanceWriteResult =>
-    commit({ transactions: latest.current.transactions.map(t => t.id === id ? { ...updates, id } : t) }),
-  [commit]);
+  // Editing may keep the entry's current category even if it is now inactive.
+  const updateTransaction = useCallback((id: string, updates: Omit<Transaction, 'id'>): FinanceWriteResult => {
+    const previous = latest.current.transactions.find(t => t.id === id);
+    if (previous?.savingsCorrection || updates.savingsCorrection) {
+      return { ok: false, message: 'Remove the savings correction in Transactions and record a new one in a later review. Nothing was changed.' };
+    }
+    if (previous?.categoryId !== updates.categoryId && isInactiveCategory(updates.categoryId)) {
+      return { ok: false, message: INACTIVE_CATEGORY_MESSAGE };
+    }
+    return commit({ transactions: latest.current.transactions.map(t => t.id === id ? { ...updates, id } : t) });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commit]);
 
   const deleteTransaction = useCallback((id: string): FinanceWriteResult =>
     commit({ transactions: latest.current.transactions.filter(t => t.id !== id) }),
@@ -511,26 +429,48 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const addCategory = useCallback((c: Omit<Category, 'id'>): { ok: true; category: Category } | { ok: false; message: string } => {
     // Savings type is reserved for the two hardcoded categories.
+    if (findActiveNameClash(latest.current.categories, c.name)) return { ok: false, message: duplicateNameMessage(c.name) };
     const safeType: Category['type'] = c.type === 'savings' ? 'expense' : c.type;
-    const newCat: Category = { ...c, type: safeType, id: createId() };
+    const newCat: Category = { ...c, type: safeType, active: true, id: createId() };
     const result = commit({ categories: [...latest.current.categories, newCat] });
     return result.ok ? { ok: true, category: newCat } : result;
   }, [commit]);
 
-  const updateCategory = useCallback((id: string, updates: Omit<Category, 'id'>): FinanceWriteResult =>
-    commit({
+  const updateCategory = useCallback((id: string, updates: Omit<Category, 'id'>): FinanceWriteResult => {
+    const current = latest.current.categories.find(c => c.id === id);
+    if (current && isCategoryActive(current) && findActiveNameClash(latest.current.categories, updates.name, id)) {
+      return { ok: false, message: duplicateNameMessage(updates.name) };
+    }
+    return commit({
       categories: latest.current.categories.map(c => {
         if (c.id !== id) return c;
+        // Status changes go through setCategoryActive, so keep the current one.
+        const active = c.active;
         // For hardcoded savings categories, force type='savings' to preserve invariant.
         if (SAVINGS_CATEGORY_ID_SET.has(id)) {
-          return { ...updates, type: 'savings', id };
+          return { ...updates, type: 'savings', active, id };
         }
         // Disallow promoting a non-savings category to 'savings' via update.
         const safeType: Category['type'] = updates.type === 'savings' ? c.type : updates.type;
-        return { ...updates, type: safeType, id };
+        return { ...updates, type: safeType, active, id };
       }),
-    }),
-  [commit]);
+    });
+  }, [commit]);
+
+  const setCategoryActive = useCallback((id: string, active: boolean): FinanceWriteResult => {
+    if (!active && !canDeactivateCategory(id)) {
+      return { ok: false, message: 'This built-in category is needed by the app, so it can\u2019t be made inactive.' };
+    }
+    if (!active) {
+      const blocking = activeRecurringRulesIn(id, latest.current.recurringExpenses);
+      if (blocking.length > 0) return { ok: false, message: activeRecurringBlockMessage(blocking) };
+    }
+    const category = latest.current.categories.find(c => c.id === id);
+    if (active && category && findActiveNameClash(latest.current.categories, category.name, id)) {
+      return { ok: false, message: duplicateNameMessage(category.name) };
+    }
+    return commit({ categories: latest.current.categories.map(c => (c.id === id ? { ...c, active } : c)) });
+  }, [commit]);
 
   const deleteCategory = useCallback((id: string): DeleteCategoryResult => {
     const check = canDeleteCategory(id, latest.current);
@@ -543,6 +483,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const month = b.month || selectedMonth;
     const currentBudgets = latest.current.budgets;
     const existing = currentBudgets.find(x => x.categoryId === b.categoryId && x.month === month);
+    if (!existing && isInactiveCategory(b.categoryId)) return { ok: false, message: INACTIVE_CATEGORY_MESSAGE };
     const next = existing
       ? currentBudgets.map(x => x.id === existing.id ? { ...x, limit: b.limit, month } : x)
       : [...currentBudgets, { ...b, month, id: createId() }];
@@ -558,24 +499,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   [commit]);
 
   const transferBudgetsToMonth = useCallback((fromMonth: string, toMonth: string) => {
-    if (fromMonth === toMonth) return { ok: true as const, count: 0 };
-
-    const currentBudgets = latest.current.budgets;
-    const sourceBudgets = currentBudgets.filter(b => b.month === fromMonth);
-    if (sourceBudgets.length === 0) return { ok: true as const, count: 0 };
-
-    const next = [...currentBudgets];
-    sourceBudgets.forEach(source => {
-      const existingIndex = next.findIndex(b => b.month === toMonth && b.categoryId === source.categoryId);
-      if (existingIndex >= 0) {
-        next[existingIndex] = { ...next[existingIndex], limit: source.limit, month: toMonth };
-      } else {
-        next.push({ id: createId(), categoryId: source.categoryId, limit: source.limit, month: toMonth });
-      }
-    });
-
-    const result = commit({ budgets: next });
-    return result.ok ? { ok: true as const, count: sourceBudgets.length } : result;
+    const plan = planBudgetCopy(latest.current.budgets, latest.current.categories, fromMonth, toMonth);
+    const count = budgetCopyCount(plan);
+    if (plan.created.length === 0 && plan.overwritten.length === 0) return { ok: true as const, count };
+    const result = commit({ budgets: applyBudgetCopy(latest.current.budgets, plan, toMonth, createId) });
+    return result.ok ? { ok: true as const, count } : result;
   }, [commit]);
 
   const openSheet = useCallback((initialMode?: 'expense' | 'income' | 'save') => {
@@ -604,11 +532,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setIsBudgetSheetOpen(false);
   }, []);
 
-  const addRecurring = useCallback((r: Omit<RecurringExpense, 'id' | 'lastGeneratedMonth'>): FinanceWriteResult =>
-    commit({ recurringExpenses: [...latest.current.recurringExpenses, { ...r, id: createId() }] }),
-  [commit]);
+  // A new or edited recurring rule needs an active category (DATABASE §6.2).
+  const addRecurring = useCallback((r: Omit<RecurringExpense, 'id' | 'lastGeneratedMonth'>): FinanceWriteResult => {
+    if (isInactiveCategory(r.categoryId)) return { ok: false, message: INACTIVE_CATEGORY_MESSAGE };
+    return commit({ recurringExpenses: [...latest.current.recurringExpenses, { ...r, id: createId() }] });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commit]);
 
   const updateRecurring = useCallback((id: string, updates: Omit<RecurringExpense, 'id'>): FinanceWriteResult => {
+    if (isInactiveCategory(updates.categoryId)) return { ok: false, message: INACTIVE_CATEGORY_MESSAGE };
     const previous = latest.current.recurringExpenses.find(r => r.id === id);
     const nextRule: RecurringExpense = { ...updates, id };
     if (previous?.lastGeneratedMonth && (!nextRule.lastGeneratedMonth || nextRule.lastGeneratedMonth < previous.lastGeneratedMonth)) {
@@ -666,246 +598,135 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [commit]);
 
   const reloadFromStorage = useCallback(() => {
-    // Re-read all five entities from localStorage. Used after a Drive restore.
-    const txns = loadArrayFromStorage('transactions', [], isValidTransaction).map(t => ({ ...t, note: t.note || '' }));
-    const storedCats = loadArrayFromStorage('categories', [], isValidCategory);
-    const cats = storedCats.length === 0 ? DEFAULT_CATEGORIES : ensureRequiredCategories(storedCats);
-    const storedBudgets = loadArrayFromStorage('budgets', [], isValidBudget).map(b => ({ ...b, month: b.month || currentMonth() }));
-    const storedRecurring = loadArrayFromStorage('recurring', [], isValidRecurring);
-    const storedReconciliations = loadArrayFromStorage('reconciliations', [], isValidReconciliation);
-
-    let restoredSavingsGoal: SavingsGoal;
-    try {
-      const raw = localStorage.getItem(getStorageKey('savings-goal'));
-      const empty: SavingsGoal = { goal: { monthly: 0, annual: 0 }, emergency: { monthly: 0, annual: 0 } };
-      if (!raw) {
-        restoredSavingsGoal = empty;
-      } else {
-        const parsed = JSON.parse(raw) as unknown;
-        const validEntry = (v: unknown): v is { monthly: number; annual: number; createdAt?: string } =>
-          isObject(v) && typeof v.monthly === 'number' && Number.isFinite(v.monthly)
-          && typeof v.annual === 'number' && Number.isFinite(v.annual)
-          && (v.createdAt === undefined || typeof v.createdAt === 'string');
-        const pickEntry = (v: unknown) => {
-          if (!validEntry(v)) return { monthly: 0, annual: 0 };
-          const out: { monthly: number; annual: number; createdAt?: string } = { monthly: v.monthly, annual: v.annual };
-          if (v.createdAt) out.createdAt = v.createdAt;
-          return out;
-        };
-        if (isObject(parsed) && (validEntry(parsed.goal) || validEntry(parsed.emergency))) {
-          restoredSavingsGoal = {
-            goal: pickEntry(parsed.goal),
-            emergency: pickEntry(parsed.emergency),
-          };
-        } else if (isObject(parsed) && validEntry(parsed)) {
-          restoredSavingsGoal = { goal: pickEntry(parsed), emergency: { monthly: 0, annual: 0 } };
-        } else {
-          restoredSavingsGoal = empty;
-        }
-      }
-    } catch {
-      restoredSavingsGoal = { goal: { monthly: 0, annual: 0 }, emergency: { monthly: 0, annual: 0 } };
+    // Re-read every entity from storage. Used after a Drive restore.
+    const read = readFinanceData();
+    if (!read.ok) {
+      setStorageError(RELOAD_FAILED_MESSAGE);
+      return;
     }
-    latest.current = {
-      transactions: txns,
-      categories: cats,
-      budgets: storedBudgets,
-      recurringExpenses: storedRecurring,
-      reconciliations: storedReconciliations,
-      savingsGoal: restoredSavingsGoal,
-    };
-    setTransactions(txns);
-    setCategories(cats);
-    setBudgets(storedBudgets);
-    setRecurringExpenses(storedRecurring);
-    setReconciliations(storedReconciliations);
-    setSavingsGoalState(restoredSavingsGoal);
+    const next = toFinanceData(read.data);
+    latest.current = next;
+    setTransactions(next.transactions);
+    setCategories(next.categories);
+    setBudgets(next.budgets);
+    setRecurringExpenses(next.recurringExpenses);
+    setReconciliations(next.reconciliations);
+    setSavingsGoalState(next.savingsGoal);
     setLastChangedAt(Date.now());
   }, []);
 
-  // Recurring materializer: for each active recurring expense, generate one
-  // transaction per month from startMonth..currentMonth that hasn't been generated yet.
-  // For the CURRENT month, we wait until today's date reaches the rule's dayOfMonth
-  // before stamping. Future months are never materialized here.
-  useEffect(() => {
-    const today = localDateStr(new Date());
-    const cur = today.slice(0, 7);
-    const pending: { recurringId: string; lastMonth: string; newTx: Omit<Transaction, 'id'>[] }[] = [];
-    const { transactions: currentTransactions, recurringExpenses: currentRules } = latest.current;
-
-    currentRules.forEach(r => {
-      if (!r.active) return;
-      if (!r.startMonth || r.startMonth > cur) return;
-
-      const startFrom = r.lastGeneratedMonth && r.lastGeneratedMonth >= r.startMonth
-        ? addMonths(r.lastGeneratedMonth, 1)
-        : r.startMonth;
-      if (startFrom > cur) return;
-
-      const monthsToGenerate: string[] = [];
-      let m = startFrom;
-      while (m <= cur) {
-        if (getRecurringOccurrenceDate(m, r.dayOfMonth) > today) break;
-        monthsToGenerate.push(m);
-        m = addMonths(m, 1);
+  // Recurring generation (ARCHITECTURE §6.4): the app shell calls this after
+  // unlock and on every resume; rule changes made while unlocked call it too.
+  // Single-flight, and idempotent because occurrence keys block duplicates.
+  const processingRecurring = useRef(false);
+  const processRecurring = useCallback((): { ok: true; count: number } | { ok: false; message: string } => {
+    if (processingRecurring.current) return { ok: true, count: 0 };
+    processingRecurring.current = true;
+    try {
+      const { transactions: currentTransactions, recurringExpenses: currentRules } = latest.current;
+      const plan = planRecurringGeneration(currentRules, currentTransactions, localDateStr(new Date()));
+      if (Object.keys(plan.cursors).length === 0) return { ok: true, count: 0 };
+      const changes: Partial<FinanceData> = {
+        recurringExpenses: currentRules.map(r =>
+          plan.cursors[r.id] ? { ...r, lastGeneratedMonth: plan.cursors[r.id] } : r),
+      };
+      if (plan.occurrences.length > 0) {
+        changes.transactions = [...plan.occurrences.map(t => ({ ...t, id: createId() })), ...currentTransactions];
       }
-      if (monthsToGenerate.length === 0) return;
+      // Transactions and cursors are saved together; on failure nothing changes
+      // and generation is retried on the next resume.
+      const result = commit(changes);
+      if (!result.ok) {
+        const message = `Recurring expenses could not be added. ${result.message}`;
+        setStorageError(message);
+        return { ok: false, message };
+      }
+      return { ok: true, count: plan.occurrences.length };
+    } finally {
+      processingRecurring.current = false;
+    }
+  }, [commit]);
 
-      const newTx: Omit<Transaction, 'id'>[] = [];
-      monthsToGenerate.forEach(monthKey => {
-        const date = getRecurringOccurrenceDate(monthKey, r.dayOfMonth);
-        const note = r.description;
+  // Re-run when rules change (add, edit, resume), but not on the first render:
+  // the app shell runs the first pass once the app is unlocked.
+  const rulesSeen = useRef(false);
+  useEffect(() => {
+    if (!rulesSeen.current) {
+      rulesSeen.current = true;
+      return;
+    }
+    processRecurring();
+  }, [recurringExpenses, processRecurring]);
 
-        const exists = currentTransactions.some(t =>
-          t.recurringRuleId === r.id && t.recurringMonth === monthKey
-        );
-        // Legacy generated transactions had no occurrence key. Match their
-        // exact scheduled date once, then the forward-only cursor takes over.
-        const legacyExists = currentTransactions.some(t =>
-          t.recurringRuleId === undefined &&
-          t.type === 'expense' &&
-          t.date === date &&
-          t.amount === r.amount &&
-          (t.note || '').trim().toLowerCase() === note.trim().toLowerCase() &&
-          t.categoryId === r.categoryId
-        );
-        if (exists || legacyExists) return;
+  // Every total below comes from lib/domain/finance-metrics (PRD §6); the
+  // context only supplies the selected month and today's date.
+  const getTotalIncome = useCallback((month?: string) =>
+    totalIncome(transactions, month || selectedMonth), [transactions, selectedMonth]);
 
-        newTx.push({
-          type: 'expense', amount: r.amount, categoryId: r.categoryId, note, date,
-          recurringRuleId: r.id, recurringMonth: monthKey,
-        });
-      });
+  const getTotalExpenses = useCallback((month?: string) =>
+    totalConsumption(transactions, month || selectedMonth), [transactions, selectedMonth]);
 
-      pending.push({ recurringId: r.id, lastMonth: monthsToGenerate[monthsToGenerate.length - 1], newTx });
-    });
+  const getTotalSavings = useCallback((month?: string) =>
+    totalSavingsContributions(transactions, month || selectedMonth), [transactions, selectedMonth]);
 
-    if (pending.length === 0) return;
+  const getTotalCommitments = useCallback((month?: string) =>
+    totalCommitments(transactions, categories, month || selectedMonth), [transactions, categories, selectedMonth]);
 
-    const allNew: Transaction[] = pending.flatMap(p => p.newTx.map(t => ({ ...t, id: createId() })));
-    const changes: Partial<FinanceData> = {
-      recurringExpenses: currentRules.map(r => {
-        const match = pending.find(p => p.recurringId === r.id);
-        return match ? { ...r, lastGeneratedMonth: match.lastMonth } : r;
-      }),
+  const getTotalDayToDay = useCallback((month?: string) =>
+    totalDayToDay(transactions, categories, month || selectedMonth), [transactions, categories, selectedMonth]);
+
+  const getBalance = useCallback((month?: string) =>
+    monthlyNet(transactions, month || selectedMonth), [transactions, selectedMonth]);
+
+  const getCarryForward = useCallback((month: string) => carryForward(transactions, month), [transactions]);
+
+  const getNetBalanceToDate = useCallback(() => lifetimeBalance(transactions, localDateStr(new Date())), [transactions]);
+
+  const getCumulativeNetBalanceThroughEndOf = useCallback(
+    (month: string) => balanceThroughEndOf(transactions, month),
+    [transactions],
+  );
+
+  const getOutstandingCardBalance = useCallback(() => outstandingCardAmount(transactions), [transactions]);
+
+  const getOutstandingCardBalanceAtEndOf = useCallback(
+    (month: string) => outstandingCardAmountThroughEndOf(transactions, month),
+    [transactions],
+  );
+
+  const getCardBillPaymentsIn = useCallback((month: string) => cardBillPaymentsIn(transactions, month), [transactions]);
+
+  const getExpectedBankBalanceAtEndOf = useCallback(
+    (month: string) => expectedBankBalanceAtEndOf(transactions, month),
+    [transactions],
+  );
+
+  const getSavingsBalanceAtEndOf = useCallback(
+    (month: string) => savingsBalanceThroughEndOf(transactions, month),
+    [transactions],
+  );
+
+  // A card bill payment is a transfer, not spending (PRD §6): it lowers the
+  // outstanding card amount and the expected bank balance only.
+  const recordCardBillPayment = useCallback((month: string, amount: number): FinanceWriteResult => {
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return { ok: false, message: 'Enter an amount greater than zero. Nothing was saved.' };
+    }
+    const owed = outstandingCardAmountThroughEndOf(latest.current.transactions, month);
+    if (amount > owed + 0.005) {
+      return { ok: false, message: 'That is more than the unpaid card amount. Nothing was saved.' };
+    }
+    const payment: Transaction = {
+      id: createId(),
+      type: 'expense',
+      amount,
+      categoryId: 'other',
+      note: 'Card bill payment',
+      date: lastDateOfMonth(month),
+      paymentMethod: 'credit-card-payment',
     };
-    if (allNew.length > 0) changes.transactions = [...allNew, ...currentTransactions];
-    // Transactions and cursors are saved together; on failure nothing changes
-    // and generation is retried on the next launch.
-    const result = commit(changes);
-    if (!result.ok) setStorageError(`Recurring expenses could not be added. ${result.message}`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recurringExpenses]);
-
-  const getTransactionsForMonth = useCallback((month?: string) => {
-    const m = month || selectedMonth;
-    return transactions.filter(t => t.date.startsWith(m));
-  }, [transactions, selectedMonth]);
-
-  const getTotalIncome = useCallback((month?: string) => {
-    return getTransactionsForMonth(month)
-      .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0);
-  }, [getTransactionsForMonth]);
-
-  const getTotalExpenses = useCallback((month?: string) => {
-    return getTransactionsForMonth(month)
-      .filter(isConsumptionExpense)
-      .reduce((sum, t) => sum + t.amount, 0);
-  }, [getTransactionsForMonth]);
-
-  const getTotalSavings = useCallback((month?: string) => {
-    return getTransactionsForMonth(month)
-      .filter(t => t.type === 'expense' && SAVINGS_CATEGORY_ID_SET.has(t.categoryId))
-      .reduce((sum, t) => sum + t.amount, 0);
-  }, [getTransactionsForMonth]);
-
-  // Commitments: consumption-expense txns whose category is of type 'commitment'
-  // (rent, home-loan EMI, etc.). Non-overlapping with savings; subset of
-  // getTotalExpenses.
-  const getTotalCommitments = useCallback((month?: string) => {
-    const commitmentIds = new Set(categories.filter(c => c.type === 'commitment').map(c => c.id));
-    return getTransactionsForMonth(month)
-      .filter(isConsumptionExpense)
-      .filter(t => commitmentIds.has(t.categoryId))
-      .reduce((sum, t) => sum + t.amount, 0);
-  }, [getTransactionsForMonth, categories]);
-
-  // Day-to-day: consumption-expense txns that are NOT commitments and NOT
-  // savings. The canonical "discretionary spend" number used by the
-  // Analysis "Day-to-day" tile and the Dashboard day-to-day budget bar.
-  const getTotalDayToDay = useCallback((month?: string) => {
-    return getTotalExpenses(month) - getTotalCommitments(month);
-  }, [getTotalExpenses, getTotalCommitments]);
-
-  const getBalance = useCallback((month?: string) => {
-    return getTotalIncome(month) - getTotalExpenses(month) - getTotalSavings(month);
-  }, [getTotalIncome, getTotalExpenses, getTotalSavings]);
-
-  // Carry forward = cumulative balance of all months BEFORE the given month.
-  // Expenses are filtered through isConsumptionExpense so credit-card-payment
-  // transfers (bank -> card) don't double-count — the underlying credit-card
-  // purchase is already an outflow. Savings-category expenses are also
-  // excluded (user still has that money, just moved to a savings bucket).
-  const getCarryForward = useCallback((month: string) => {
-    const prevTransactions = transactions.filter(t => t.date < month);
-    let income = 0;
-    let outflow = 0;
-    for (const t of prevTransactions) {
-      if (t.type === 'income') income += t.amount;
-      else if (isConsumptionExpense(t)) outflow += t.amount;
-    }
-    return income - outflow;
-  }, [transactions]);
-
-  // Total pocket cash through today, ignoring the selected month. Same
-  // consumption-only filter as getCarryForward: card-payment transfers and
-  // savings transfers are not outflows. Future-dated transactions are
-  // excluded so projections don't move the number.
-  const getNetBalanceToDate = useCallback(() => {
-    const todayStr = localDateStr(new Date());
-    let income = 0;
-    let outflow = 0;
-    for (const t of transactions) {
-      if (t.date > todayStr) continue;
-      if (t.type === 'income') income += t.amount;
-      else if (isConsumptionExpense(t)) outflow += t.amount;
-    }
-    return income - outflow;
-  }, [transactions]);
-
-  // Expected cash balance at the END of a calendar month — same model as
-  // getNetBalanceToDate but with a month-end cutoff instead of today. Used
-  // by the Month-End Review reconcile step to compare against the user's
-  // actual bank balance for that month.
-  const getCumulativeNetBalanceThroughEndOf = useCallback((month: string) => {
-    // month is 'YYYY-MM'; cutoff is any date starting with month or earlier.
-    // String compare works because dates are ISO 'YYYY-MM-DD'.
-    const cutoffPrefix = month;
-    let income = 0;
-    let outflow = 0;
-    for (const t of transactions) {
-      // Keep entries dated on or before the last day of `month`.
-      if (t.date.slice(0, 7) > cutoffPrefix) continue;
-      if (t.type === 'income') income += t.amount;
-      else if (isConsumptionExpense(t)) outflow += t.amount;
-    }
-    return income - outflow;
-  }, [transactions]);
-
-  // Outstanding credit-card balance = all-time card purchases minus all-time
-  // card-bill payments. Floored at zero so overpayments don't surface a
-  // confusing negative. Accuracy depends on manual payment-method tagging.
-  const getOutstandingCardBalance = useCallback(() => {
-    let purchases = 0;
-    let payments = 0;
-    for (const t of transactions) {
-      if (t.type !== 'expense') continue;
-      if (t.paymentMethod === 'credit-card') purchases += t.amount;
-      else if (t.paymentMethod === 'credit-card-payment') payments += t.amount;
-    }
-    return Math.max(0, purchases - payments);
-  }, [transactions]);
+    return commit({ transactions: [payment, ...latest.current.transactions] });
+  }, [commit]);
 
   const getReconciliationFor = useCallback(
     (month: string): MonthReconciliation | null =>
@@ -926,8 +747,55 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       expectedBalance: number;
       adjustmentAmount?: number;
       note?: string;
+      savings?: { actualBalance: number; decreaseReason?: 'spent' | 'transfer' };
     }): { ok: true; record: MonthReconciliation } | { ok: false; message: string } => {
-      const { month, actualBalance, expectedBalance, adjustmentAmount, note } = input;
+      const { month, actualBalance, expectedBalance, adjustmentAmount, note, savings } = input;
+
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) ||
+        !Number.isFinite(actualBalance) || actualBalance < 0 ||
+        !Number.isFinite(expectedBalance) ||
+        (adjustmentAmount !== undefined && !Number.isFinite(adjustmentAmount))) {
+        return { ok: false, message: 'Enter valid balances. Nothing was saved.' };
+      }
+
+      let savingsAdjustment: Transaction | undefined;
+      if (savings) {
+        if (!Number.isFinite(savings.actualBalance) || savings.actualBalance < 0) {
+          return { ok: false, message: 'Enter a valid savings balance. Nothing was saved.' };
+        }
+        const difference = savings.actualBalance - savingsBalanceThroughEndOf(latest.current.transactions, month);
+        if (!Number.isFinite(difference)) {
+          return { ok: false, message: 'These balances are too large to calculate. Nothing was saved.' };
+        }
+        if (Math.abs(difference) >= 0.005) {
+          if (difference < 0 && savings.decreaseReason !== 'spent' && savings.decreaseReason !== 'transfer') {
+            return { ok: false, message: 'Choose what happened to the lower savings balance. Nothing was saved.' };
+          }
+          const correction = difference > 0 ? 'increase' : savings.decreaseReason;
+          if (!correction) return { ok: false, message: 'Choose a savings correction. Nothing was saved.' };
+          savingsAdjustment = {
+            id: createId(),
+            type: correction === 'increase' ? 'income' : 'expense',
+            amount: Math.abs(difference),
+            categoryId: '_adjustment-savings',
+            note: correction === 'increase' ? 'Savings balance correction' :
+              correction === 'transfer' ? 'Savings transferred to bank' : 'Savings spent or lost',
+            date: lastDateOfMonth(month),
+            savingsCorrection: correction,
+          };
+        }
+        const withSavings = savingsAdjustment
+          ? [savingsAdjustment, ...latest.current.transactions]
+          : latest.current.transactions;
+        const currentExpected = expectedBankBalanceAtEndOf(withSavings, month);
+        if (!Number.isFinite(currentExpected) || !Number.isFinite(balanceThroughEndOf(withSavings, month))) {
+          return { ok: false, message: 'These balances are too large to calculate. Nothing was saved.' };
+        }
+        if (Math.abs(currentExpected - expectedBalance) >= 0.005 ||
+          (adjustmentAmount !== undefined && Math.abs(adjustmentAmount - (currentExpected - actualBalance)) >= 0.005)) {
+          return { ok: false, message: 'Balances changed while reviewing. Check the amounts and try again. Nothing was saved.' };
+        }
+      }
 
       let adjustmentTxnId: string | undefined;
       let adjustment: Transaction | undefined;
@@ -970,18 +838,23 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const changes: Partial<FinanceData> = {
         reconciliations: [record, ...latest.current.reconciliations.filter(r => r.month !== month)],
       };
-      if (adjustment) changes.transactions = [adjustment, ...latest.current.transactions];
+      if (adjustment || savingsAdjustment) {
+        changes.transactions = [
+          ...(adjustment ? [adjustment] : []),
+          ...(savingsAdjustment ? [savingsAdjustment] : []),
+          ...latest.current.transactions,
+        ];
+      }
       const result = commit(changes);
       return result.ok ? { ok: true, record } : result;
     },
     [commit],
   );
 
-  const getSpentForCategory = useCallback((categoryId: string, month: string) => {
-    return transactions
-      .filter(t => t.type === 'expense' && t.categoryId === categoryId && t.date.startsWith(month))
-      .reduce((sum, t) => sum + t.amount, 0);
-  }, [transactions]);
+  const getSpentForCategory = useCallback(
+    (categoryId: string, month: string) => categorySpent(transactions, categoryId, month),
+    [transactions],
+  );
 
   // Three-bucket budget breakdown by category type, driven off `cat.type`.
   // Budgets whose category is 'expense' or 'both' land in dayToDay; 'commitment'
@@ -1007,31 +880,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return buckets;
   }, [budgets, categories, selectedMonth, getSpentForCategory]);
 
-  const getMonthSummary = useCallback((month?: string): MonthSummary => {
-    const monthTxns = getTransactionsForMonth(month);
-    let totalIncome = 0;
-    let totalExpenses = 0;
-    let totalSavings = 0;
-    for (const t of monthTxns) {
-      if (t.type === 'income') {
-        totalIncome += t.amount;
-      } else if (t.type === 'expense') {
-        if (SAVINGS_CATEGORY_ID_SET.has(t.categoryId)) totalSavings += t.amount;
-        else totalExpenses += t.amount;
-      }
-    }
-    const netFlow = totalIncome - totalExpenses - totalSavings;
-    const savingsRate = totalIncome > 0 ? (totalSavings / totalIncome) * 100 : 0;
-    return {
-      totalIncome,
-      totalExpenses,
-      totalSavings,
-      netFlow,
-      savingsRate,
-      transactionCount: monthTxns.length,
-      hasData: monthTxns.length > 0,
-    };
-  }, [getTransactionsForMonth]);
+  const getMonthSummary = useCallback(
+    (month?: string): MonthSummary => monthSummary(transactions, month || selectedMonth),
+    [transactions, selectedMonth],
+  );
 
   return (
     <FinanceContext.Provider value={{
@@ -1039,7 +891,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       recurringExpenses, savingsGoal,
       reconciliations,
       addTransaction, importTransactions, updateTransaction, deleteTransaction,
-      addCategory, updateCategory, deleteCategory,
+      addCategory, updateCategory, setCategoryActive, deleteCategory,
       addBudget, updateBudget, deleteBudget, transferBudgetsToMonth,
       addRecurring, updateRecurring, deleteRecurring, toggleRecurringActive,
       setSavingsGoal,
@@ -1047,10 +899,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       isSheetOpen, editingTransaction, sheetInitialMode,
       openSheet, openEditSheet, closeSheet,
       isBudgetSheetOpen, openBudgetSheet, closeBudgetSheet,
-      getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getCumulativeNetBalanceThroughEndOf, getOutstandingCardBalance, getReconciliationFor, addReconciliation, getSpentForCategory,
+      getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getCumulativeNetBalanceThroughEndOf, getOutstandingCardBalance, getOutstandingCardBalanceAtEndOf, getCardBillPaymentsIn, getExpectedBankBalanceAtEndOf, getSavingsBalanceAtEndOf, recordCardBillPayment, getReconciliationFor, addReconciliation, getSpentForCategory,
       getTotalCommitments, getTotalDayToDay, getBudgetBreakdown,
       getMonthSummary,
-      reloadFromStorage, lastChangedAt,
+      reloadFromStorage, processRecurring, lastChangedAt,
       storageError, clearStorageError,
     }}>
       {children}

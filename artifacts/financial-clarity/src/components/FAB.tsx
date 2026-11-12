@@ -60,6 +60,7 @@ export function FAB() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed bottom-36 right-5 md:bottom-24 md:right-8 z-50 flex flex-col-reverse gap-3 items-end"
+            style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
           >
             {menuItems.map((item, i) => (
               <motion.button
@@ -101,6 +102,7 @@ export function FAB() {
           'fixed bottom-20 right-5 md:bottom-8 md:right-8 z-50 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center bg-accent text-white',
           fabAction.className,
         )}
+        style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.9, rotate: isMenuMode ? 0 : 90 }}
         initial={{ scale: 0, opacity: 0, rotate: -45 }}

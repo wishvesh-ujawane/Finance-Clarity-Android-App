@@ -13,8 +13,10 @@ import { useDefaultFabMenu } from '@/hooks/useDefaultFabMenu';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { addMonths, formatDateLabel, formatINR, formatMonthLabel } from '@/lib/finance-utils';
+import { addMonths, formatDateLabel, formatAmount, formatMonthLabel } from '@/lib/finance-utils';
 import { parseCurrencyInput } from '@/lib/currency-utils';
+import { formatAmountFull } from '@/lib/format';
+import { planBudgetCopy } from '@/lib/domain/budgets';
 
 export default function Budgets() {
   const {
@@ -81,6 +83,12 @@ export default function Budgets() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [transactions, selectedCategoryId, selectedMonth]);
 
+  const copyPlan = useMemo(
+    () => planBudgetCopy(budgets, categories, selectedMonth, targetMonth),
+    [budgets, categories, selectedMonth, targetMonth],
+  );
+  const categoryName = (id: string) => categories.find(c => c.id === id)?.name ?? 'Unknown category';
+
   const handleTransferBudgets = () => {
     setOperationError('');
     const result = transferBudgetsToMonth(selectedMonth, targetMonth);
@@ -91,7 +99,7 @@ export default function Budgets() {
     }
     setTransferMessage(
       result.count > 0
-        ? `Transferred ${result.count} budget${result.count === 1 ? '' : 's'} to ${formatMonthLabel(targetMonth)}.`
+        ? `Copied ${result.count} budget limit${result.count === 1 ? '' : 's'} to ${formatMonthLabel(targetMonth)}. No money was moved.`
         : `No budgets found for ${formatMonthLabel(selectedMonth)}.`
     );
   };
@@ -204,7 +212,7 @@ export default function Budgets() {
               <div className="flex items-center gap-1.5">
                 {(isOver || isWarning) && <AlertTriangle size={11} className={isOver ? 'text-red-500' : 'text-amber-500'} />}
                 <p className={cn('text-xs', isOver ? 'text-red-500 font-semibold' : isWarning ? 'text-amber-500 font-semibold' : 'text-muted-foreground')}>
-                  {isOver ? `${formatINR(b.spent - b.limit)} over limit` : isWarning ? `${Math.round(b.pct)}% used` : `${formatINR(b.limit - b.spent)} left`}
+                  {isOver ? `${formatAmount(b.spent - b.limit)} over limit` : isWarning ? `${Math.round(b.pct)}% used` : `${formatAmount(b.limit - b.spent)} left`}
                 </p>
               </div>
             </div>
@@ -261,7 +269,7 @@ export default function Budgets() {
             </div>
           ) : (
             <>
-              <span className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">{formatINR(b.spent)}</span> of {formatINR(b.limit)}</span>
+              <span className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">{formatAmount(b.spent)}</span> of {formatAmount(b.limit)}</span>
               <span className={cn('text-xs font-bold', isOver ? 'text-red-500' : isWarning ? 'text-amber-500' : 'text-muted-foreground')}>{Math.round(b.pct)}%</span>
             </>
           )}
@@ -284,23 +292,44 @@ export default function Budgets() {
               data-testid="transfer-budget-button"
               disabled={currentMonthBudgets.length === 0}
               className="inline-flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:hover:bg-card"
-              aria-label={`Transfer budget to ${formatMonthLabel(targetMonth)}`}
+              aria-label={`Copy budget limits to ${formatMonthLabel(targetMonth)}`}
             >
               <ArrowRightLeft size={12} className="text-muted-foreground" />
-              <span>Transfer to {formatMonthLabel(targetMonth).split(' ')[0]}</span>
+              <span>Copy to {formatMonthLabel(targetMonth).split(' ')[0]}</span>
             </button>
           </AlertDialogTrigger>
-          <AlertDialogContent>
+          <AlertDialogContent data-testid="budget-copy-dialog">
             <AlertDialogHeader>
-              <AlertDialogTitle>Transfer Budgets?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Transfer all budgets from {formatMonthLabel(selectedMonth)} to {formatMonthLabel(targetMonth)}. Existing budgets in {formatMonthLabel(targetMonth)} for the same categories will be updated.
+              <AlertDialogTitle>Copy budget limits?</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2 text-sm">
+                  <p>
+                    Copy the limits from {formatMonthLabel(selectedMonth)} to {formatMonthLabel(targetMonth)}.
+                    This copies limits only; no money is moved and spending is not changed.
+                  </p>
+                  {copyPlan.created.length > 0 && (
+                    <p data-testid="budget-copy-created">
+                      New in {formatMonthLabel(targetMonth)}: {copyPlan.created.map(c => `${categoryName(c.categoryId)} ${formatAmountFull(c.limit)}`).join(', ')}.
+                    </p>
+                  )}
+                  {copyPlan.overwritten.length > 0 && (
+                    <p data-testid="budget-copy-overwritten" className="font-medium text-foreground">
+                      Replaces: {copyPlan.overwritten.map(o => `${categoryName(o.categoryId)} ${formatAmountFull(o.previousLimit)} \u2192 ${formatAmountFull(o.limit)}`).join(', ')}.
+                    </p>
+                  )}
+                  {copyPlan.keptInTarget > 0 && (
+                    <p>{copyPlan.keptInTarget} other {formatMonthLabel(targetMonth)} budget{copyPlan.keptInTarget === 1 ? ' stays' : 's stay'} as {copyPlan.keptInTarget === 1 ? 'it is' : 'they are'}.</p>
+                  )}
+                  {copyPlan.skippedInactive.length > 0 && (
+                    <p>Not copied because the category is inactive: {copyPlan.skippedInactive.map(categoryName).join(', ')}.</p>
+                  )}
+                </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleTransferBudgets}>
-                Transfer
+              <AlertDialogAction onClick={handleTransferBudgets} data-testid="budget-copy-confirm">
+                Copy limits
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -317,22 +346,22 @@ export default function Budgets() {
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-card border border-border rounded-2xl p-4">
             <p className="text-xs text-muted-foreground mb-1">{formatMonthLabel(selectedMonth).split(' ')[0]} Month Budget</p>
-            <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatINR(totalCombinedBudget)}</p>
+            <p className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(totalCombinedBudget)}</p>
             {totalSavingsBudget > 0 ? (
               <p className="text-[11px] text-muted-foreground mt-1 font-medium" data-testid="savings-budget-sub">
-                {formatINR(totalBudget)} + {formatINR(totalSavingsBudget)} (savings)
+                {formatAmount(totalBudget)} + {formatAmount(totalSavingsBudget)} (savings)
               </p>
             ) : (
-              <p className="text-[11px] text-muted-foreground mt-1 font-medium">{formatINR(totalBudget)}</p>
+              <p className="text-[11px] text-muted-foreground mt-1 font-medium">{formatAmount(totalBudget)}</p>
             )}
           </div>
           <div className="bg-card border border-border rounded-2xl p-4">
             <p className="text-xs text-muted-foreground mb-1">Spent on budgeted</p>
             <p className={cn('text-xl font-bold', totalSpent > totalBudget ? 'text-red-500' : 'text-foreground')} style={{ fontFamily: 'var(--font-display)' }}>
-              {formatINR(totalSpent)}
+              {formatAmount(totalSpent)}
             </p>
             <p className={cn('text-xs mt-1 font-medium', totalSpent > totalBudget ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400')}>
-              {totalSpent > totalBudget ? `${formatINR(totalSpent - totalBudget)} over` : `${formatINR(totalBudget - totalSpent)} remaining`}
+              {totalSpent > totalBudget ? `${formatAmount(totalSpent - totalBudget)} over` : `${formatAmount(totalBudget - totalSpent)} remaining`}
             </p>
           </div>
         </div>
@@ -346,8 +375,8 @@ export default function Budgets() {
         <div className="flex items-center justify-between mb-1.5">
           <span className={cn('text-[11px]', isOverAllocated ? 'text-red-200' : 'text-white/60')}>
             {isOverAllocated
-              ? `Surplus · −${formatINR(Math.abs(surplusInfo.surplus))} (over-allocated)`
-              : `Surplus · ${formatINR(surplusInfo.surplus)} of ${formatINR(surplusInfo.available)}`}
+              ? `Surplus · −${formatAmount(Math.abs(surplusInfo.surplus))} (over-allocated)`
+              : `Surplus · ${formatAmount(surplusInfo.surplus)} of ${formatAmount(surplusInfo.available)}`}
           </span>
           <span className="text-[11px] font-semibold text-white/80">{Math.round(surplusInfo.allocatedPct)}%</span>
         </div>
@@ -426,7 +455,7 @@ export default function Budgets() {
           <div className="space-y-3 mb-6">
             {savingsBudgetsWithData.map((b, i) => {
               const isMet = b.pct >= 100;
-              const isClose = b.pct >= 70 && b.pct < 100;
+              const isClose = b.pct >= 75 && b.pct < 100;
               const barColor = isMet ? '#10B981' : isClose ? '#F59E0B' : (b.cat?.color || '#0EA5E9');
               return (
                 <motion.div
@@ -459,7 +488,7 @@ export default function Budgets() {
                       <div>
                         <p className="text-sm font-semibold text-foreground">{b.cat?.name || 'Unknown'}</p>
                         <p className={cn('text-xs', isMet ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : isClose ? 'text-amber-500 font-semibold' : 'text-muted-foreground')}>
-                          {isMet ? 'On target' : isClose ? 'Almost there' : `${formatINR(Math.max(0, b.limit - b.spent))} to go`}
+                          {isMet ? 'On target' : isClose ? 'Almost there' : `${formatAmount(Math.max(0, b.limit - b.spent))} to go`}
                         </p>
                       </div>
                     </div>
@@ -515,7 +544,7 @@ export default function Budgets() {
                       </div>
                     ) : (
                       <>
-                        <span className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">{formatINR(b.spent)}</span> saved of {formatINR(b.limit)}</span>
+                        <span className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">{formatAmount(b.spent)}</span> saved of {formatAmount(b.limit)}</span>
                         <span className={cn('text-xs font-bold', isMet ? 'text-emerald-600 dark:text-emerald-400' : isClose ? 'text-amber-500' : 'text-sky-500')}>{Math.round(b.pct)}%</span>
                       </>
                     )}
@@ -566,7 +595,7 @@ export default function Budgets() {
                       {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
                     </div>
                     <p className={cn('text-sm font-bold whitespace-nowrap', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
-                      {t.type === 'income' ? '+' : '-'}{formatINR(t.amount)}
+                      {t.type === 'income' ? '+' : '-'}{formatAmount(t.amount)}
                     </p>
                   </button>
                 ))}

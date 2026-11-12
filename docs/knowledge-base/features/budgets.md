@@ -2,7 +2,7 @@
 id: feature-budgets
 title: Budgets screen
 date: 2026-06-28
-updated: 2026-07-05
+updated: 2026-11-12
 status: current
 scope: [financial-clarity]
 related:
@@ -20,8 +20,8 @@ source-of-truth-files:
 # Budgets screen
 
 ## User-visible behavior
-Monthly budgets and savings targets. Header shows "Monthly · Budgets". A
-full-width "Transfer Budget to Next Month" button sits above the content. The
+Monthly budgets and savings targets. Header shows "Monthly · Budgets" and a
+"Copy to {next month}" button. The
 **Surplus bar** (dark blue `bg-[hsl(222,65%,13%)]`) summarises remaining
 allocation as `Surplus · ₹X of ₹Y` plus a percentage and an animated progress
 bar coloured red / amber / emerald by threshold. Two summary cards
@@ -47,9 +47,12 @@ Reads / writes via [FinanceContext](../../../artifacts/financial-clarity/src/con
 `getTotalIncome`, `selectedMonth`.
 
 ## Interactions
-- **Transfer Budget to Next Month** (lines 52–67 of `Budgets.tsx`) — disabled
-  when `currentMonthBudgets.length === 0`; opens an `AlertDialog` confirming
-  the bulk copy.
+- **Copy to {next month}** (renamed from "Transfer" on 2026-11-12) —
+  disabled when the month has no budgets. Copies **limits only** (PRD FR-05):
+  no money moves and spending is unchanged. The confirmation, built from
+  `planBudgetCopy` in `lib/domain/budgets.ts`, lists each new budget, each
+  replaced limit (old → new), how many other next-month budgets stay as they
+  are, and inactive categories that are not copied.
 - **Surplus bar** (lines 104–113) — purely informational.
 - **Add Budget sheet** — opened by FAB. Registered via
   `useFabAction(openAddBudget, 'Add budget', 'fab-add-budget')`. Contains

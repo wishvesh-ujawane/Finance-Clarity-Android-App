@@ -2,7 +2,13 @@ import { useMemo } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { getMonthStatus, localDateStr } from '@/lib/finance-utils';
 import { getExpenseMapForMonth, getMonthKey, getMonthTotal, shiftMonth } from '@/lib/analysis-utils';
-import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
+import {
+  commitmentCategoryIds as getCommitmentCategoryIds,
+  totalCommitments,
+  totalConsumption,
+  totalIncome,
+  totalSavingsContributions,
+} from '@/lib/domain/finance-metrics';
 
 /**
  * Math shared across two or more Analysis panes. Pane-specific memos stay
@@ -59,55 +65,37 @@ export function useAnalysisShared() {
   // Back-compat alias — now explicitly the day-to-day (spendable) budget only.
   const monthlyBudgetTotal = monthlyDayToDayBudgetTotal;
 
-  const commitmentCategoryIds = useMemo(
-    () => new Set(categories.filter(c => c.type === 'commitment').map(c => c.id)),
-    [categories]
-  );
+  // Shared PRD §6 totals; "to-date" variants exclude future-dated entries in
+  // the selected month (for example pre-materialized recurring expenses).
+  const commitmentCategoryIds = useMemo(() => getCommitmentCategoryIds(categories), [categories]);
 
   const monthlyCommitments = useMemo(
-    () => transactions
-      .filter(t => t.type === 'expense' && t.date.startsWith(selectedMonth) && commitmentCategoryIds.has(t.categoryId))
-      .reduce((sum, t) => sum + t.amount, 0),
-    [transactions, selectedMonth, commitmentCategoryIds]
+    () => totalCommitments(transactions, categories, selectedMonth),
+    [transactions, categories, selectedMonth]
   );
 
   const monthlyDayToDay = monthlyExpenses - monthlyCommitments;
 
-  // Stamped-only ("to-date") variants — exclude future-dated transactions in
-  // the selected month (e.g. pre-materialized recurring expenses). For past
-  // months these equal the full-month values; for future months they are 0.
   const monthlyExpensesToDate = useMemo(
-    () => transactions
-      .filter(t => t.type === 'expense' && t.date.startsWith(selectedMonth) && t.date <= todayStr)
-      .filter(t => !SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number]))
-      .reduce((sum, t) => sum + t.amount, 0),
+    () => totalConsumption(transactions, selectedMonth, { through: todayStr }),
     [transactions, selectedMonth, todayStr]
   );
 
   const monthlyIncomeToDate = useMemo(
-    () => transactions
-      .filter(t => t.type === 'income' && t.date.startsWith(selectedMonth) && t.date <= todayStr)
-      .reduce((sum, t) => sum + t.amount, 0),
+    () => totalIncome(transactions, selectedMonth, { through: todayStr }),
     [transactions, selectedMonth, todayStr]
   );
 
   const monthlyCommitmentsToDate = useMemo(
-    () => transactions
-      .filter(t => t.type === 'expense' && t.date.startsWith(selectedMonth) && t.date <= todayStr && commitmentCategoryIds.has(t.categoryId))
-      .reduce((sum, t) => sum + t.amount, 0),
-    [transactions, selectedMonth, todayStr, commitmentCategoryIds]
+    () => totalCommitments(transactions, categories, selectedMonth, { through: todayStr }),
+    [transactions, categories, selectedMonth, todayStr]
   );
 
   const monthlyDayToDayToDate = monthlyExpensesToDate - monthlyCommitmentsToDate;
 
-  // Savings spent this month (full-month and to-date). Mirrors the commitments
-  // split so screens can show symmetric "Day-to-day · Commitments · Savings"
-  // tiles without recomputing locally.
   const monthlySavings = currentSummary.totalSavings;
   const monthlySavingsToDate = useMemo(
-    () => transactions
-      .filter(t => t.type === 'expense' && t.date.startsWith(selectedMonth) && t.date <= todayStr && SAVINGS_CATEGORY_IDS.includes(t.categoryId as typeof SAVINGS_CATEGORY_IDS[number]))
-      .reduce((sum, t) => sum + t.amount, 0),
+    () => totalSavingsContributions(transactions, selectedMonth, { through: todayStr }),
     [transactions, selectedMonth, todayStr]
   );
 

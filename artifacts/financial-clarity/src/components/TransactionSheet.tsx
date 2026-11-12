@@ -10,7 +10,9 @@ import { useFinance } from '@/context/FinanceContext';
 import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { localDateStr, formatAmountExpression } from '@/lib/finance-utils';
+import { formatAmountFull, formatDateLabel } from '@/lib/format';
 import { SAVINGS_CATEGORY_IDS, SYSTEM_ADJUSTMENT_CATEGORY_IDS } from '@/lib/types';
+import { isCategoryActive, selectableCategories } from '@/lib/category-rules';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 const SYSTEM_ADJUSTMENT_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
@@ -126,6 +128,8 @@ export function TransactionSheet() {
   // restored after re-render so commas don't cause it to jump.
   const amountInputRef = useRef<HTMLInputElement>(null);
   const pendingCursorRef = useRef<number | null>(null);
+  // Ignores repeated taps while a save is in progress (DESIGN §7.3).
+  const submittingRef = useRef(false);
   const displayAmount = formatAmountExpression(amount);
 
   const handleAmountChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -166,6 +170,7 @@ export function TransactionSheet() {
   // Pre-fill form when editing
   useEffect(() => {
     if (isSheetOpen) {
+      submittingRef.current = false;
       if (editingTransaction) {
         const isSavingsTx = editingTransaction.type === 'expense' && SAVINGS_CATEGORY_ID_SET.has(editingTransaction.categoryId);
         setMode(isSavingsTx ? 'save' : editingTransaction.type);
@@ -187,13 +192,15 @@ export function TransactionSheet() {
     }
   }, [isSheetOpen, editingTransaction, sheetInitialMode]);
 
+  // New entries only offer active categories; an edited entry keeps its own.
+  const pickableCategories = selectableCategories(categories, editingTransaction?.categoryId);
   const filteredCategories = (mode === 'save'
-    ? categories.filter(c => c.type === 'savings')
+    ? pickableCategories.filter(c => c.type === 'savings')
     : mode === 'expense'
-      ? categories.filter(c =>
+      ? pickableCategories.filter(c =>
           !SYSTEM_ADJUSTMENT_ID_SET.has(c.id) &&
           (c.type === 'expense' || c.type === 'commitment' || c.type === 'both'))
-      : categories.filter(c =>
+      : pickableCategories.filter(c =>
           !SYSTEM_ADJUSTMENT_ID_SET.has(c.id) &&
           (c.type === 'income' || c.type === 'both'))
   ).slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -202,7 +209,8 @@ export function TransactionSheet() {
 
   const handleSubmit = useCallback(() => {
     const parsed = evaluateAmountExpression(amount);
-    if (!parsed || parsed <= 0 || !categoryId) return;
+    if (!parsed || parsed <= 0 || !categoryId || submittingRef.current) return;
+    submittingRef.current = true;
 
     // 'save' is a UI mode; underlying transaction is an expense whose category is a savings one.
     const storedType: 'expense' | 'income' = mode === 'income' ? 'income' : 'expense';
@@ -223,6 +231,7 @@ export function TransactionSheet() {
 
     // Keep the sheet open with the entered values when the save fails.
     if (!result.ok) {
+      submittingRef.current = false;
       setSaveError(result.message);
       return;
     }
@@ -321,7 +330,7 @@ export function TransactionSheet() {
                         <button
                           data-testid="delete-transaction-in-sheet"
                           aria-label="Delete transaction"
-                          className="w-8 h-8 rounded-full bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive/15 transition-colors"
+                          className="w-8 h-8 rounded-full bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive/15 transition-colors relative before:absolute before:-inset-2 before:content-['']"
                         >
                           <Trash2 size={15} />
                         </button>
@@ -329,8 +338,16 @@ export function TransactionSheet() {
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>Delete Transaction?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you really want to delete this transaction? This action cannot be undone and will update your balances and budget data.
+                          <AlertDialogDescription data-testid="delete-transaction-details">
+                            {editingTransaction && (
+                              <>
+                                Delete {formatAmountFull(editingTransaction.amount)}{' '}
+                                {categories.find(c => c.id === editingTransaction.categoryId)?.name ?? 'Unknown category'} on{' '}
+                                {formatDateLabel(editingTransaction.date, { day: 'numeric', month: 'short', year: 'numeric' })}?
+                                Balances, budgets, and totals will update. This can&rsquo;t be undone.
+                                {editingTransaction.recurringRuleId && ' It was added by a recurring expense and will not be added again.'}
+                              </>
+                            )}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -349,7 +366,7 @@ export function TransactionSheet() {
                     data-testid="sheet-close"
                     aria-label="Close transaction sheet"
                     onClick={handleClose}
-                    className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+                    className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors relative before:absolute before:-inset-2 before:content-['']"
                   >
                     <X size={16} />
                   </button>
@@ -361,10 +378,10 @@ export function TransactionSheet() {
                 {(['expense', 'income', 'save'] as const).map(t => {
                   const label = t === 'save' ? 'Save' : t;
                   const activeBg = t === 'expense'
-                    ? 'bg-red-500 text-white shadow'
+                    ? 'bg-red-600 text-white shadow'
                     : t === 'income'
-                      ? 'bg-emerald-500 text-white shadow'
-                      : 'bg-sky-500 text-white shadow';
+                      ? 'bg-emerald-600 text-white shadow'
+                      : 'bg-sky-600 text-white shadow';
                   return (
                     <button
                       key={t}
@@ -483,6 +500,9 @@ export function TransactionSheet() {
                         <CategoryIcon icon={cat.icon} color={cat.color} size={16} />
                       </div>
                       <span className="text-center leading-tight">{cat.name}</span>
+                      {!isCategoryActive(cat) && (
+                        <span className="rounded-lg bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">Inactive</span>
+                      )}
                     </button>
                   ))}
 
@@ -528,7 +548,7 @@ export function TransactionSheet() {
                         />
 
                         <div>
-                          <p className="text-[10px] text-muted-foreground mb-1.5 font-medium">Type</p>
+                          <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Type</p>
                           <div className="flex gap-1.5">
                             {(['expense', 'income'] as const).map(t => (
                               <button
@@ -546,7 +566,7 @@ export function TransactionSheet() {
                         </div>
 
                         <div>
-                          <p className="text-[10px] text-muted-foreground mb-1.5 font-medium">Color</p>
+                          <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Color</p>
                           <div className="flex flex-wrap gap-1.5">
                             {COLOR_SWATCHES.map(c => (
                               <button
@@ -564,7 +584,7 @@ export function TransactionSheet() {
                         </div>
 
                         <div>
-                          <p className="text-[10px] text-muted-foreground mb-1.5 font-medium">Icon</p>
+                          <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Icon</p>
                           <div className="grid grid-cols-6 gap-1.5">
                             {ICON_OPTIONS.slice(0, 18).map(ico => (
                               <button
@@ -640,10 +660,10 @@ export function TransactionSheet() {
                   !calculatedAmount || calculatedAmount <= 0 || !categoryId
                     ? 'bg-muted text-muted-foreground cursor-not-allowed'
                     : mode === 'income'
-                      ? 'bg-emerald-500 text-white shadow-lg hover:bg-emerald-600'
+                      ? 'bg-emerald-600 text-white shadow-lg hover:bg-emerald-700'
                       : mode === 'save'
-                        ? 'bg-sky-500 text-white shadow-lg hover:bg-sky-600'
-                        : 'bg-red-500 text-white shadow-lg hover:bg-red-600'
+                        ? 'bg-sky-600 text-white shadow-lg hover:bg-sky-700'
+                        : 'bg-red-600 text-white shadow-lg hover:bg-red-700'
                 )}
                 whileTap={{ scale: 0.97 }}
               >
@@ -651,6 +671,13 @@ export function TransactionSheet() {
                   ? 'Save Changes'
                   : mode === 'income' ? 'Add Income' : mode === 'save' ? 'Add Savings' : 'Add Expense'}
               </motion.button>
+              {(!calculatedAmount || calculatedAmount <= 0 || !categoryId) && (
+                <p className="text-xs text-muted-foreground text-center" data-testid="submit-hint">
+                  {!calculatedAmount || calculatedAmount <= 0
+                    ? (categoryId ? 'Enter an amount above \u20b90 to save.' : 'Enter an amount above \u20b90 and choose a category to save.')
+                    : 'Choose a category to save.'}
+                </p>
+              )}
             </div>
           </motion.div>
         </>

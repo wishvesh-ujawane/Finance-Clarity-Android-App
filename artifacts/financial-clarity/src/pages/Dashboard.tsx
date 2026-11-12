@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import {
   ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ArrowRightLeft, CreditCard,
+  AlertOctagon, AlertTriangle, CheckCircle2, CircleDashed,
 } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { useDefaultFabMenu } from '@/hooks/useDefaultFabMenu';
@@ -14,6 +15,7 @@ import {
   addMonths, formatAmount, formatDateLabel, formatMonthLabel, localDateStr,
 } from '@/lib/finance-utils';
 import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
+import { consumptionBetween } from '@/lib/domain/finance-metrics';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 
@@ -56,13 +58,9 @@ export default function Dashboard() {
   );
 
   // Today's spend + avg per day (current month: through today; past months: through last day of month)
-  // Excludes savings-category transactions — those are transfers, not spend.
+  // Consumption only (PRD §6): savings contributions and card bill payments are not spend.
   const { todaySpend, avgPerDay } = useMemo(() => {
-    const today = isCurrentMonth
-      ? monthTransactions
-          .filter(t => t.type === 'expense' && !SAVINGS_CATEGORY_ID_SET.has(t.categoryId) && t.date === todayKey)
-          .reduce((s, t) => s + t.amount, 0)
-      : 0;
+    const today = isCurrentMonth ? consumptionBetween(monthTransactions, todayKey, todayKey) : 0;
     const [yStr, mStr] = selectedMonth.split('-').map(Number);
     const monthLastDay = new Date(yStr, mStr, 0).getDate();
     const days = isCurrentMonth ? Math.max(1, new Date().getDate()) : monthLastDay;
@@ -219,26 +217,26 @@ export default function Dashboard() {
             <div>
               <div className="flex items-center gap-1 mb-0.5">
                 <ArrowUp size={10} className="text-emerald-400" />
-                <p className="text-[10px] text-white/50">Income</p>
+                <p className="text-[11px] text-white/50">Income</p>
               </div>
               <p className="text-sm font-bold text-emerald-400 truncate" data-testid="income-amount">{formatAmount(income)}</p>
             </div>
             <div>
               <div className="flex items-center gap-1 mb-0.5">
                 <ArrowDown size={10} className="text-red-400" />
-                <p className="text-[10px] text-white/50">Expenses</p>
+                <p className="text-[11px] text-white/50">Expenses</p>
               </div>
               <p className="text-sm font-bold text-red-400 truncate" data-testid="expenses-amount">{formatAmount(expenses)}</p>
             </div>
             <div>
               <div className="flex items-center gap-1 mb-0.5">
                 <ArrowRightLeft size={10} className="text-white/50" />
-                <p className="text-[10px] text-white/50">Carry-forward</p>
+                <p className="text-[11px] text-white/50">Carry-forward</p>
               </div>
               <p className={cn('text-sm font-bold truncate', carryForward > 0 ? 'text-emerald-400' : carryForward < 0 ? 'text-red-400' : 'text-white/70')}>
                 {formatAmount(carryForward)}
               </p>
-              <p className="text-[10px] text-white/50 mt-0.5 truncate">from {formatMonthLabel(prevMonth(selectedMonth))}</p>
+              <p className="text-[11px] text-white/50 mt-0.5 truncate">from {formatMonthLabel(prevMonth(selectedMonth))}</p>
             </div>
             <div className={cn('transition-colors', balance < 0 && 'bg-[rgba(226,75,74,0.15)] rounded-lg px-2 py-1 -mx-2 -my-1')}>
               <div className="flex items-center gap-1 mb-0.5">
@@ -247,7 +245,7 @@ export default function Dashboard() {
                   : balance < 0
                     ? <ArrowDown size={10} className="text-red-400" />
                     : <ArrowUpDown size={10} className="text-white/50" />}
-                <p className="text-[10px] text-white/50 truncate">{formatMonthLabel(selectedMonth)} balance</p>
+                <p className="text-[11px] text-white/50 truncate">{formatMonthLabel(selectedMonth)} balance</p>
               </div>
               <p
                 className={cn('text-sm font-bold truncate', balance > 0 ? 'text-emerald-400' : balance < 0 ? 'text-red-400' : 'text-white')}
@@ -272,24 +270,26 @@ export default function Dashboard() {
                 const chipClass = isGoalBucket
                   ? (alert.pct >= 100 ? 'bg-[#E6F4EC] text-[#1D7A4E]' : 'bg-[#EAF0FB] text-[#1E3A8A]')
                   : (over ? 'bg-[#FCEBEB] text-[#A32D2D]' : 'bg-[#FAEEDA] text-[#854F0B]');
-                const label = isGoalBucket
+                // Status = icon + words, never color or emoji alone (DESIGN §5.10).
+                const [StatusIcon, label] = isGoalBucket
                   ? (alert.pct >= 100
-                      ? `🟢 ${alert.name} ${alert.categoryType === 'savings' ? 'funded' : 'paid'}`
-                      : `🔵 ${alert.name} ${Math.round(alert.pct)}%`)
+                      ? [CheckCircle2, `${alert.name} ${alert.categoryType === 'savings' ? 'funded' : 'paid'}`] as const
+                      : [CircleDashed, `${alert.name} ${Math.round(alert.pct)}% ${alert.categoryType === 'savings' ? 'funded' : 'paid'}`] as const)
                   : (over
-                      ? `🔴 ${alert.name} +${formatAmount(alert.overspend)}`
-                      : `🟡 ${alert.name} ${Math.round(alert.pct)}%`);
+                      ? [AlertOctagon, `${alert.name} over by ${formatAmount(alert.overspend)}`] as const
+                      : [AlertTriangle, `${alert.name} ${Math.round(alert.pct)}% used`] as const);
                 return (
                   <button
                     key={alert.categoryId}
                     type="button"
                     onClick={() => setLocation(`/budgets?highlight=${encodeURIComponent(alert.categoryId)}`)}
                     className={cn(
-                      'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap hover:opacity-90 transition-opacity',
+                      'flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap hover:opacity-90 transition-opacity',
                       chipClass,
                     )}
                     data-testid={`budget-alert-${alert.categoryId}`}
                   >
+                    <StatusIcon size={13} aria-hidden="true" />
                     {label}
                   </button>
                 );
@@ -370,17 +370,18 @@ export default function Dashboard() {
                         return (
                           <div
                             key={t.id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => openEditSheet(t)}
+                            role={t.savingsCorrection ? undefined : 'button'}
+                            tabIndex={t.savingsCorrection ? undefined : 0}
+                            onClick={() => { if (!t.savingsCorrection) openEditSheet(t); }}
                             onKeyDown={e => {
-                              if (e.key === 'Enter' || e.key === ' ') {
+                              if (!t.savingsCorrection && (e.key === 'Enter' || e.key === ' ')) {
                                 e.preventDefault();
                                 openEditSheet(t);
                               }
                             }}
                             className={cn(
-                              'group flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-muted/60 transition-colors cursor-pointer',
+                              'group flex items-center gap-3 py-2.5 px-3 rounded-xl',
+                              !t.savingsCorrection && 'hover:bg-muted/60 transition-colors cursor-pointer',
                               isIncome && 'border-l-[3px] border-[#1D9E75] bg-[rgba(29,158,117,0.04)]',
                             )}
                             data-testid={`transaction-${t.id}`}

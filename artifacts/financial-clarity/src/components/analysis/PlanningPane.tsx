@@ -3,8 +3,15 @@ import { Link } from 'wouter';
 import { AlertTriangle, ArrowRight, CalendarClock, Sparkles, Target, TrendingUp, WalletCards } from 'lucide-react';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
-import { addMonths, formatINR, formatMonthYear, localDateStr, monthsBetween } from '@/lib/finance-utils';
+import { addMonths, formatAmount, formatMonthYear, localDateStr, monthsBetween } from '@/lib/finance-utils';
 import { getMonthTotal, shiftMonth } from '@/lib/analysis-utils';
+import { futureOutflow, monthsOfHistoryBefore, spendableBalance } from '@/lib/domain/analysis';
+import { isCategoryActive } from '@/lib/category-rules';
+import { formatAmountFull } from '@/lib/format';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import type { AnalysisShared } from './useAnalysisShared';
 
 interface Props {
@@ -31,14 +38,14 @@ export default function PlanningPane({ shared }: Props) {
   } = shared;
 
   const [suggestionsApplied, setSuggestionsApplied] = useState(false);
+  const [suggestionError, setSuggestionError] = useState('');
+  const [confirmSuggestions, setConfirmSuggestions] = useState(false);
 
   const isBudgetExceeded = monthlyBudgetTotal > 0 && monthlyDayToDay > monthlyBudgetTotal;
 
-  const inHandBalance = useMemo(() => {
-    return transactions
-      .filter(t => t.date <= todayStr)
-      .reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
-  }, [transactions, todayStr]);
+  // Spendable money through today (PRD §6 classification): income minus
+  // consumption minus savings set aside. Card bill payments are not counted.
+  const inHandBalance = useMemo(() => spendableBalance(transactions, todayStr), [transactions, todayStr]);
 
   const currentMonthDays = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
   const currentMonthDaysLeft = Math.max(1, currentMonthDays - today.getDate() + 1);
@@ -76,13 +83,17 @@ export default function PlanningPane({ shared }: Props) {
 
   const knownFutureExpenses = useMemo(() => {
     if (selectedMonth !== currentMonthKey) return 0;
-    return transactions
-      .filter(t => t.type === 'expense' && t.date.startsWith(currentMonthKey) && t.date > todayStr)
-      .reduce((sum, t) => sum + t.amount, 0);
+    return futureOutflow(transactions, currentMonthKey, todayStr);
   }, [transactions, selectedMonth, currentMonthKey, todayStr]);
 
+  // A forecast needs at least one earlier month of entries (PRD FR-08).
+  const hasProjectionHistory = useMemo(
+    () => monthsOfHistoryBefore(transactions, currentMonthKey) > 0,
+    [transactions, currentMonthKey],
+  );
+
   const projectedBalance = useMemo(() => {
-    if (selectedMonth !== currentMonthKey) return null;
+    if (selectedMonth !== currentMonthKey || !hasProjectionHistory) return null;
     const last3 = [1, 2, 3].map(o => shiftMonth(currentMonthKey, -o));
     const incomes = last3.map(m => getMonthTotal(transactions, m, 'income')).filter(v => v > 0);
     const expectedIncome = incomes.length > 0
@@ -93,12 +104,19 @@ export default function PlanningPane({ shared }: Props) {
     const projectedRemainingSpend = burnPerDay * daysLeftInMonth;
     const value = inHandBalance + expectedRemainingIncome - projectedRemainingSpend - knownFutureExpenses;
     return { value, expectedIncome, projectedRemainingSpend, knownFutureExpenses };
-  }, [selectedMonth, currentMonthKey, transactions, monthlyIncome, monthlyIncomeToDate, monthlyExpensesToDate, elapsedDays, daysLeftInMonth, inHandBalance, knownFutureExpenses]);
+  }, [selectedMonth, currentMonthKey, hasProjectionHistory, transactions, monthlyIncome, monthlyIncomeToDate, monthlyExpensesToDate, elapsedDays, daysLeftInMonth, inHandBalance, knownFutureExpenses]);
 
   const nextMonth = useMemo(() => addMonths(selectedMonth, 1), [selectedMonth]);
   const budgetSuggestions = useMemo(() => {
+    // Inactive categories can't get new budgets (PRD FR-03), so they are
+    // only suggested when next month already has a budget for them.
     return allCategorySpending
       .filter(c => c.amount > 0)
+      .filter(c => {
+        const category = categories.find(cat => cat.id === c.categoryId);
+        return !category || isCategoryActive(category) ||
+          budgets.some(b => b.month === nextMonth && b.categoryId === c.categoryId);
+      })
       .slice(0, 3)
       .map(c => {
         const suggestedLimit = Math.ceil((c.amount * 1.05) / 100) * 100;
@@ -113,12 +131,24 @@ export default function PlanningPane({ shared }: Props) {
           existingLimit: existing?.limit ?? null,
         };
       });
-  }, [allCategorySpending, budgets, nextMonth]);
+  }, [allCategorySpending, budgets, categories, nextMonth]);
+
+  // Suggestions that would replace an existing limit need confirmation (PRD FR-08).
+  const suggestionOverwrites = budgetSuggestions.filter(
+    s => s.existingLimit !== null && s.existingLimit !== s.suggestedLimit,
+  );
 
   const applySuggestions = () => {
-    budgetSuggestions.forEach(s => {
-      addBudget({ categoryId: s.categoryId, limit: s.suggestedLimit, month: nextMonth });
-    });
+    setSuggestionError('');
+    let saved = 0;
+    for (const s of budgetSuggestions) {
+      const result = addBudget({ categoryId: s.categoryId, limit: s.suggestedLimit, month: nextMonth });
+      if (!result.ok) {
+        setSuggestionError(`Saved ${saved} of ${budgetSuggestions.length} suggestions. Couldn\u2019t save ${s.name}: ${result.message}`);
+        return;
+      }
+      saved += 1;
+    }
     setSuggestionsApplied(true);
     setTimeout(() => setSuggestionsApplied(false), 3500);
   };
@@ -174,26 +204,26 @@ export default function PlanningPane({ shared }: Props) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="rounded-xl bg-muted/50 px-3 py-2">
               <p className="text-[11px] text-muted-foreground">Income</p>
-              <p className="text-sm font-bold text-foreground">{formatINR(currentSummary.totalIncome)}</p>
+              <p className="text-sm font-bold text-foreground">{formatAmount(currentSummary.totalIncome)}</p>
             </div>
             <div className="rounded-xl bg-muted/50 px-3 py-2">
               <p className="text-[11px] text-muted-foreground">Expenses</p>
-              <p className="text-sm font-bold text-foreground">{formatINR(currentSummary.totalExpenses)}</p>
+              <p className="text-sm font-bold text-foreground">{formatAmount(currentSummary.totalExpenses)}</p>
             </div>
             <div className="rounded-xl bg-muted/50 px-3 py-2">
               <p className="text-[11px] text-muted-foreground">To savings</p>
-              <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatINR(currentSummary.totalSavings)}</p>
+              <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatAmount(currentSummary.totalSavings)}</p>
             </div>
             <div className="rounded-xl bg-muted/50 px-3 py-2">
               <p className="text-[11px] text-muted-foreground">Net flow</p>
-              <p className={cn('text-sm font-bold', currentSummary.netFlow >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>{formatINR(currentSummary.netFlow)}</p>
+              <p className={cn('text-sm font-bold', currentSummary.netFlow >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>{formatAmount(currentSummary.netFlow)}</p>
             </div>
           </div>
           {monthlyBudgetTotal > 0 && (
             <p className="text-xs text-muted-foreground mt-3">
               Budget outcome:{' '}
               <span className={cn('font-semibold', isBudgetExceeded ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400')}>
-                {isBudgetExceeded ? `Over by ${formatINR(monthlyDayToDay - monthlyBudgetTotal)}` : `Under by ${formatINR(monthlyBudgetTotal - monthlyDayToDay)}`}
+                {isBudgetExceeded ? `Over by ${formatAmount(monthlyDayToDay - monthlyBudgetTotal)}` : `Under by ${formatAmount(monthlyBudgetTotal - monthlyDayToDay)}`}
               </span>
             </p>
           )}
@@ -225,7 +255,7 @@ export default function PlanningPane({ shared }: Props) {
                       </div>
                       <span className="text-sm font-medium text-foreground truncate">{cat?.name || 'Unknown'}</span>
                     </div>
-                    <span className="text-sm font-bold text-foreground">{formatINR(b.limit)}</span>
+                    <span className="text-sm font-bold text-foreground">{formatAmount(b.limit)}</span>
                   </div>
                 );
               })}
@@ -265,10 +295,10 @@ export default function PlanningPane({ shared }: Props) {
             </div>
           </div>
           <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400" style={{ fontFamily: 'var(--font-display)' }}>
-            {formatINR(safeToSpendPerDay)}<span className="text-sm text-muted-foreground font-semibold">/day</span>
+            {formatAmount(safeToSpendPerDay)}<span className="text-sm text-muted-foreground font-semibold">/day</span>
           </p>
           <p className="text-xs text-muted-foreground mt-2">
-            Based on {formatINR(inHandBalance)} in hand across {currentMonthDaysLeft} day{currentMonthDaysLeft === 1 ? '' : 's'} left this month.
+            Based on {formatAmount(inHandBalance)} available after money set aside for savings, across {currentMonthDaysLeft} day{currentMonthDaysLeft === 1 ? '' : 's'} left this month.
           </p>
         </div>
 
@@ -318,7 +348,7 @@ export default function PlanningPane({ shared }: Props) {
                         <span className="block text-[11px] text-muted-foreground">{item.kind} • Expected {item.expectedDateLabel}</span>
                       </span>
                     </span>
-                    <span className="text-right text-sm font-bold text-foreground">{formatINR(item.amount)}</span>
+                    <span className="text-right text-sm font-bold text-foreground">{formatAmount(item.amount)}</span>
                   </Link>
                 ))}
               </div>
@@ -326,6 +356,16 @@ export default function PlanningPane({ shared }: Props) {
           )}
         </div>
       </div>
+
+      {selectedMonth === currentMonthKey && !hasProjectionHistory && (
+        <div className="bg-card border border-border rounded-2xl p-5" data-testid="projected-balance-insufficient">
+          <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Projection</p>
+          <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Projected month-end balance</h2>
+          <p className="text-xs text-muted-foreground mt-2">
+            Insufficient history. A projection needs at least one earlier month of entries to estimate your usual income.
+          </p>
+        </div>
+      )}
 
       {projectedBalance && (
         <div className="bg-card border border-border rounded-2xl p-5" data-testid="projected-balance-card">
@@ -339,12 +379,12 @@ export default function PlanningPane({ shared }: Props) {
             </div>
           </div>
           <p className={cn('text-2xl font-bold', projectedBalance.value >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')} style={{ fontFamily: 'var(--font-display)' }}>
-            {formatINR(projectedBalance.value)}
+            {formatAmount(projectedBalance.value)}
           </p>
           <p className="text-xs text-muted-foreground mt-2">
-            At your current pace, you'll end the month with {formatINR(projectedBalance.value)}.
-            Based on avg income {formatINR(projectedBalance.expectedIncome)} and projected remaining spend {formatINR(projectedBalance.projectedRemainingSpend)}
-            {projectedBalance.knownFutureExpenses > 0 && <> plus scheduled bills {formatINR(projectedBalance.knownFutureExpenses)}</>}.
+            At your current pace, you'll end the month with {formatAmount(projectedBalance.value)}.
+            Based on avg income {formatAmount(projectedBalance.expectedIncome)} and projected remaining spend {formatAmount(projectedBalance.projectedRemainingSpend)}
+            {projectedBalance.knownFutureExpenses > 0 && <> plus scheduled bills {formatAmount(projectedBalance.knownFutureExpenses)}</>}.
           </p>
         </div>
       )}
@@ -372,18 +412,37 @@ export default function PlanningPane({ shared }: Props) {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground truncate">{s.name}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      Actual {formatINR(s.actual)} → suggest {formatINR(s.suggestedLimit)}
+                      Actual {formatAmount(s.actual)} → suggest {formatAmount(s.suggestedLimit)}
                       {s.existingLimit !== null && (
-                        <span className="ml-1">(current {formatINR(s.existingLimit)})</span>
+                        <span className="ml-1">(current {formatAmount(s.existingLimit)})</span>
                       )}
                     </p>
                   </div>
                 </div>
               ))}
             </div>
+            {suggestionError && (
+              <p className="mt-3 text-xs font-medium text-destructive" role="alert" data-testid="suggestions-error">{suggestionError}</p>
+            )}
+            <AlertDialog open={confirmSuggestions} onOpenChange={setConfirmSuggestions}>
+              <AlertDialogContent data-testid="suggestions-confirm-dialog">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Replace existing limits?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {formatMonthYear(nextMonth)} already has budgets for:{' '}
+                    {suggestionOverwrites.map(s => `${s.name} ${formatAmountFull(s.existingLimit ?? 0)} \u2192 ${formatAmountFull(s.suggestedLimit)}`).join(', ')}.
+                    Applying the suggestions replaces these limits. Other budgets are not changed.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={applySuggestions} data-testid="suggestions-confirm">Replace limits</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <button
               data-testid="apply-suggestions"
-              onClick={applySuggestions}
+              onClick={() => (suggestionOverwrites.length > 0 ? setConfirmSuggestions(true) : applySuggestions())}
               className="mt-3 w-full py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors"
             >
               Apply suggestions to {formatMonthYear(nextMonth)}
@@ -431,9 +490,9 @@ export default function PlanningPane({ shared }: Props) {
                 </div>
                 <p className="text-xs font-bold text-foreground mt-2">{g.name}</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {formatINR(g.ytdContrib)} / {formatINR(g.annualGoal)}
+                  {formatAmount(g.ytdContrib)} / {formatAmount(g.annualGoal)}
                 </p>
-                <p className={cn('text-[10px] font-semibold mt-0.5', g.onTrack ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
+                <p className={cn('text-[11px] font-semibold mt-0.5', g.onTrack ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
                   {g.onTrack ? 'On track' : 'Behind pace'}
                 </p>
               </div>

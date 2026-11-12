@@ -55,7 +55,7 @@ The stack below is mostly what already exists. The recommendation is to **keep i
 | Charts | Recharts | Existing Analysis charts |
 | Motion | Framer Motion | Existing sheets and swipes; must respect reduced motion (DESIGN §9.4) |
 | Icons | lucide-react (+ local brand icons) | One icon set (DESIGN §4.5) |
-| Dates | Shared helpers in `finance-utils.ts` (`currentMonth`, `addMonths`, `localDateStr`) | Month math, short months, local-date handling. No date library |
+| Dates | Shared helpers in `lib/domain/periods.ts` (`currentMonth`, `addMonths`, `localDateStr`, `monthOf`, `lastDateOfMonth`) | Month math, short months, local-date handling. No date library |
 | Toasts | Radix toast (`components/ui/toast`, `hooks/use-toast`) | Persistent toasts for background operations (DESIGN §8.2) |
 | Image export | html-to-image | Analysis Overview image share (PRD FR-08) |
 | Fonts | Manrope + Inter, **bundled locally** | Works offline; no runtime call to Google Fonts (DESIGN G7) |
@@ -70,7 +70,7 @@ The stack below is mostly what already exists. The recommendation is to **keep i
 | `@capacitor/filesystem`, `@capacitor/share` | CSV and image export through the system share sheet |
 | `@capgo/capacitor-native-biometric` | Optional biometric unlock |
 | `@codetrix-studio/capacitor-google-auth` | Google sign-in for Drive authorization only |
-| `@capacitor-firebase/app`, `@capacitor-firebase/crashlytics` | Crash diagnostics, pending privacy review (D9) |
+| ~~`@capacitor-firebase/app`, `@capacitor-firebase/crashlytics`~~ | **Removed 2026-11-12 (D9).** The app sends no crash diagnostics |
 | Local `ScreenSecurity` plugin (`android/app/.../ScreenSecurityPlugin.java`) | Sets `FLAG_SECURE` while the app lock is enabled (§15.3) |
 
 ### 2.3 Explicitly not used in the MVP
@@ -118,11 +118,11 @@ The stack below is mostly what already exists. The recommendation is to **keep i
 │   │                               └─▶ Platform adapters ─▶ Capacitor plugins      │   │
 │   └───────────────────────────────────────────────────────────────────────────────┘   │
 │        Native: BiometricPrompt · App lifecycle · Filesystem · Share sheet             │
-└──────────┬──────────────────────────────┬───────────────────────────────┬─────────────┘
-           │ HTTPS + OAuth (drive.file)   │ HTTPS (native SDK)            │ User-initiated intents
-           ▼                              ▼                               ▼
-   Google Sign-In + Drive API     Firebase Crashlytics           Share targets, Email, WhatsApp
-   (optional backup/restore)      (if configured; D9 pending)    (exports and feedback)
+└──────────┬──────────────────────────────────────────────────────────────┬─────────────┘
+           │ HTTPS + OAuth (drive.file)                                   │ User-initiated intents
+           ▼                                                              ▼
+   Google Sign-In + Drive API                                     Share targets, Email, WhatsApp
+   (optional backup/restore)                                      (exports and feedback)
 ```
 
 There are no other network destinations. Every finance feature works with all network arrows removed.
@@ -159,13 +159,13 @@ Keep the existing contexts and give each a clear owner role:
 
 Rules:
 
-- **Derived values come from domain selectors**, memoized in the context, for example "summary for period P". A metric from PRD §6 is computed in exactly one function. Pages must not re-sum transactions themselves.
+- **Derived values come from domain selectors**, memoized in the context, for example "summary for period P". A metric from PRD §6 is computed in exactly one function in `lib/domain/finance-metrics.ts`, using the period helpers in `lib/domain/periods.ts`. Pages must not re-sum transactions themselves.
 - Each action returns a success or failure result to its caller. A sheet or form decides how to show that result (DESIGN §7.3).
 - **MVP-cleanup:** `FinanceContext` is about 1,400 lines. Move its calculations and rules into `lib/domain/` and its persistence into `lib/storage/`. Keep its public hook API unchanged so pages are unaffected.
 
 ### 4.3 Routing and navigation
 
-- Routes: `/`, `/transactions`, `/budgets`, `/analysis`, `/settings`, and Settings sub-pages (`/settings/categories`, `/settings/recurring`, `/settings/savings`, `/settings/security`, `/settings/backup`), plus Not Found. **MVP-cleanup:** remove `/settings/sms-auto-import`.
+- Routes: `/`, `/transactions`, `/budgets`, `/analysis`, `/settings`, and Settings sub-pages (`/settings/categories`, `/settings/recurring`, `/settings/savings`, `/settings/security`, `/settings/backup`), plus Not Found. `/settings/sms-auto-import` was removed (A1) and now renders Not Found.
 - The Android back button is handled once in the app shell through `@capacitor/app`. It closes the topmost layer first, in DESIGN §6.4 order: FAB menu → dialog → sheet → sub-page → Dashboard → exit.
 - Launch overlays appear in a strict order: **lock screen → onboarding → month-end prompt**. Only one appears at a time (DESIGN §6.5).
 - While the app is locked, financial screens are **not rendered at all**. Hiding them visually is not enough. The lock screen is the topmost layer (DESIGN G12).
@@ -191,9 +191,9 @@ The workspace contains a single package, `artifacts/financial-clarity`. The form
 ### 6.1 App startup
 
 1. `main.tsx` mounts the app. On native builds only, crash reporting starts if it is configured.
-2. **Storage load.** The storage adapter reads every key, parses it, checks it against its schema, and runs any pending local migrations.
-   - An invalid item or key is **quarantined**: the original raw text is copied to `financial-clarity:backup:<key>:<timestamp>` and is never silently overwritten.
-   - If core data cannot be read at all, show a full-screen explanation. Offer no action that overwrites data without explicit confirmation (DESIGN §8.2).
+2. **Storage load.** Before any provider mounts, `prepareStorage()` (`lib/storage/startup.ts`) runs any pending local migrations, then reads every finance key and checks it against its schema.
+   - An invalid item or key is **quarantined**: the original raw text is copied to `financial-clarity:backup:<key>:<timestamp>` and is never silently overwritten. An identical copy is not saved twice. A dismissible banner says how many records couldn't be read and that the original was kept.
+   - If core data cannot be read at all, a migration fails, or the data comes from a newer app version, `StartupErrorScreen` shows a full-screen explanation with **Try again**. If invalid data was found but its quarantine copy could not be saved, the screen also offers **Continue without it**, which needs an explicit confirmation (DESIGN §8.2).
 3. **Security.** If the lock is enabled, show only the lock screen until unlock succeeds.
 4. **Onboarding.** Show it if onboarding is incomplete. Offer the restore choice; starting fresh never deletes existing records (PRD FR-01).
 5. **Recurring processing** runs after unlock, and again on every app resume (§6.4).
@@ -218,7 +218,7 @@ Rules:
 - **Persist before commit.** Update in-memory state only after the storage write succeeds (PRD §9: "do not equate an in-memory update with a durable save").
 - Submit buttons enter a busy state immediately and ignore repeated taps (DESIGN §7.3).
 - Writes that touch several keys (restore, recurring catch-up) snapshot the previous values first and roll back if any write fails.
-- **MVP-cleanup:** today `saveToStorage` ignores errors and runs after state has already changed. Replace it with the persist-first flow above.
+- **Done (A2):** `saveToStorage` was replaced by `writeFinanceData` / `writeStorageEntries` (`lib/storage/finance-storage.ts`), and restore uses the same path.
 
 ### 6.3 Read and derive path
 
@@ -227,6 +227,8 @@ Stored entities → Domain selectors (shared period boundaries, PRD §6 definiti
 ```
 
 Income, consumption spending, savings contributions, monthly net, carry-forward, lifetime balance, commitments, and outstanding card amount each have **exactly one implementation** in the domain layer.
+
+Savings reconciliation uses the same transaction ledger: the domain derives combined savings from contributions and marked corrections, and expected bank balance from lifetime balance minus combined savings plus unpaid card debt. Marked corrections are not ordinary income, spending, or contributions. The context commits savings and explicitly confirmed bank adjustments together with the reconciliation record; no separate account-balance field is stored.
 
 ### 6.4 Recurring generation (PRD FR-07, D4)
 
@@ -237,7 +239,8 @@ Income, consumption spending, savings contributions, monthly net, carry-forward,
   - generate only if that date is today or earlier.
 - **Idempotency.** Before generating, look for an existing transaction with the same occurrence identity. Running the processor any number of times produces each occurrence at most once, even if the app was interrupted mid-run.
 - **Single-flight.** Only one processing run at a time. All new occurrences and updated rule tracking are saved in one persist-first commit.
-- **Pending (PRD FR-07):** whether deleting a generated occurrence suppresses it permanently. Until that is decided, never recreate a transaction the user deleted. Record suppression in the rule's generation tracking.
+- **Implementation.** The pure planner is `planRecurringGeneration` in `lib/domain/recurring.ts`. `FinanceContext.processRecurring` saves its plan. `App.tsx` calls it once the app is unlocked and on every `visibilitychange` back to visible; rule changes made while unlocked call it too. Nothing is generated while the lock screen is shown (DATABASE §8.2).
+- **Decided (PRD FR-07, 2026-11-12):** deleting a generated occurrence does not suppress it permanently with a separate record. Never recreate a transaction the user deleted; the forward-only cursor already guarantees this (DATABASE §6.3).
 
 ### 6.5 Backup and restore (PRD FR-11, existing behavior preserved)
 
@@ -315,14 +318,14 @@ src/
     ├── storage/                # key catalogue, entity schemas, local migrations, repository
     ├── backup/                 # backup format, hash, backup-schema migrations
     ├── platform/               # biometric, googleAuth, googleDrive, share/filesystem,
-    │                           #   crashlytics, app lifecycle
+    │                           #   app lifecycle
     ├── csv.ts
     ├── format.ts               # canonical amount and date formatters
     └── types.ts                # domain entity types
 ```
 
 - Tests sit next to the code in `__tests__/` folders.
-- **MVP-cleanup, removed entirely:** `components/sms/`, `lib/sms/`, `pages/SmsAutoImport.tsx`, and their tests and fixtures.
+- **Removed entirely (A1):** `components/sms/`, `lib/sms/`, `pages/SmsAutoImport.tsx`, and their tests and fixtures.
 - **Migration approach:** move files into `domain/`, `storage/`, and `platform/` when they are next changed, one layer per PR. No big-bang reorganization.
 
 ---
@@ -347,18 +350,18 @@ src/
 | Legacy | SMS keys are kept read-only for backup compatibility. Never deleted silently (PRD FR-10) |
 | New (MVP) | `financial-clarity:storage-version`, used to track local schema migrations |
 
-All key names live in one module in `lib/storage/`. No other file contains key strings.
+All key names live in one module, `lib/storage/keys.ts`. No other file contains key strings.
 
 ### 8.3 Schemas and validation
 
-- Each entity has one validator (a TypeScript type guard). It is used for storage reads, backup restore, and CSV import.
-- Invalid records are quarantined, never silently dropped. Show a non-blocking startup banner saying how many records could not be read and that the raw data was kept.
+- Each entity has one validator (a TypeScript type guard) in `lib/storage/schemas.ts`. It is used for storage reads and backup restore; CSV import still has its own row checks.
+- Invalid records are quarantined, never silently dropped. A non-blocking startup banner (`StorageNoticeBanner`) says how many records could not be read and that the raw data was kept.
 
 ### 8.4 Migrations
 
-- **Local migrations** are ordered, forward-only, and idempotent. They run at startup before any context reads data, and record the new storage version only after all writes succeed.
-  - First planned migration: add `active: true` to every existing category so current categories stay usable (PRD FR-03, §9).
-- **Backup migrations** run in parallel with local migrations. Adding category status raises the backup schema version from 3 to 4. Old backups restore through the migration chain; newer backups are refused.
+- **Local migrations** are ordered, forward-only, and idempotent. They run at startup before any context reads data, and record the new storage version only after all writes succeed. The runner is `lib/storage/migrations.ts` (ADR 0005); no step is registered yet.
+  - Migration 1 adds `active: true` to every existing category so current categories stay usable (PRD FR-03, §9); migration 2 gives every budget a month (ADR 0006).
+- **Backup migrations** run in parallel with local migrations. Category status and required budget months raised the backup schema version from 4 to 5. Old backups restore through the migration chain; newer backups are refused.
 - Google Play cannot roll an app back to an older version. A migration must never leave data that the current code cannot read.
 
 ### 8.5 Data-modeling rules
@@ -426,6 +429,8 @@ All key names live in one module in `lib/storage/`. No other file contains key s
 
 ## 10. API Architecture
 
+> Detailed contracts for this section now live in [API.md](./API.md) (§2–§9, §12). This section keeps the summary. If the two disagree, API.md wins for contract details (AGENTS.md §1.3).
+
 ### 10.1 MVP: no first-party API
 
 The app makes no calls to any server owned by the project.
@@ -468,23 +473,19 @@ Prerequisites: ADR, privacy review, Data safety update, and owner approval.
 
 ## 11. External Services
 
+> Allowed destinations, configuration, and data leaving the device are specified in [API.md](./API.md) §1.1, §10, and §11.
+
 | Service | Purpose | Data leaving the device | Required? | If unavailable | Status |
 |---|---|---|---|---|---|
 | Google Sign-In | Authorize Drive | Google account auth exchange | No | Local use continues | MVP |
 | Google Drive API | Backup and restore | **Full backup file with financial data**, stored in the user's own Drive | No | Status line + retry; local data untouched | MVP |
-| Firebase Crashlytics | Crash diagnostics | Stack traces, device/OS metadata. **No amounts, notes, merchants, category names, emails, or tokens** | No | Silent | MVP, **pending D9 privacy review** |
+| ~~Firebase Crashlytics~~ | — | — | — | — | **Removed 2026-11-12 (D9):** no crash or diagnostic data leaves the device |
 | Android share sheet + Filesystem | CSV and PNG export | Only what the user chooses to share | No | Visible error | MVP |
 | Email / WhatsApp intents | User feedback | User-written message | No | Visible error | MVP |
 | Google Play | Distribution and app signing | Store metadata | — | — | MVP |
 | Google Fonts (runtime) | — | — | — | — | **Removed:** bundle fonts (DESIGN G7) |
 
-No analytics, advertising, bank, payment, SMS, or AI services.
-
-Crashlytics rules:
-
-- Do not set a user ID from the Google email.
-- Disclose Crashlytics accurately in the Data safety form.
-- Whether users get an in-app opt-out is part of the D9 decision.
+No analytics, advertising, crash-reporting, bank, payment, SMS, or AI services. Adding crash reporting back needs a new owner decision, an ADR, and a Data safety update.
 
 ---
 
@@ -518,7 +519,7 @@ If AI is ever approved (Future), it must:
 | `VITE_GOOGLE_WEB_CLIENT_ID` | `.env.local` (gitignored) | No, public OAuth client ID | Browser-dev Google sign-in |
 | `serverClientId` | `capacitor.config.ts` | No, public OAuth client ID | Android Google sign-in |
 | `appId` `com.bytetobrain.fiscalfocus` | `capacitor.config.ts` | No | **Frozen** Android package identity |
-| `google-services.json` | `android/app/` (gitignored) | Config, not a secret; kept out of the repo | Firebase/Crashlytics |
+| `google-services.json` | `android/app/` (gitignored) | Config, not a secret; kept out of the repo | Google services Gradle plugin (no Firebase SDK since D9) |
 | Upload keystore + `keystore.properties` | Outside the repo (gitignored), backed up offline | **Yes** | Release signing; Play App Signing holds the app signing key |
 | `versionCode` / `versionName` | `android/app/build.gradle` | No | Release versioning |
 | `PORT`, `BASE_PATH`, `NODE_ENV` | Shell env for Vite | No | Dev server and asset base path |
@@ -528,7 +529,7 @@ If AI is ever approved (Future), it must:
 - Anything prefixed `VITE_` is compiled into the public bundle. **Never put secrets in client configuration.** The MVP client needs no secrets.
 - Configuration is fixed at build time. No remote config.
 - Toolchain: Node 24, pnpm 10, Android SDK 36, and the JDK required by the Android Gradle Plugin. See [docs/BUILD_AND_DEPLOY.md](./BUILD_AND_DEPLOY.md).
-- **MVP-cleanup:** the app version recorded in backups is hard-coded to `1.0.0`. Take it from the build version instead.
+- **Done (A7):** backups record the build version from `package.json` through the Vite `__APP_VERSION__` define.
 
 ---
 
@@ -579,7 +580,7 @@ If AI is ever approved (Future), it must:
 | B2 | App ↔ local storage | Stored data may be corrupt or old | Schema validation on read, migrations, quarantine |
 | B3 | App ↔ imported files (backup JSON, CSV) | **File content** | Size limits, schema validation, version check, migration, preview, explicit confirmation; text rendered as text only (no raw HTML from data) |
 | B4 | App ↔ Google | Network | TLS only; OAuth; `drive.file` least-privilege scope; tokens never stored by the app |
-| B5 | App ↔ Crashlytics | Third party | Scrubbed payloads; disclosure; D9 review |
+| B5 | ~~App ↔ Crashlytics~~ | — | Removed 2026-11-12 (D9) |
 | B6 | App ↔ share targets | Destination app | User-initiated only; CSV formula escaping; label matches content |
 
 ### 15.2 Threat model
@@ -591,11 +592,11 @@ If AI is ever approved (Future), it must:
 
 | Area | Control |
 |---|---|
-| Android permissions | `INTERNET`, `USE_BIOMETRIC`, `USE_FINGERPRINT` (API ≤ 28 only). **MVP-cleanup:** remove `READ_SMS` and verify the merged manifest of the release bundle |
+| Android permissions | `INTERNET`, `USE_BIOMETRIC`, `USE_FINGERPRINT` (API ≤ 28 only). `READ_SMS` removed from the source manifest (A1); still verify the merged manifest of the release bundle |
 | OS backup | Keep `allowBackup="false"` |
 | WebView | Load bundled assets only; no remote pages; no cleartext traffic. Add a restrictive Content Security Policy allowing only `self` plus the Google API domains in use; verify it on a device |
 | Rendering | No raw HTML injection of user or imported data |
-| Secrets | None in source. Keystore and Firebase config are gitignored |
+| Secrets | None in source. Keystore and `google-services.json` are gitignored |
 | Dependencies | `.npmrc` release-age gate, committed lockfile, pre-release dependency audit, removal of unused packages |
 | Encryption at rest | **Deferred** (PRD FR-11, D7). The app says storage is not encrypted |
 | Recents/screenshot privacy | **Owner decision 2026-11-06:** `FLAG_SECURE` is set while the app lock is enabled, so the app is blank in the recent-apps screen and screenshots are blocked. It is cleared when the lock is disabled |
@@ -617,7 +618,7 @@ If AI is ever approved (Future), it must:
 | Release artifact | Inspect the bundle | No SMS permission, SMS code, or SMS route in the release build; only expected permissions present |
 
 - Test fixtures use synthetic data only. No real financial data in the repo.
-- SMS tests are deleted together with the SMS code.
+- SMS feature tests were deleted together with the SMS code. Removal regression and legacy-compatibility tests remain.
 
 ### 16.2 Continuous integration (MVP, minimal)
 
@@ -659,9 +660,9 @@ Google Play does not allow downgrades. **Fix forward**: halt the staged rollout 
 | Identity | Local lock + Google for Drive only | With a backend → server-verified Google ID tokens |
 | Platforms | Android only | Approved iOS release → same codebase with the Capacitor iOS target |
 | Analysis / AI | Deterministic local rules | Approved AI → opt-in, on-device first, explanations only (§12) |
-| Diagnostics | Crashlytics, pending D9 | Opt-in toggle and stricter scrubbing based on D9 outcome |
+| Diagnostics | None (Crashlytics removed, D9) | Any future diagnostics need an owner decision and ADR |
 | Money model | Positive rupee number + type | Precision or refund needs (D3) → integer paise through an ADR and a migration |
-| Month-end review | Existing flow preserved | D8 resolved → redesign following this architecture |
+| Month-end review | Existing flow plus the D8 card-bill step, card-aware reconcile, and budget save errors (2026-11-12) | Further D8 items → redesign following this architecture |
 | Security | App lock, unencrypted storage | Approved → encrypted storage (Android Keystore-backed key) and privacy screen |
 
 ---
@@ -672,21 +673,21 @@ None of these items is authorized by this document alone. Each needs owner appro
 
 | ID | Gap in current code | Target | Source |
 |---|---|---|---|
-| A1 | SMS screens, parsers, native reader, route, and `READ_SMS` permission still present | Remove completely; keep legacy SMS keys readable for backups | PRD FR-10 |
+| A1 | **Resolved in source 2026-11-11:** SMS screens, parsers, native reader, route, and `READ_SMS` permission removed; legacy SMS keys stay readable for backups. A Vitest guard (`src/__tests__/sms-removal-release-config.test.ts`) and e2e NAV-002 prevent regressions. Still missing: merged release manifest check on a machine with the Android SDK | Remove completely; keep legacy SMS keys readable for backups | PRD FR-10 |
 | A2 | **Resolved 2026-11-11:** finance mutations, including budgets, recurring rules, and savings targets, persist first and surface failures; multi-key writes roll back | Persist first, typed results, visible failures | PRD §9; §6.2 |
-| A3 | **Partly resolved 2026-11-06:** deletion is blocked in the mutation for reserved categories and for categories used by transactions, budgets, or recurring rules (`lib/category-rules.ts`). Still missing: category active/inactive status | Domain-enforced usage rule, `active` flag, local migration, backup schema v5 | PRD FR-03 |
+| A3 | **Resolved 2026-11-12:** deletion is blocked in the mutation for reserved and used categories (`lib/category-rules.ts`), and categories have active/inactive status with local migration 1 and backup schema v5 (ADR 0006). Still pending owner confirmation: the PRD FR-03 picker assumption and the inactive-category/recurring-rule detail | Domain-enforced usage rule, `active` flag, local migration, backup schema v5 | PRD FR-03 |
 | A4 | **Resolved 2026-11-11:** recurring occurrences have stable rule/month identity; due dates clamp to month-end; resuming skips past paused periods; catch-up is idempotent | Occurrence identity, short-month clamp, skip paused months, idempotent catch-up | PRD FR-07; §6.4 |
-| A5 | Two amount formatters; fonts loaded from Google at runtime | One formatter; bundled fonts | DESIGN G7, G8 |
+| A5 | **Resolved 2026-11-12:** one formatter module (`lib/format.ts`) — compact display on lists, cards, and Analysis; full precision in inputs, edit screens, and confirmations; short format on charts; no paise. Fonts are bundled (`src/assets/fonts`). Only the month-end cards still use the full-precision alias (pending D8) | One formatter; bundled fonts | DESIGN G7, G8 |
 | A6 | **Resolved 2026-11-06.** Removed the unused React Query provider, the `@workspace/api-client-react` dependency, 42 unused `components/ui` primitives, the unused `use-mobile` hook, and the 31 packages only they used | Remove | §2.3 |
-| A7 | Backup app version hard-coded to `1.0.0` | Take it from the build version | §13.3 |
+| A7 | **Resolved 2026-11-12.** Backup app version comes from the build version (`__APP_VERSION__`) | Take it from the build version | §13.3 |
 | A8 | **Resolved 2026-11-06.** While locked, `App.tsx` renders only the lock screen (no pages, sheets, FAB, navigation, or toasts) | Lock screen topmost; content not mounted while locked | DESIGN G12; §4.3 |
-| A9 | Crash reporting not yet privacy-reviewed | Scrubbed payloads; disclosure; D9 decision | PRD FR-12 |
+| A9 | **Resolved 2026-11-12 (D9).** Crashlytics removed: packages, init, Gradle plugin, and Capacitor module; guarded by `crash-reporting-removed.test.ts` | — | PRD FR-12 |
 | A10 | `FinanceContext` mixes state, rules, and persistence (about 1,400 lines) | Split into `domain/` + `storage/`; same public hook API | §4.2 |
-| A11 | No CI workflow | Minimal PR workflow | §16.2 |
-| A12 | Pages and components re-sum transactions with their own filters (Dashboard "today's spend" counts card bill payments; the Transactions total counts savings and card payments) | Shared selectors for every displayed total; cross-screen consistency test | AGENTS §5; PRD §6 |
+| A11 | **Resolved 2026-11-12.** `.github/workflows/ci.yml` runs on pull requests: frozen-lockfile install → typecheck → Vitest → web build | Minimal PR workflow | §16.2 |
+| A12 | **Mostly resolved 2026-11-12:** every PRD §6 metric has one implementation in `lib/domain/finance-metrics.ts`; `FinanceContext`, Dashboard, and the shared Analysis totals use it, and a cross-screen consistency test covers them. Still open: nothing for the month-end snapshot, which uses the shared consumption rule since the D8 decision (2026-11-12). Transactions list totals (Phase 6) and the Analysis-only figures — safe-to-spend, weekday heatmap, daily spend, burndown, known future expenses, Trends savings rate (Phase 7) — use the shared rules since 2026-11-12 | Shared selectors for every displayed total; cross-screen consistency test | AGENTS §5; PRD §6 |
 | A13 | Capacitor modules imported both statically and dynamically, so the dynamic imports split nothing | One import style per module | Audit 2026-06-28 |
 | A14 | File names that break AGENTS §4 (`backupHash.ts`, `googleAuth.ts`, `googleDrive.ts`, `not-found.tsx`) | Rename when the file is next changed | AGENTS §3.2, §4 |
-| A15 | Drive client logs the request URL and raw response body on errors | Log method, status, and Drive reason only | §14.4 |
+| A15 | **Resolved 2026-11-12.** Drive errors log the method, HTTP status, and Drive reason only; Drive's message text is no longer shown or logged | Log method, status, and Drive reason only | §14.4 |
 | A16 | Single 1.2 MB JS chunk | Lazy-load heavy routes; measure on reference devices | PRD §14 |
 
 Evidence, severity, and proposed approach for A2, A5, A7, A9, A10, and A12–A16 are in the review report [audits/2026-11-06-cleanup-phases-3-4-review.md](./audits/2026-11-06-cleanup-phases-3-4-review.md), pending owner review.

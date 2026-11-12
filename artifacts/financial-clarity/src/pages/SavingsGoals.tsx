@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { ArrowLeft, PiggyBank, ShieldCheck, Target } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
-import { formatINR } from '@/lib/finance-utils';
+import { formatAmountFull } from '@/lib/format';
 import { parseCurrencyInput } from '@/lib/currency-utils';
 
 export default function SavingsGoals() {
@@ -76,14 +76,14 @@ export default function SavingsGoals() {
                 <p className="text-sm font-bold text-foreground">Goal Savings</p>
                 <p className="text-[11px] text-muted-foreground">
                   {savingsGoal.goal.annual > 0 || savingsGoal.goal.monthly > 0
-                    ? `Current: ${formatINR(savingsGoal.goal.monthly)}/mo \u2022 ${formatINR(savingsGoal.goal.annual)}/year`
+                    ? `Current: ${formatAmountFull(savingsGoal.goal.monthly)}/mo \u2022 ${formatAmountFull(savingsGoal.goal.annual)}/year`
                     : 'No target set.'}
                 </p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Monthly</label>
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Monthly</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₹</span>
                   <input
@@ -97,7 +97,7 @@ export default function SavingsGoals() {
                 </div>
               </div>
               <div>
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Annual</label>
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Annual</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₹</span>
                   <input
@@ -123,14 +123,14 @@ export default function SavingsGoals() {
                 <p className="text-sm font-bold text-foreground">Emergency Fund</p>
                 <p className="text-[11px] text-muted-foreground">
                   {savingsGoal.emergency.annual > 0 || savingsGoal.emergency.monthly > 0
-                    ? `Current: ${formatINR(savingsGoal.emergency.monthly)}/mo \u2022 ${formatINR(savingsGoal.emergency.annual)}/year`
+                    ? `Current: ${formatAmountFull(savingsGoal.emergency.monthly)}/mo \u2022 ${formatAmountFull(savingsGoal.emergency.annual)}/year`
                     : 'No target set.'}
                 </p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Monthly</label>
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Monthly</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₹</span>
                   <input
@@ -144,7 +144,7 @@ export default function SavingsGoals() {
                 </div>
               </div>
               <div>
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Annual</label>
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Annual</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₹</span>
                   <input

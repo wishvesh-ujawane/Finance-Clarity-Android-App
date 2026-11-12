@@ -40,21 +40,18 @@ async function driveFetch(url: string, init: RequestInit, retry = true): Promise
   }
   if (!response.ok) {
     let reason: string | undefined;
-    let message = `Drive request failed (${response.status})`;
-    let rawBody = '';
     try {
-      rawBody = await response.text();
+      const rawBody = await response.text();
       const body = rawBody ? JSON.parse(rawBody) : null;
-      const error = body?.error;
-      if (error?.message) message = error.message;
-      reason = error?.errors?.[0]?.reason;
+      reason = body?.error?.errors?.[0]?.reason;
     } catch {
-      // body wasn't JSON; keep rawBody for logging
+      // Body wasn't JSON; the status alone is enough.
     }
-    // Verbose diagnostic so 403/401 root-cause is visible in DevTools / logcat.
+    // ARCHITECTURE §14.4 / API §6.2.5: log the method, status, and Drive reason
+    // only. The URL, raw body, and Drive's message text are never logged or shown.
     // eslint-disable-next-line no-console
-    console.error('[Drive]', init.method ?? 'GET', url, '\u2192', response.status, { reason, message, body: rawBody });
-    throw new DriveError(message, response.status, reason);
+    console.error('[Drive]', init.method ?? 'GET', response.status, reason ?? '');
+    throw new DriveError(`Drive request failed (${response.status})`, response.status, reason);
   }
   return response;
 }

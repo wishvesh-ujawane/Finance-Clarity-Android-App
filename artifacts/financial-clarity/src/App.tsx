@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { MotionConfig } from 'framer-motion';
 import { Switch, Route, Router as WouterRouter } from 'wouter';
 import { Toaster } from '@/components/ui/toaster';
 import { toast } from '@/hooks/use-toast';
@@ -15,7 +16,11 @@ import { BudgetSheet } from '@/components/BudgetSheet';
 import { LockScreen } from '@/components/LockScreen';
 import { OnboardingFlow } from '@/components/onboarding/OnboardingFlow';
 import { MonthEndReviewFlow } from '@/components/month-end/MonthEndReviewFlow';
+import { StartupErrorScreen } from '@/components/StartupErrorScreen';
+import { StorageNoticeBanner } from '@/components/StorageNoticeBanner';
 import { isOnboardingComplete } from '@/lib/onboarding';
+import { prepareStorage, type StorageStartupResult } from '@/lib/storage/startup';
+import type { QuarantineReport } from '@/lib/storage/finance-read';
 import Dashboard from '@/pages/Dashboard';
 import Budgets from '@/pages/Budgets';
 import Analysis from '@/pages/Analysis';
@@ -34,12 +39,25 @@ function normalizeRouterBase(baseUrl: string) {
   return normalized;
 }
 
-function AppLayout() {
+function AppLayout({ quarantined }: { quarantined: QuarantineReport[] }) {
   const { isReady, isLocked } = useSecurity();
   const { setSuppressAutoOpen } = useMonthEndReview();
+  const { processRecurring } = useFinance();
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean>(() => !isOnboardingComplete());
 
   const showOnboarding = !isLocked && needsOnboarding;
+
+  // Recurring expenses are generated only while unlocked: once after unlock
+  // and again whenever the app returns to the foreground (ARCHITECTURE §6.4).
+  useEffect(() => {
+    if (!isReady || isLocked) return;
+    processRecurring();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') processRecurring();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [isReady, isLocked, processRecurring]);
 
   // Suppress the month-end review auto-open while the app isn't ready, the
   // lock screen is up, or first-launch onboarding is running.
@@ -62,7 +80,8 @@ function AppLayout() {
   return (
     <div className="flex min-h-screen bg-background">
       <Navigation />
-      <main className="flex-1 md:ml-64 overflow-y-auto min-h-screen">
+      <main className="flex-1 md:ml-64 overflow-y-auto min-h-screen" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        <StorageNoticeBanner reports={quarantined} />
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/transactions" component={Transactions} />
@@ -106,16 +125,33 @@ function StorageErrorNotifier() {
 
 function App() {
   const routerBase = normalizeRouterBase(import.meta.env.BASE_URL);
+  // Migrations and the finance read run before any provider mounts (ARCHITECTURE §6.1).
+  const [startup, setStartup] = useState<StorageStartupResult>(() => prepareStorage());
+  const retryStartup = useCallback(() => setStartup(prepareStorage()), []);
+  const continueStartup = useCallback(() => {
+    setStartup(current => (!current.ok && current.problem === 'unpreserved' ? { ok: true, load: current.load } : current));
+  }, []);
+
+  if (!startup.ok) {
+    return (
+      <StartupErrorScreen
+        problem={startup.problem}
+        onRetry={retryStartup}
+        onContinue={startup.problem === 'unpreserved' ? continueStartup : undefined}
+      />
+    );
+  }
 
   return (
-    <FinanceProvider>
+    <MotionConfig reducedMotion="user">
+    <FinanceProvider initialLoad={startup.load}>
       <SecurityProvider>
         <BackupProvider>
           <FabProvider>
             <MonthEndReviewProvider>
               <TooltipProvider>
                 <WouterRouter base={routerBase}>
-                  <AppLayout />
+                  <AppLayout quarantined={startup.load.quarantined} />
                 </WouterRouter>
                 <AppToaster />
                 <StorageErrorNotifier />
@@ -125,6 +161,7 @@ function App() {
         </BackupProvider>
       </SecurityProvider>
     </FinanceProvider>
+    </MotionConfig>
   );
 }
 

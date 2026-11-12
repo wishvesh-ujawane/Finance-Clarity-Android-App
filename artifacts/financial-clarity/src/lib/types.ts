@@ -18,6 +18,8 @@ export interface Transaction {
   sourceSmsFingerprint?: string;
   /** Optional merchant / payee retained with legacy transactions. */
   merchant?: string;
+  /** Confirmed change to the combined savings balance during reconciliation. */
+  savingsCorrection?: 'increase' | 'spent' | 'transfer';
 }
 
 export interface Category {
@@ -26,6 +28,12 @@ export interface Category {
   icon: string;
   color: string;
   type: 'income' | 'expense' | 'commitment' | 'savings' | 'both';
+  /**
+   * Inactive categories stay on existing records but can't be picked for new
+   * entries (PRD FR-03). Stored as `true` by local migration 1 and for every
+   * new category; an absent value from older data means active.
+   */
+  active?: boolean;
 }
 
 export const SAVINGS_CATEGORY_IDS = ['savings-goal', 'savings-emergency'] as const;
@@ -46,6 +54,7 @@ export const SAVINGS_CATEGORY_IDS = ['savings-goal', 'savings-emergency'] as con
 export const SYSTEM_ADJUSTMENT_CATEGORY_IDS = [
   '_adjustment-missed-spend',
   '_adjustment-overlogged',
+  '_adjustment-savings',
 ] as const;
 
 export interface Budget {
@@ -82,7 +91,7 @@ export interface MonthReconciliation {
   month: string;
   /** User-entered actual bank balance at the end of `month`. */
   actualBalance: number;
-  /** App-computed expected balance via `getCumulativeNetBalanceThroughEndOf`. */
+  /** App-computed expected bank balance when reconciled (`getExpectedBankBalanceAtEndOf` since 2026-11-12). */
   expectedBalance: number;
   /** If the user chose to log the gap, this is the id of the adjustment txn. */
   adjustmentTxnId?: string;

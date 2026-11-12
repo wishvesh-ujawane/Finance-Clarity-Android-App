@@ -288,9 +288,11 @@ One component, used everywhere a screen is scoped to a month (Dashboard, Transac
 | Standard | `card` surface, 1 px border, radius 16, padding 20 | Default container |
 | List group | Standard with padding 0 and full-width dividers between rows | Settings groups, grouped lists |
 | Hero | `hero` navy surface, radius 16, padding 20, white text | Dashboard balance only; max one per screen |
-| Banner | Tint background of its status (§2.3), radius 12, padding 12–16, icon + one sentence + one action + dismiss | Month-end review prompt, Drive connection prompt, screen-level errors |
+| Banner | Tint background of its status (§2.3), radius 12, padding 12–16, icon + one sentence + one action + dismiss | Month-end review prompt, Drive connection prompt, screen-level errors, unreadable-data notice |
 
 - Card title uses the card-title style. Card-level actions sit at the top right as a text button or icon button. Never more than one primary action per card.
+- **Unreadable-data notice** (`StorageNoticeBanner`, added 2026-11-11): an info Banner at the top of the page content after startup when records were quarantined (§8.2, ARCHITECTURE §8.3). It gives a count only, never record contents. Its only action is dismiss, because no in-app recovery exists yet. It is an instance of Banner, not a new component.
+- **Startup error screen** (`StartupErrorScreen`, added 2026-11-11): the full-screen pattern from §8.2 for unreadable local data. Same layout as the lock screen (centered icon tile, title, one sentence, actions). The primary action is **Try again**. The only data-affecting action, **Continue without it**, is a ghost button behind a destructive confirmation dialog. Rationale: §8.2 requires a full-screen message and forbids overwriting data without explicit confirmation; no existing component covered it.
 
 ### 5.5 Balance hero
 
@@ -502,6 +504,7 @@ Priority order: **lock screen → onboarding → month-end review prompt**. Only
 
 - Copy-budgets and apply-suggestions flows list the exact categories that will be overwritten and the ones that will be untouched before confirmation (PRD FR-05, FR-08).
 - Category Delete appears **only** for unused, non-system categories. Used categories show "Mark inactive" instead, with a caption explaining why ("Used in 24 transactions. Mark it inactive to hide it from new entries.").
+- "Mark inactive" is refused while an active recurring expense uses the category; the error names the rules and asks the user to pause or move them first (owner decision 2026-11-12).
 
 ---
 
@@ -756,7 +759,9 @@ Two cards, **Goal savings** and **Emergency fund**. Each has monthly and annual 
 
 ### 13.14 Month-end review
 
-Existing three-step flow (Look back → Reconcile → Plan ahead) in a full-height sheet with a step indicator. **Redesign is pending (PRD FR-09).** Apply the tokens, type, and accessibility rules only. Do not change the flow or its accounting behavior without an approved proposal.
+Existing flow (Look back → Card bill → Reconcile → Plan ahead) in a full-height sheet with a step indicator. The **Card bill** step (approved 2026-11-12, D8) appears only when the card had an unpaid amount or a bill payment that month: it shows the unpaid amount, an amount field with a "Paid in full" shortcut, an inline error for more than the unpaid amount, and a status line after saving. Reconcile shows a caption when its expected balance includes unpaid card purchases. Any further redesign is still pending (PRD FR-09); apply the tokens, type, and accessibility rules only.
+
+Reconcile also asks for the combined actual savings and emergency-fund balance at month end, explains the tracked balance and the difference, and excludes separate savings from the expected bank figure. If savings are lower, the user selects spent or lost, or transferred back to bank. Saving records only the difference; a separate bank-gap adjustment requires its own explicit button. The user can save without a bank adjustment. Failed writes leave the inputs in place. A savings correction can be removed from Transactions after a confirmation that explains its effects.
 
 ### 13.15 Not found
 
@@ -778,19 +783,19 @@ Recorded so they are fixed deliberately, not copied. None of these is authorized
 
 | # | Area | Current build | Spec |
 |---|---|---|---|
-| G1 | Branding | Desktop sidebar wordmark reads "Financial / Clarity" | "Fiscal Focus" (§1.4) |
-| G2 | Contrast | Expense/income/save submit buttons and type toggle use 500-level fills with white text; list amounts use 600-level green/sky on white; `destructive` token is Red 500 | 600/700 fills and text colors (§2.2, §2.4, §12.1) |
-| G3 | Minimum text | Bottom-nav labels at 9 px; hero and sidebar labels at 10 px; 40% white text on navy | 11 px minimum; ≥ 60% white on navy (§3.2, §12.1) |
-| G4 | Status chips | Budget alert chips use emoji (🔴🟡🟢🔵) as the status signal | Icon + words (§5.10) |
-| G5 | Thresholds | Spending warns at 75%; savings bars warn at 70% | Single 75% threshold (§5.9) |
+| G1 | Branding | **Resolved 2026-11-12.** Sidebar wordmark, page title, and share text read "Fiscal Focus" | "Fiscal Focus" (§1.4) |
+| G2 | Contrast | **Partly resolved 2026-11-12:** the `destructive` token is Red 600 and the entry sheet's submit and type-toggle fills are 600-level. Still open: other 500-level fills and 600-level list amounts on white | 600/700 fills and text colors (§2.2, §2.4, §12.1) |
+| G3 | Minimum text | **Resolved 2026-11-12.** All 9–10 px text and chart labels raised to 11 px; sidebar text on navy at 60% white. E2E DSN-001 checks every visible text node on the main screens | 11 px minimum; ≥ 60% white on navy (§3.2, §12.1) |
+| G4 | Status chips | **Resolved 2026-11-12.** Dashboard budget chips use an icon plus words ("over by", "% used", "funded", "paid") | Icon + words (§5.10) |
+| G5 | Thresholds | **Resolved 2026-11-12.** Savings bars and the Analysis budget pill warn at 75% | Single 75% threshold (§5.9) |
 | G6 | Period selector | Dashboard uses arrow stepper; Analysis uses picker sheet | One combined component (§5.3) |
-| G7 | Fonts | Inter and Manrope loaded from Google Fonts at runtime; Inter 700 used but not loaded | Bundled fonts; Inter max 600 (§3.1) |
-| G8 | Amount formatting | Two formatters in use (`formatINR` and the canonical `formatAmount`) | One canonical formatter (§4.6) |
-| G9 | Safe areas | No safe-area inset handling | Insets respected everywhere (§10) |
-| G10 | Reduced motion | Only confetti respects reduced motion | All motion (§9.4) |
-| G11 | Touch targets | Sheet close/delete icon buttons are 32 px | 48 px hit area (§12.3) |
+| G7 | Fonts | **Resolved 2026-11-12.** Inter 400–600 and Manrope 500–800 (latin + latin-ext, OFL) are bundled in `src/assets/fonts`; no font request leaves the device. Inter 700 renders at the nearest loaded weight | Bundled fonts; Inter max 600 (§3.1) |
+| G8 | Amount formatting | **Resolved 2026-11-12** outside month-end: lists, cards, tiles, and Analysis use `formatAmount` (compact from 1 lakh); inputs, edit screens, and confirmations use `formatAmountFull`; charts use `formatAmountShort`. Month-end cards still use the full-precision alias (pending D8) | One canonical formatter (§4.6) |
+| G9 | Safe areas | **Resolved in code 2026-11-12.** `viewport-fit=cover`; bottom navigation, FAB, and main content use `env(safe-area-inset-*)`. Needs a device check (notch and gesture bar) | Insets respected everywhere (§10) |
+| G10 | Reduced motion | **Resolved 2026-11-12.** framer-motion `MotionConfig reducedMotion="user"` plus a global `prefers-reduced-motion` CSS rule | All motion (§9.4) |
+| G11 | Touch targets | **Resolved 2026-11-12** for the entry sheet's close and delete buttons (32 px icon, 48 px hit area). Other small icon buttons still need an audit | 48 px hit area (§12.3) |
 | G12 | Layering | **Resolved 2026-11-06.** Nothing else is rendered while the lock screen is shown | Lock screen topmost (§4.4) |
 | G13 | Hard-coded colors | Raw hex and hsl values in components (hero, sheets, chips, nav) | Semantic tokens only (§2) |
-| G14 | SMS | SMS settings row and route still present | Removed (PRD FR-10, §6.1) |
-| G15 | Disabled submit | Entry submit disables without explaining what's missing | Visible hint (§5.12, §7.2) |
-| G16 | Share errors | Analysis share failure is only logged | Visible error (§13.7) |
+| G14 | SMS | **Resolved 2026-11-11.** SMS settings row and route removed; the old route renders Not Found | Removed (PRD FR-10, §6.1) |
+| G15 | Disabled submit | **Resolved 2026-11-12.** The entry sheet shows what is missing (amount, category) under the disabled button | Visible hint (§5.12, §7.2) |
+| G16 | Share errors | **Resolved 2026-11-12.** Analysis share failure shows a toast; cancelling the share sheet shows nothing | Visible error (§13.7) |

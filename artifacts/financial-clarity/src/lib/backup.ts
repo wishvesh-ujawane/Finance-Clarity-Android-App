@@ -7,8 +7,21 @@ import type {
   Transaction,
 } from './types';
 import { sha256Hex } from './backupHash';
+import { readFinanceData } from './storage/finance-read';
+import { writeStorageEntries, type StorageWriteResult } from './storage/finance-storage';
+import { STORAGE_KEYS } from './storage/keys';
+import { assignBudgetMonths, defaultCategoriesActive } from './storage/local-migrations';
+import { currentMonth } from './domain/periods';
+import {
+  isObject as isObj,
+  isValidBudget,
+  isValidCategory,
+  isValidRecurring,
+  isValidSavingsGoal,
+  isValidTransaction,
+} from './storage/schemas';
 
-export const BACKUP_VERSION = 4;
+export const BACKUP_VERSION = 6;
 
 export interface BackupCounts {
   transactions: number;
@@ -52,18 +65,20 @@ export interface BackupFile {
 }
 
 const STORAGE = {
-  transactions: 'financial-clarity:transactions',
-  categories: 'financial-clarity:categories',
-  budgets: 'financial-clarity:budgets',
-  recurring: 'financial-clarity:recurring',
-  savingsGoal: 'financial-clarity:savings-goal',
-  smsPending: 'financial-clarity:sms-pending',
-  smsDismissed: 'financial-clarity:sms-dismissed',
-  smsLinked: 'financial-clarity:sms-linked',
-  smsLastScan: 'financial-clarity:sms-last-scan',
+  transactions: STORAGE_KEYS.transactions,
+  categories: STORAGE_KEYS.categories,
+  budgets: STORAGE_KEYS.budgets,
+  recurring: STORAGE_KEYS.recurring,
+  savingsGoal: STORAGE_KEYS.savingsGoal,
+  smsPending: STORAGE_KEYS.smsPending,
+  smsDismissed: STORAGE_KEYS.smsDismissed,
+  smsLinked: STORAGE_KEYS.smsLinked,
+  smsLastScan: STORAGE_KEYS.smsLastScan,
 } as const;
 
-const APP_VERSION = '1.0.0';
+// The build version from package.json (vite `define`), so restores can tell
+// which app made a backup (ARCHITECTURE §13.3). Old backups say `1.0.0`.
+const APP_VERSION = typeof __APP_VERSION__ === 'string' && __APP_VERSION__ ? __APP_VERSION__ : 'unknown';
 
 const EMPTY_SMS_STATE: BackupSmsState = {
   pendingSms: [],
@@ -94,79 +109,31 @@ export const migrations: Record<number, (b: BackupFile) => BackupFile> = {
   }),
   // v3 -> v4: transactions may carry a stable recurring rule/month identity.
   3: (b) => ({ ...b, schemaVersion: 4 }),
+  // v4 -> v5: categories gain `active` (missing = true) and every budget has a
+  // month (same rule as local migration 2; the backup file itself is unchanged
+  // on Drive, so a left-out duplicate is still recoverable from it).
+  4: (b) => {
+    const categories = Array.isArray(b.data?.categories) ? defaultCategoriesActive(b.data.categories).items : b.data?.categories;
+    const budgets = Array.isArray(b.data?.budgets) ? assignBudgetMonths(b.data.budgets, currentMonth()).items : b.data?.budgets;
+    return {
+      ...b,
+      schemaVersion: 5,
+      data: { ...b.data, categories: categories as Category[], budgets: budgets as Budget[] },
+      counts: { ...b.counts, budgets: Array.isArray(budgets) ? budgets.length : b.counts?.budgets },
+    };
+  },
+  // v5 -> v6: transactions may carry savings-reconciliation metadata.
+  5: (b) => {
+    if ((Array.isArray(b.data?.categories) && b.data.categories.some(c => c?.id === '_adjustment-savings')) ||
+      (Array.isArray(b.data?.transactions) && b.data.transactions.some(t => t?.categoryId === '_adjustment-savings'))) {
+      throw new Error('Reserved savings correction category already in use');
+    }
+    return { ...b, schemaVersion: 6 };
+  },
 };
 
 // ---------------- Validators ----------------
-function isObj(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null;
-}
-
-const VALID_PAYMENT_METHODS = new Set(['cash', 'bank', 'credit-card', 'credit-card-payment']);
-
-function isValidTransaction(value: unknown): value is Transaction {
-  return (
-    isObj(value) &&
-    typeof value.id === 'string' && value.id.length > 0 &&
-    (value.type === 'income' || value.type === 'expense') &&
-    typeof value.amount === 'number' && Number.isFinite(value.amount) &&
-    typeof value.categoryId === 'string' && value.categoryId.length > 0 &&
-    (value.note === undefined || typeof value.note === 'string') &&
-    typeof value.date === 'string' && value.date.length > 0 &&
-    (value.paymentMethod === undefined ||
-      (typeof value.paymentMethod === 'string' && VALID_PAYMENT_METHODS.has(value.paymentMethod))) &&
-    ((value.recurringRuleId === undefined && value.recurringMonth === undefined) ||
-      (value.type === 'expense' && typeof value.recurringRuleId === 'string' && value.recurringRuleId.length > 0 &&
-        typeof value.recurringMonth === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.recurringMonth))) &&
-    (value.sourceSmsFingerprint === undefined || typeof value.sourceSmsFingerprint === 'string') &&
-    (value.merchant === undefined || typeof value.merchant === 'string')
-  );
-}
-
-function isValidCategory(value: unknown): value is Category {
-  return (
-    isObj(value) &&
-    typeof value.id === 'string' && value.id.length > 0 &&
-    typeof value.name === 'string' && value.name.length > 0 &&
-    typeof value.icon === 'string' &&
-    typeof value.color === 'string' &&
-    (value.type === 'income' || value.type === 'expense' ||
-      value.type === 'commitment' || value.type === 'savings' || value.type === 'both')
-  );
-}
-
-function isValidBudget(value: unknown): value is Budget {
-  return (
-    isObj(value) &&
-    typeof value.id === 'string' && value.id.length > 0 &&
-    typeof value.categoryId === 'string' && value.categoryId.length > 0 &&
-    typeof value.limit === 'number' && Number.isFinite(value.limit) &&
-    (value.month === undefined || typeof value.month === 'string')
-  );
-}
-
-function isValidRecurring(value: unknown): value is RecurringExpense {
-  return (
-    isObj(value) &&
-    typeof value.id === 'string' && value.id.length > 0 &&
-    typeof value.description === 'string' &&
-    typeof value.amount === 'number' && Number.isFinite(value.amount) &&
-    typeof value.categoryId === 'string' && value.categoryId.length > 0 &&
-    typeof value.dayOfMonth === 'number' &&
-    value.dayOfMonth >= 1 && value.dayOfMonth <= 31 &&
-    typeof value.active === 'boolean' &&
-    typeof value.startMonth === 'string' &&
-    (value.lastGeneratedMonth === undefined || typeof value.lastGeneratedMonth === 'string')
-  );
-}
-
-function isValidSavingsGoal(value: unknown): value is SavingsGoal {
-  const validEntry = (v: unknown) =>
-    isObj(v) &&
-    typeof v.monthly === 'number' && Number.isFinite(v.monthly) &&
-    typeof v.annual === 'number' && Number.isFinite(v.annual);
-  return isObj(value) && validEntry(value.goal) && validEntry(value.emergency);
-}
-
+// Entity validators are shared with storage reads (lib/storage/schemas.ts).
 function isValidSmsState(value: unknown): value is BackupSmsState {
   if (!isObj(value)) return false;
   if (!Array.isArray(value.pendingSms)) return false;
@@ -186,18 +153,6 @@ function parseStored<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
-}
-
-function readArray<T>(key: string, isValid: (v: unknown) => v is T): T[] {
-  const parsed = parseStored<unknown>(key, []);
-  if (!Array.isArray(parsed)) return [];
-  return parsed.filter(isValid);
-}
-
-function readSavingsGoal(): SavingsGoal | null {
-  const parsed = parseStored<unknown>(STORAGE.savingsGoal, null);
-  if (parsed === null) return null;
-  return isValidSavingsGoal(parsed) ? parsed : null;
 }
 
 function readSmsState(): BackupSmsState {
@@ -227,12 +182,14 @@ function getDeviceInfo(): BackupDeviceInfo {
 }
 
 // ---------------- Build ----------------
+export const BACKUP_READ_FAILED_MESSAGE =
+  'Couldn\u2019t read your data on this phone, so no backup was made. Close and reopen the app, then try again.';
+
+/** Throws when local storage can't be read, so an empty backup is never produced. */
 export function buildBackup(): BackupFile {
-  const transactions = readArray(STORAGE.transactions, isValidTransaction);
-  const categories = readArray(STORAGE.categories, isValidCategory);
-  const budgets = readArray(STORAGE.budgets, isValidBudget);
-  const recurringExpenses = readArray(STORAGE.recurring, isValidRecurring);
-  const savingsGoal = readSavingsGoal();
+  const read = readFinanceData({ quarantine: false });
+  if (!read.ok) throw new Error(BACKUP_READ_FAILED_MESSAGE);
+  const { transactions, categories, budgets, recurringExpenses, savingsGoal } = read.data;
   const sms = readSmsState();
 
   return {
@@ -331,73 +288,38 @@ export function validateBackup(value: unknown): ValidationResult {
 }
 
 // ---------------- Apply (atomic) ----------------
-export interface ApplyResult {
-  counts: BackupCounts;
-}
+export type ApplyResult =
+  | { ok: true; counts: BackupCounts }
+  | Extract<StorageWriteResult, { ok: false }>;
 
 /**
- * Atomic restore: snapshot current localStorage values first; write new values;
- * on any failure, roll back. Triggers `storage` events so the FinanceContext
- * `reloadFromStorage()` listener picks up the change.
+ * Atomic restore (DATABASE §7.3): every key is written together and rolled
+ * back together if any write fails. The caller then calls `reloadFromStorage()`.
  */
 export function applyBackup(backup: BackupFile): ApplyResult {
-  const snapshot: Partial<Record<keyof typeof STORAGE, string | null>> = {
-    transactions: localStorage.getItem(STORAGE.transactions),
-    categories: localStorage.getItem(STORAGE.categories),
-    budgets: localStorage.getItem(STORAGE.budgets),
-    recurring: localStorage.getItem(STORAGE.recurring),
-    savingsGoal: localStorage.getItem(STORAGE.savingsGoal),
-    smsPending: localStorage.getItem(STORAGE.smsPending),
-    smsDismissed: localStorage.getItem(STORAGE.smsDismissed),
-    smsLinked: localStorage.getItem(STORAGE.smsLinked),
-    smsLastScan: localStorage.getItem(STORAGE.smsLastScan),
-  };
-
-  const writes: Array<[string, string]> = [
-    [STORAGE.transactions, JSON.stringify(backup.data.transactions)],
-    [STORAGE.categories, JSON.stringify(backup.data.categories)],
-    [STORAGE.budgets, JSON.stringify(backup.data.budgets)],
-    [STORAGE.recurring, JSON.stringify(backup.data.recurringExpenses)],
+  const entries: Array<[string, unknown]> = [
+    [STORAGE.transactions, backup.data.transactions],
+    [STORAGE.categories, backup.data.categories],
+    [STORAGE.budgets, backup.data.budgets],
+    [STORAGE.recurring, backup.data.recurringExpenses],
   ];
+  // Legacy SMS keys are only written when the backup carries data for them.
   if (backup.data.sms.pendingSms.length > 0) {
-    writes.push([STORAGE.smsPending, JSON.stringify(backup.data.sms.pendingSms)]);
+    entries.push([STORAGE.smsPending, backup.data.sms.pendingSms]);
   }
   if (backup.data.sms.dismissedSmsFingerprints.length > 0) {
-    writes.push([STORAGE.smsDismissed, JSON.stringify(backup.data.sms.dismissedSmsFingerprints)]);
+    entries.push([STORAGE.smsDismissed, backup.data.sms.dismissedSmsFingerprints]);
   }
   if (Object.keys(backup.data.sms.linkedSms).length > 0) {
-    writes.push([STORAGE.smsLinked, JSON.stringify(backup.data.sms.linkedSms)]);
+    entries.push([STORAGE.smsLinked, backup.data.sms.linkedSms]);
   }
   if (backup.data.sms.lastScanMs !== 0) {
-    writes.push([STORAGE.smsLastScan, JSON.stringify(backup.data.sms.lastScanMs)]);
+    entries.push([STORAGE.smsLastScan, backup.data.sms.lastScanMs]);
   }
+  entries.push([STORAGE.savingsGoal, backup.data.savingsGoal ?? undefined]);
 
-  try {
-    for (const [k, v] of writes) localStorage.setItem(k, v);
-    if (backup.data.savingsGoal) {
-      localStorage.setItem(STORAGE.savingsGoal, JSON.stringify(backup.data.savingsGoal));
-    } else {
-      localStorage.removeItem(STORAGE.savingsGoal);
-    }
-  } catch (err) {
-    // Roll back every key we snapshotted.
-    const rollback = (key: (typeof STORAGE)[keyof typeof STORAGE], prev: string | null | undefined) => {
-      if (prev !== null && prev !== undefined) localStorage.setItem(key, prev);
-      else localStorage.removeItem(key);
-    };
-    rollback(STORAGE.transactions, snapshot.transactions);
-    rollback(STORAGE.categories, snapshot.categories);
-    rollback(STORAGE.budgets, snapshot.budgets);
-    rollback(STORAGE.recurring, snapshot.recurring);
-    rollback(STORAGE.savingsGoal, snapshot.savingsGoal);
-    rollback(STORAGE.smsPending, snapshot.smsPending);
-    rollback(STORAGE.smsDismissed, snapshot.smsDismissed);
-    rollback(STORAGE.smsLinked, snapshot.smsLinked);
-    rollback(STORAGE.smsLastScan, snapshot.smsLastScan);
-    throw err;
-  }
-
-  return { counts: backup.counts };
+  const result = writeStorageEntries(entries);
+  return result.ok ? { ok: true, counts: backup.counts } : result;
 }
 
 /** A stable hash of the data block (ignoring exportedAt) — used to skip auto-backup when nothing changed. */

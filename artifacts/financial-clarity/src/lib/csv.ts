@@ -23,7 +23,7 @@ export interface ParsedTransactionsCsv {
   invalidRows: InvalidCsvRow[];
 }
 
-const CSV_HEADERS = ['Date', 'Category', 'Amount', 'Note', 'Type'];
+const CSV_HEADERS = ['Date', 'Category', 'Amount', 'Note', 'Type', 'Savings correction'];
 
 // Spreadsheet apps execute cells that start with these characters as formulas.
 const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
@@ -88,6 +88,7 @@ export function buildTransactionsCsv(transactions: Transaction[], categories: Ca
       transaction.amount.toString(),
       transaction.note || '',
       transaction.type,
+      transaction.savingsCorrection || '',
     ].map(escapeCsvCell).join(','));
 
   return [CSV_HEADERS.join(','), ...rows].join('\n');
@@ -106,6 +107,7 @@ export function parseTransactionsCsv(csv: string): ParsedTransactionsCsv {
   const amountIndex = headers.indexOf('amount');
   const noteIndex = headers.indexOf('note');
   const typeIndex = headers.indexOf('type');
+  const savingsCorrectionIndex = headers.indexOf('savings correction');
 
   if (dateIndex === -1 || categoryIndex === -1 || amountIndex === -1 || typeIndex === -1) {
     throw new Error('CSV must include Date, Category, Amount, and Type columns.');
@@ -124,7 +126,8 @@ export function parseTransactionsCsv(csv: string): ParsedTransactionsCsv {
     const type = (cells[typeIndex] || '').trim().toLowerCase();
 
     let reason = '';
-    if (!isValidDateStr(date)) reason = 'invalid date';
+    if (savingsCorrectionIndex !== -1 && (cells[savingsCorrectionIndex] || '').trim()) reason = 'savings corrections require a full backup';
+    else if (!isValidDateStr(date)) reason = 'invalid date';
     else if (!categoryName) reason = 'missing category';
     else if (!Number.isFinite(amount) || amount <= 0) reason = 'invalid amount';
     else if (type !== 'income' && type !== 'expense') reason = 'invalid type';
@@ -239,7 +242,7 @@ export async function exportCsvFile(filename: string, csv: string) {
     const { uri } = await Filesystem.getUri({ path, directory: Directory.Cache });
     await Share.share({
       title: filename,
-      text: 'Financial Clarity CSV export',
+      text: 'Fiscal Focus CSV export',
       files: [uri],
       dialogTitle: 'Export CSV',
     });

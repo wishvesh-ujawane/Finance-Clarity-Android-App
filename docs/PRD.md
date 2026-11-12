@@ -103,8 +103,8 @@ Drive backup is recovery, not live synchronization. Analysis is based on recorde
 - **Approved change:** Allow categories to be marked active or inactive.
 - Inactivation must preserve the category and its historical references.
 - Reserved/system category protections remain in place; unused status does not automatically make a system category deletable.
-- **Assumption requiring confirmation before implementation:** An inactive category is excluded from new-entry selection but remains visible on existing records. Treat transaction, budget, and recurring-rule references as usage; do not silently delete dependent records.
-- **Pending detail:** Confirm whether an inactive category affects an already-active recurring rule. Do not silently pause or delete that rule.
+- **Approved (owner, 2026-11-12):** An inactive category is excluded from new-entry selection but remains visible on existing records; an edited entry keeps its current category. Treat transaction, budget, and recurring-rule references as usage; do not silently delete dependent records.
+- **Approved (owner, 2026-11-12):** A category cannot be made inactive while an active (not paused) recurring rule uses it. The app names the rules and asks the user to pause them or move them to another category first; it never pauses or deletes a rule itself.
 
 ### FR-04: Dashboard and Financial Summaries
 
@@ -140,7 +140,7 @@ Drive backup is recovery, not live synchronization. Analysis is based on recorde
 - Never generate before the start month or before an occurrence is due.
 - Processing or reopening repeatedly must not duplicate an occurrence.
 - Generation occurs when the app processes rules; it is not a background payment or guaranteed background task.
-- **Pending detail:** Define whether deleting a generated occurrence intentionally suppresses it permanently. Do not silently recreate deleted records.
+- **Decided (owner, 2026-11-12):** Deleting a generated occurrence does not add a permanent suppression record. The forward-only generation cursor already prevents a deleted past occurrence from being recreated.
 
 ### FR-08: Analysis
 
@@ -154,7 +154,13 @@ Drive backup is recovery, not live synchronization. Analysis is based on recorde
 ### FR-09: Month-End Review
 
 - **Existing:** Look Back, Reconcile, and Plan Ahead, with optional adjustment transactions and next-month budgeting.
-- **Pending review:** The owner wants further work on this capability. No revised workflow or accounting behavior is approved yet.
+- **Approved change (owner, 2026-11-12, D8):**
+  - Month-end spending figures (spent, top categories, impulse rows, month-over-month change, budget suggestions) exclude card bill payments, per Section 6.
+  - A **Card bill** step, shown when the card had an unpaid amount or a bill payment that month, lets the user record how much of the outstanding card amount was paid. It is saved as a card bill payment entry dated the month's last day; it lowers the outstanding card amount and is not spending. Amounts above the unpaid amount are refused.
+  - Reconcile includes the card amount still unpaid in expected bank balance, because card purchases leave the bank only when the bill is paid.
+  - **Owner-approved savings reconciliation:** exclude cumulative savings held in separate accounts from expected bank balance. Ask for the actual combined savings and emergency-fund balance, and record only the confirmed difference. A decrease is classified by the user as spent or lost, or transferred back to the bank. A bank discrepancy is adjusted only with explicit confirmation; prior reconciliation records and transactions are not silently changed.
+  - Plan Ahead reports a failed budget save and keeps the entered value.
+- **Pending review:** Any other month-end workflow or accounting change.
 - Investigate review eligibility, completion, reminders, repeat reconciliation, and adjustment duplication before proposing changes.
 - Do not claim that completed reviews make months immutable.
 
@@ -184,7 +190,8 @@ Drive backup is recovery, not live synchronization. Analysis is based on recorde
 - Warn clearly before forgotten-PIN recovery deletes local application data.
 - Explain that the app lock does not encrypt financial storage.
 - Preserve user-initiated email/WhatsApp feedback.
-- **Pending review:** Check crash reporting, permissions, privacy disclosures, consent requirements, and Google Play Data safety declarations. Do not claim compliance before review.
+- **Approved change (owner, 2026-11-12, D9):** Crash reporting (Firebase Crashlytics) is removed; the app sends no diagnostics.
+- **Still required before release:** A privacy policy, Google Play Data safety declarations, and store disclosures. Do not claim compliance before review.
 
 ## 6. Approved Financial Baseline
 
@@ -196,13 +203,13 @@ The owner approved the financial baseline below. This approval does not mean all
 | Consumption spending | Expense entries excluding reserved savings and credit-card bill payments |
 | Savings contributions | Expense entries in reserved savings categories |
 | Monthly net | Income minus consumption minus savings |
-| Carry-forward | Cumulative income minus consumption before the selected month |
-| Lifetime balance | Cumulative income minus consumption through today |
+| Carry-forward | Cumulative income minus consumption, plus confirmed savings increases and minus confirmed savings spent or lost, before the selected month |
+| Lifetime balance | Cumulative income minus consumption, plus confirmed savings increases and minus confirmed savings spent or lost, through today |
 | Commitments | Consumption in commitment categories |
 | Outstanding card amount | Aggregate recorded card purchases minus bill payments, floored at zero |
 | Budget copying | Copy limits; do not transfer money |
 
-Carry-forward and lifetime balance retain savings and are not necessarily spendable bank cash. Card purchases count as consumption; paying their bill must not count that consumption twice.
+Carry-forward and lifetime balance retain savings and are not necessarily spendable bank cash. Savings corrections are not ordinary income, consumption, or savings contributions; transfers back to bank do not change lifetime balance. Card purchases count as consumption; paying their bill must not count that consumption twice.
 
 Use shared financial helpers and consistent period boundaries. Do not introduce a new monetary storage model under this approval. Exact rounding, refunds, and unspecified future-date edge cases require a concrete proposal if existing rules do not resolve them.
 
@@ -222,7 +229,7 @@ Use shared financial helpers and consistent period boundaries. Do not introduce 
 | Savings Targets | Goal and emergency targets |
 | Security | PIN, biometrics, locking |
 | Backup and Restore | Drive recovery and CSV exchange |
-| Month-End Review | Existing review; changes pending |
+| Month-End Review | Existing review plus the approved card-bill and reconcile changes (D8); other changes pending |
 | Entry sheets and confirmations | Contextual editing and safe destructive actions |
 | Not Found | Recover from invalid navigation |
 
@@ -271,7 +278,7 @@ There are no household roles, administrator accounts, or server-backed finance i
 | Google authentication and Drive | Optional backup and recovery |
 | Native biometrics | Optional unlocking |
 | Native file sharing | User-selected CSV/image export |
-| Crash reporting, when configured | Diagnostics; privacy review pending |
+| Crash reporting | Removed 2026-11-12 (D9); no diagnostics are sent |
 | Email / WhatsApp | User-initiated feedback |
 
 No production finance backend or database service is required. The repository contains no server code. Do not add a backend to implement this scope.
@@ -299,7 +306,7 @@ Unavailable capabilities must explain permission, platform, or connectivity limi
 - **Durability:** Saved records survive restart; failures are visible.
 - **Recovery:** Existing backup/restore remains functional within its documented coverage.
 - **Security:** Hide financial content while locked; avoid sensitive diagnostic logging.
-- **Privacy:** Disclose cloud uploads, exports, and diagnostics accurately. Review required before Play Store release.
+- **Privacy:** Disclose cloud uploads and exports accurately; the app sends no diagnostics (D9). Review required before Play Store release.
 - **Accessibility:** Labeled controls, readable contrast, usable larger text, and non-color-only status indicators.
 - **Mobile usability:** Respect safe areas and keep forms usable with the keyboard open.
 - **Performance:** Entry/navigation remain responsive; recurring processing and backup do not freeze the interface.
@@ -360,10 +367,10 @@ Proposed acceptance checks:
 | D3 | Approved: Financial baseline; unspecified precision/refund edge cases are not silently invented. |
 | D4 | Approved: Last day for short months; skip paused months; catch up missed active occurrences once. |
 | D5 | Approved: Remove SMS functionality and active implementation; keep SMS planning aside. |
-| D6 | Approved: No deletion once used; Delete only when unused and otherwise eligible; support active/inactive. Picker and recurring-rule edge details remain to confirm. |
-| D7 | Deferred enhancements: Keep backup requirements and existing behavior; no further expansion now. |
-| D8 | Pending work: Review month-end behavior before proposing changes. |
-| D9 | Pending review: Privacy, diagnostics, permissions, and store disclosures. |
+| D6 | Approved: No deletion once used; Delete only when unused and otherwise eligible; support active/inactive. **Confirmed 2026-11-12:** pickers offer active categories only (an edited entry keeps its own); a category cannot be made inactive while an active recurring rule uses it. |
+| D7 | Deferred enhancements: Keep backup requirements and existing behavior; no further expansion now. **Confirmed 2026-11-12:** no backup download size guard and no blocking pre-restore copy for now. |
+| D8 | **Approved in part 2026-11-12:** month-end spending excludes card bill payments; a Card bill step records bill payments; Reconcile adds the unpaid card amount and excludes separate savings from expected bank balance; confirmed savings differences update lifetime balance as described in FR-09; Plan ahead reports budget save failures. Other month-end changes remain pending review. |
+| D9 | **Decided 2026-11-12:** remove crash reporting (Firebase Crashlytics); the app sends no diagnostics. Privacy policy, Data safety form, and store disclosures still need to be completed before submission. |
 | D10 | Explained: Practical readiness checks; detailed thresholds remain unapproved. |
 | Execution | Approved now: PRD update only. No app implementation changes authorized in this step. |
 

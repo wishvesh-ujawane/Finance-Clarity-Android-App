@@ -13,7 +13,12 @@ import {
 import { useFinance } from '@/context/FinanceContext';
 import { useFabAction } from '@/context/FabContext';
 import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
-import { canDeleteCategory, describeCategoryDeleteBlock } from '@/lib/category-rules';
+import {
+  canDeactivateCategory,
+  canDeleteCategory,
+  describeCategoryDeleteBlock,
+  isCategoryActive,
+} from '@/lib/category-rules';
 import { cn } from '@/lib/utils';
 
 const COLOR_SWATCHES = [
@@ -51,7 +56,7 @@ export default function Categories() {
   const [, setLocation] = useLocation();
   const {
     categories, transactions, budgets, recurringExpenses,
-    addCategory, updateCategory, deleteCategory,
+    addCategory, updateCategory, setCategoryActive, deleteCategory,
   } = useFinance();
   const [deleteError, setDeleteError] = useState('');
   const [addError, setAddError] = useState('');
@@ -130,9 +135,14 @@ export default function Categories() {
       expense: [], commitment: [], income: [],
     };
     for (const cat of categories) {
+      if (cat.id === '_adjustment-savings') continue;
       const key: CategoryType =
         cat.type === 'both' || cat.type === 'savings' ? 'expense' : cat.type;
       buckets[key].push(cat);
+    }
+    // Active categories first; inactive ones follow with a badge (DESIGN §13).
+    for (const key of Object.keys(buckets) as CategoryType[]) {
+      buckets[key] = [...buckets[key].filter(isCategoryActive), ...buckets[key].filter(c => !isCategoryActive(c))];
     }
     return buckets;
   }, [categories]);
@@ -267,6 +277,24 @@ export default function Categories() {
                                 <X size={14} className="inline mr-1" />Cancel
                               </button>
                             </div>
+                            {canDeactivateCategory(cat.id) && (
+                              <div className="space-y-1">
+                                <button
+                                  type="button"
+                                  data-testid={`category-toggle-active-${cat.id}`}
+                                  onClick={() => {
+                                    const result = setCategoryActive(cat.id, !isCategoryActive(cat));
+                                    setDeleteError(result.ok ? '' : result.message);
+                                  }}
+                                  className="w-full py-2 rounded-lg bg-muted text-foreground hover:bg-muted/80 text-sm font-semibold transition-colors"
+                                >
+                                  {isCategoryActive(cat) ? 'Mark inactive' : 'Mark active'}
+                                </button>
+                                <p className="text-xs text-muted-foreground text-center">
+                                  Inactive categories stay on existing records but are hidden from new entries.
+                                </p>
+                              </div>
+                            )}
                             {(() => {
                               const deleteCheck = canDeleteCategory(cat.id, { transactions, budgets, recurringExpenses });
                               if (!deleteCheck.ok) {
@@ -343,6 +371,11 @@ export default function Categories() {
                               <p className={cn('text-[11px] font-medium uppercase tracking-wide', TYPE_BADGE[group.key].text)}>
                                 {group.label}
                               </p>
+                              {!isCategoryActive(cat) && (
+                                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground" data-testid={`category-inactive-${cat.id}`}>
+                                  · Inactive
+                                </p>
+                              )}
                             </div>
                           </div>
                           <ChevronRight size={16} className="text-muted-foreground/70 group-hover:text-foreground group-hover:translate-x-0.5 transition-all flex-shrink-0" />
