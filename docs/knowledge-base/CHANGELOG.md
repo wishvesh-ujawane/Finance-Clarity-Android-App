@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-11-12 — features/changelog.md; AGENTS.md §13.1, §14; DESIGN §13.8, §13.16; ARCHITECTURE §4 routes; BUILD_AND_DEPLOY — Added the in-app What's New screen (`/settings/changelog`) with bundled release notes, and the rule that every deployment adds a dated 1–4 line entry.
 2026-11-12 — decisions/0008-savings-reconciliation.md; bugs/20261112-savings-bank-reconciliation.md; features/month-end-review.md; features/backup-restore.md; PRD §6, FR-09; DESIGN §13.14; ARCHITECTURE §6.3; DATABASE §4, §10; API §5.2, §6.3, §6.5 — Separate savings from bank reconciliation, record confirmed combined-savings corrections, and upgrade transaction storage and backups.
 2026-11-12 — decisions/0007-owner-decisions-d6-d9.md; features/month-end-review.md; features/categories.md; PRD FR-03, FR-07, FR-09, FR-12, §15; ARCHITECTURE §19 A9, A12; API §6.7, G7; DATABASE §4.6, §6.2, §6.3, §9; DESIGN §7.5, §13.14 — Owner decisions: active recurring rules block category inactivation; month-end Card bill step and card-aware reconcile; budget save errors in Plan ahead; Crashlytics removed.
 2026-11-12 — ARCHITECTURE.md §19 A11; testing.md "Release verification"; BUILD_AND_DEPLOY.md "Continuous Integration"; audits/2026-11-12-phases-implementation-review.md — Phase 10: minimal pull-request CI (install, typecheck, Vitest, build); UPG-001 upgrade test; PRD §14 checklist with manual device steps; final implementation review and decision log.

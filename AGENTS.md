@@ -291,6 +291,16 @@ Follow ARCHITECTURE §14, API §4 and §12, and DESIGN §8.
 - **Before you finish:** typecheck and tests pass, docs are updated, and no debug code, secrets, or unrelated changes are left.
 - **Your final summary** lists the files changed, what each change does, the checks you ran and their results, and any gaps or follow-ups you found but did not fix.
 
+### 13.1 Release notes on every deployment
+
+Every deployment (any APK or AAB given to users or uploaded to Google Play) must add an entry to the in-app **What's New** screen, in the same change as the release:
+
+- Add the entry at the **top** of `CHANGELOG_ENTRIES` in `artifacts/financial-clarity/src/lib/changelog.ts`.
+- Include the **release date** (`YYYY-MM-DD`) and the **app version** from `package.json`.
+- Write **1 to 4 short lines** in simple language. Mark each line `new` (something added) or `fixed` (a bug fixed). Keep each line under 140 characters.
+- Describe what the user notices, not code details. Never include financial data, emails, or secrets.
+- `src/lib/__tests__/changelog.test.ts` checks these rules. Do not weaken it to make an entry pass.
+
 ---
 
 ## 14. Definition of Done
@@ -304,4 +314,5 @@ A change is done only when **all** of the following are true:
 - [ ] `pnpm run typecheck` passes, and relevant tests are added or updated and pass.
 - [ ] No secrets or sensitive data appear in code, logs, fixtures, or commits.
 - [ ] Related documentation and knowledge-base entries are updated.
+- [ ] For a deployment, a What's New entry was added (§13.1).
 - [ ] The diff contains no unrelated changes.

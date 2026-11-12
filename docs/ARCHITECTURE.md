@@ -165,7 +165,7 @@ Rules:
 
 ### 4.3 Routing and navigation
 
-- Routes: `/`, `/transactions`, `/budgets`, `/analysis`, `/settings`, and Settings sub-pages (`/settings/categories`, `/settings/recurring`, `/settings/savings`, `/settings/security`, `/settings/backup`), plus Not Found. `/settings/sms-auto-import` was removed (A1) and now renders Not Found.
+- Routes: `/`, `/transactions`, `/budgets`, `/analysis`, `/settings`, and Settings sub-pages (`/settings/categories`, `/settings/recurring`, `/settings/savings`, `/settings/security`, `/settings/backup`, `/settings/changelog`), plus Not Found. `/settings/sms-auto-import` was removed (A1) and now renders Not Found.
 - The Android back button is handled once in the app shell through `@capacitor/app`. It closes the topmost layer first, in DESIGN §6.4 order: FAB menu → dialog → sheet → sub-page → Dashboard → exit.
 - Launch overlays appear in a strict order: **lock screen → onboarding → month-end prompt**. Only one appears at a time (DESIGN §6.5).
 - While the app is locked, financial screens are **not rendered at all**. Hiding them visually is not enough. The lock screen is the topmost layer (DESIGN G12).

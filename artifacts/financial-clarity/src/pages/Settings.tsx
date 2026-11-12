@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'wouter';
-import { ChevronRight, Cloud, Heart, MessageCircle, PiggyBank, Repeat, Shapes, ShieldCheck } from 'lucide-react';
+import { ChevronRight, Cloud, Heart, MessageCircle, PiggyBank, Repeat, Shapes, ShieldCheck, Sparkles } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
 import { useSecurity } from '@/context/SecurityContext';
 import { formatAmount } from '@/lib/finance-utils';
@@ -159,6 +159,25 @@ export default function Settings() {
           </div>
           <ChevronRight size={16} className="text-muted-foreground" />
         </button>
+
+        <div className="border-t border-border" />
+
+        <Link href="/settings/changelog">
+          <button
+            type="button"
+            data-testid="settings-changelog-link"
+            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/5 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+              <Sparkles size={18} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-foreground">What&rsquo;s New</p>
+              <p className="text-xs text-muted-foreground">See what was added and fixed in each update.</p>
+            </div>
+            <ChevronRight size={16} className="text-muted-foreground" />
+          </button>
+        </Link>
       </div>
 
       <div className="mt-auto pt-6 flex flex-col items-center text-center gap-1.5">

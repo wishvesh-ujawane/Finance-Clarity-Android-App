@@ -326,6 +326,8 @@ android {
 
 ### 3. Build Release APK
 
+Before building, add the release notes for this version to the What's New screen (`src/lib/changelog.ts`, see AGENTS.md §13.1) and run the tests.
+
 ```powershell
 # Build web assets for production
 pnpm --filter @workspace/financial-clarity run build

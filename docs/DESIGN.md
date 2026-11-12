@@ -725,7 +725,7 @@ Share exports the Overview pane as an image. Failures surface as a visible error
 
 ### 13.8 Settings
 
-Grouped list cards with section labels: **Manage** (Categories, Recurring expenses, Savings), **Privacy & Data** (Security, Backup & Restore), **Support** (Send feedback). The app version and a single-line footer go at the bottom. Each row shows live status (§5.8).
+Grouped list cards with section labels: **Manage** (Categories, Recurring expenses, Savings), **Privacy & Data** (Security, Backup & Restore), **Support** (Send feedback, What's New). The app version and a single-line footer go at the bottom. Each row shows live status (§5.8).
 
 ### 13.9 Categories
 
@@ -766,6 +766,10 @@ Reconcile also asks for the combined actual savings and emergency-fund balance a
 ### 13.15 Not found
 
 Standard page: title "Page not found", one sentence, primary button "Go to Dashboard". No illustration.
+
+### 13.16 What's New
+
+Settings sub-page (`/settings/changelog`) listing release notes bundled with the app, newest first. Each release is a card with the date and version, then 1 to 4 short lines, each with a text badge **New** (accent tint) or **Fixed** (secondary). Badges carry text, so meaning does not rely on color (§12.2). If there are no notes, it shows an empty state card ("No updates yet"). Notes are static, so there is no loading or error state. Built from the existing card, settings-row, and page-header patterns; no new components or tokens. Entry rules are in AGENTS.md §13.1.
 
 ---
 

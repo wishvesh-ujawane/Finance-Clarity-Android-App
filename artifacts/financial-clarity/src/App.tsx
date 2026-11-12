@@ -31,6 +31,7 @@ import RecurringExpenses from '@/pages/RecurringExpenses';
 import Categories from '@/pages/Categories';
 import BackupRestore from '@/pages/BackupRestore';
 import SavingsGoals from '@/pages/SavingsGoals';
+import Changelog from '@/pages/Changelog';
 import NotFound from '@/pages/not-found';
 
 function normalizeRouterBase(baseUrl: string) {
@@ -92,6 +93,7 @@ function AppLayout({ quarantined }: { quarantined: QuarantineReport[] }) {
           <Route path="/settings/categories" component={Categories} />
           <Route path="/settings/backup" component={BackupRestore} />
           <Route path="/settings/savings" component={SavingsGoals} />
+          <Route path="/settings/changelog" component={Changelog} />
           <Route path="/settings" component={Settings} />
           <Route component={NotFound} />
         </Switch>
