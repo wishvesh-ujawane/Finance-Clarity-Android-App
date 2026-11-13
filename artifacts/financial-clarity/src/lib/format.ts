@@ -91,6 +91,12 @@ export function formatMonthShort(month: string): string {
   return new Date(year, m - 1).toLocaleDateString('en-IN', { month: 'short' });
 }
 
+/** Month as "Nov 2026", where space is tight (DESIGN §3.3, §10). */
+export function formatMonthYearShort(month: string): string {
+  const [year, m] = month.split('-').map(Number);
+  return new Date(year, m - 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+}
+
 /** Date as "Today", "Yesterday", or a short local date. */
 export function formatDateLabel(
   dateStr: string,

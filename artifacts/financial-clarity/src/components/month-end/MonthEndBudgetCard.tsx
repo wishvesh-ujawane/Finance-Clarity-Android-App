@@ -208,7 +208,7 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
       )}
 
       {/* Actions */}
-      <div className="flex items-center justify-between gap-2 pt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-3">
         <Button
           variant="ghost"
           size="sm"
@@ -220,7 +220,7 @@ export function MonthEndBudgetCard({ reviewMonth, onFinished }: Props) {
           <ArrowLeft className="h-4 w-4" />
           Back
         </Button>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="secondary"
             size="sm"
@@ -304,12 +304,12 @@ function BudgetStepCard({ step, value, onChange }: BudgetStepCardProps) {
 
       <div className="mt-4 min-h-[24px] text-center text-xs text-muted-foreground">
         {showExisting && (
-          <span className={cn('rounded-full bg-muted px-2.5 py-1 font-medium')}>
-            Existing budget: <span className="text-foreground">{formatINR(existingLimit)}</span>
+          <span className={cn('rounded-full bg-muted px-3 py-1 font-medium')}>
+            Existing budget: <span className="amount text-foreground">{formatINR(existingLimit)}</span>
           </span>
         )}
         {showSuggested && (
-          <span className={cn('rounded-full bg-primary/10 px-2.5 py-1 font-medium text-primary')}>
+          <span className={cn('rounded-full bg-accent/10 px-3 py-1 font-medium text-accent')}>
             Suggested: {formatINR(suggested)} · based on last 3 months
           </span>
         )}
@@ -343,13 +343,13 @@ function BudgetTotalTracker({ budgetedTotal, referenceIncome, delta }: BudgetTot
   const ratioPct = hasReference ? (budgetedTotal / referenceIncome) * 100 : 0;
   const clampedPct = Math.min(100, ratioPct);
   const barColor =
-    ratioPct > 100 ? 'bg-red-500'
-    : ratioPct >= 90 ? 'bg-amber-500'
-    : 'bg-emerald-500';
+    ratioPct > 100 ? 'bg-spending'
+    : ratioPct >= 90 ? 'bg-warning-fill'
+    : 'bg-success-fill';
 
   return (
     <div
-      className="mt-3 rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/5 to-accent/5 p-3"
+      className="mt-3 rounded-2xl border border-accent/15 bg-accent/5 p-3"
       data-testid="budget-total-tracker"
     >
       <div className="flex items-start justify-between gap-2">
@@ -364,7 +364,7 @@ function BudgetTotalTracker({ budgetedTotal, referenceIncome, delta }: BudgetTot
               initial={{ scale: 0.94, opacity: 0.6 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 400, damping: 24 }}
-              className="text-xl font-bold text-foreground tabular-nums"
+              className="amount whitespace-nowrap text-xl font-bold text-foreground"
               data-testid="budget-total-value"
             >
               {formatINR(budgetedTotal)}
@@ -377,7 +377,7 @@ function BudgetTotalTracker({ budgetedTotal, referenceIncome, delta }: BudgetTot
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.35 }}
-                  className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400"
+                  className="amount whitespace-nowrap rounded-full bg-success-tint px-1.5 py-0.5 text-[11px] font-bold text-success"
                   data-testid="budget-total-delta"
                 >
                   +{formatINR(delta)}
@@ -389,7 +389,7 @@ function BudgetTotalTracker({ budgetedTotal, referenceIncome, delta }: BudgetTot
         {hasReference && (
           <div className="shrink-0 text-right">
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">of income</p>
-            <p className="text-xs font-semibold text-foreground tabular-nums">
+            <p className="amount whitespace-nowrap text-xs font-semibold text-foreground">
               {formatINR(referenceIncome)}
             </p>
           </div>

@@ -6,6 +6,7 @@ import {
   formatDateLabel,
   formatMonthLabel,
   formatMonthShort,
+  formatMonthYearShort,
 } from '../format';
 import { formatINR, formatMonthYear, formatShortINR } from '../finance-utils';
 
@@ -67,5 +68,6 @@ describe('date labels', () => {
     expect(formatMonthLabel('2026-11')).toBe('November 2026');
     expect(formatMonthYear('2026-11')).toBe('November 2026');
     expect(formatMonthShort('2026-11')).toBe('Nov');
+    expect(formatMonthYearShort('2026-11')).toBe('Nov 2026');
   });
 });

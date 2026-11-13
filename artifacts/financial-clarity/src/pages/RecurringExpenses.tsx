@@ -128,21 +128,19 @@ export default function RecurringExpenses() {
   };
 
   useFabAction(beginAdd, 'Add recurring expense', 'fab-add-recurring', {
-    className: 'bg-orange-500 hover:bg-orange-600 text-white',
+    className: 'bg-accent hover:bg-accent/90 text-accent-foreground',
   });
 
   return (
-    <div className="p-4 md:p-6 pb-24 md:pb-8">
+    <div className="p-4 md:p-6 pb-40 md:pb-8">
       <div className="flex items-center gap-2 mb-6">
-        <Link href="/settings">
-          <button
-            type="button"
-            data-testid="recurring-back"
-            className="w-9 h-9 rounded-xl bg-card border border-border flex items-center justify-center text-foreground hover:bg-muted transition-colors"
-            aria-label="Back to Settings"
-          >
-            <ArrowLeft size={16} />
-          </button>
+        <Link
+          href="/settings"
+          data-testid="recurring-back"
+          className="tap-target w-9 h-9 rounded-xl bg-card border border-border flex items-center justify-center text-foreground hover:bg-muted transition-colors"
+          aria-label="Back to Settings"
+        >
+          <ArrowLeft size={16} />
         </Link>
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Settings</p>
@@ -167,11 +165,11 @@ export default function RecurringExpenses() {
             className="mb-4"
           >
             <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-              <p className="text-sm font-bold text-foreground">{editingId ? 'Edit' : 'New'} Recurring Expense</p>
+              <p className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{editingId ? 'Edit' : 'New'} Recurring Expense</p>
 
               <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Description</label>
-                <input
+                <label htmlFor="recurring-description" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Description</label>
+                <input id="recurring-description"
                   data-testid="recurring-description"
                   value={form.description}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
@@ -181,10 +179,10 @@ export default function RecurringExpenses() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Amount</label>
+                <label htmlFor="recurring-amount" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Amount</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₹</span>
-                  <input
+                  <input id="recurring-amount"
                     data-testid="recurring-amount"
                     type="number"
                     value={form.amount}
@@ -196,8 +194,8 @@ export default function RecurringExpenses() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Category</label>
-                <select
+                <label htmlFor="recurring-category" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Category</label>
+                <select id="recurring-category"
                   data-testid="recurring-category"
                   value={form.categoryId}
                   onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}
@@ -212,8 +210,8 @@ export default function RecurringExpenses() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Day of month</label>
-                  <input
+                  <label htmlFor="recurring-day" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Day of month</label>
+                  <input id="recurring-day"
                     data-testid="recurring-day"
                     type="number"
                     min={1}
@@ -224,8 +222,8 @@ export default function RecurringExpenses() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Start month</label>
-                  <input
+                  <label htmlFor="recurring-start" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Start month</label>
+                  <input id="recurring-start"
                     data-testid="recurring-start"
                     type="month"
                     value={form.startMonth}
@@ -235,24 +233,24 @@ export default function RecurringExpenses() {
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 text-sm text-foreground select-none cursor-pointer">
+              <label className="flex min-h-12 items-center gap-3 text-sm text-foreground select-none cursor-pointer">
                 <input
                   type="checkbox"
                   data-testid="recurring-active"
                   checked={form.active}
                   onChange={e => setForm(f => ({ ...f, active: e.target.checked }))}
-                  className="w-4 h-4 rounded accent-current"
+                  className="h-5 w-5 rounded accent-current"
                 />
                 Active — auto-create transactions each month
               </label>
 
               <div className="flex gap-2">
-                <button onClick={resetForm} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
+                <button onClick={resetForm} className="flex-1 min-h-12 rounded-xl border border-border bg-card text-sm font-semibold text-foreground hover:bg-muted transition-colors">Cancel</button>
                 <button
                   data-testid="recurring-save"
                   onClick={handleSave}
                   disabled={!form.description.trim() || !form.amount || parseCurrencyInput(form.amount) <= 0 || !form.categoryId}
-                  className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-50"
+                  className="flex-1 min-h-12 rounded-xl bg-accent text-accent-foreground text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-50"
                 >
                   {editingId ? 'Update' : 'Save'}
                 </button>
@@ -280,13 +278,13 @@ export default function RecurringExpenses() {
           <p className="text-xs text-center max-w-xs">Add rent, subscriptions, EMIs, SIPs or any monthly fixed expense to track them automatically.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-4">
           {recurringExpenses.map(r => {
             const cat = categories.find(c => c.id === r.categoryId);
             return (
               <div
                 key={r.id}
-                className={cn('bg-card border rounded-2xl p-4', r.active ? 'border-border' : 'border-border opacity-60')}
+                className={cn('bg-card border rounded-2xl p-5', r.active ? 'border-border' : 'border-border opacity-60')}
                 data-testid={`recurring-${r.id}`}
               >
                 <div className="flex items-center gap-3">
@@ -296,7 +294,7 @@ export default function RecurringExpenses() {
                   <button
                     type="button"
                     onClick={() => startEdit(r.id)}
-                    className="flex-1 min-w-0 text-left"
+                    className="flex-1 min-w-0 min-h-12 text-left -m-1 p-1 rounded-lg hover:bg-muted/40 transition-colors"
                   >
                     <p className="text-sm font-semibold text-foreground truncate">{r.description}</p>
                     <p className="text-[11px] text-muted-foreground">
@@ -304,8 +302,8 @@ export default function RecurringExpenses() {
                     </p>
                   </button>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-bold text-foreground">{formatAmount(r.amount)}</p>
-                    <p className={cn('text-[11px] font-semibold uppercase tracking-wider', r.active ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
+                    <p className="text-sm font-bold text-foreground amount whitespace-nowrap">{formatAmount(r.amount)}</p>
+                    <p className={cn('text-[11px] font-semibold uppercase tracking-wider', r.active ? 'text-success' : 'text-muted-foreground')}>
                       {r.active ? 'Active' : 'Paused'}
                     </p>
                   </div>
@@ -318,14 +316,14 @@ export default function RecurringExpenses() {
                       const result = toggleRecurringActive(r.id);
                       setSaveError(result.ok ? '' : result.message);
                     }}
-                    className="flex-1 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors inline-flex items-center justify-center gap-1.5"
+                    className="tap-target flex-1 py-2 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors inline-flex items-center justify-center gap-1.5"
                   >
                     <Power size={12} /> {r.active ? 'Pause' : 'Resume'}
                   </button>
                   <button
                     data-testid={`recurring-edit-${r.id}`}
                     onClick={() => startEdit(r.id)}
-                    className="flex-1 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors inline-flex items-center justify-center gap-1.5"
+                    className="tap-target flex-1 py-2 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors inline-flex items-center justify-center gap-1.5"
                   >
                     <Check size={12} /> Edit
                   </button>
@@ -333,7 +331,7 @@ export default function RecurringExpenses() {
                     <AlertDialogTrigger asChild>
                       <button
                         data-testid={`recurring-delete-${r.id}`}
-                        className="flex-1 py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-semibold hover:bg-destructive/20 transition-colors inline-flex items-center justify-center gap-1.5"
+                        className="tap-target flex-1 py-2 rounded-lg bg-danger-tint text-danger text-xs font-semibold hover:bg-danger-tint/80 transition-colors inline-flex items-center justify-center gap-1.5"
                       >
                         <Trash2 size={12} /> Delete
                       </button>

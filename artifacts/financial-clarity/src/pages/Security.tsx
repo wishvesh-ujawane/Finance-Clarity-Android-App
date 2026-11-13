@@ -133,15 +133,13 @@ export default function Security() {
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-8">
       <div className="mb-6 flex items-center gap-3">
-        <Link href="/settings">
-          <button
-            type="button"
-            data-testid="security-back"
-            className="w-9 h-9 rounded-xl border border-border bg-card flex items-center justify-center text-muted-foreground hover:text-foreground"
-            aria-label="Back to settings"
-          >
-            <ArrowLeft size={16} />
-          </button>
+        <Link
+          href="/settings"
+          data-testid="security-back"
+          className="tap-target w-9 h-9 rounded-xl border border-border bg-card flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          aria-label="Back to settings"
+        >
+          <ArrowLeft size={16} />
         </Link>
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Settings</p>
@@ -151,11 +149,11 @@ export default function Security() {
 
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center flex-shrink-0">
             <ShieldCheck size={18} />
           </div>
           <div>
-            <p className="text-sm font-bold text-foreground">App Lock</p>
+            <p className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>App Lock</p>
             <p className="text-xs text-muted-foreground">
               {isAppLockEnabled
                 ? settings?.biometricEnabled
@@ -172,7 +170,7 @@ export default function Security() {
               type="button"
               data-testid="security-enable"
               onClick={handleEnable}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors"
+              className="w-full min-h-12 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent text-accent-foreground text-sm font-semibold hover:bg-accent/90 transition-colors"
             >
               <ShieldCheck size={15} />
               Enable App Lock
@@ -183,13 +181,13 @@ export default function Security() {
                 type="button"
                 data-testid="security-change-pin"
                 onClick={handleChange}
-                className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-[hsl(222,65%,13%)] text-white text-sm font-semibold hover:bg-[hsl(222,65%,18%)] transition-colors"
+                className="w-full min-h-12 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-card border border-border text-foreground hover:bg-muted/60 text-sm font-semibold"
               >
                 <span className="flex items-center gap-2">
                   <KeyRound size={15} />
                   Change PIN
                 </span>
-                <span className="text-xs font-medium text-white/60">4 digits</span>
+                <span className="text-xs font-medium text-muted-foreground">4 digits</span>
               </button>
 
               <div className="rounded-xl border border-border bg-accent/5 px-4 py-3">
@@ -225,7 +223,7 @@ export default function Security() {
                     data-testid="security-open-biometric-enrollment"
                     onClick={handleOpenEnrollment}
                     disabled={isEnrollmentOpening}
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-accent/5 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <ExternalLink size={14} />
                     {isEnrollmentOpening ? 'Opening settings' : 'Set up biometrics'}
@@ -237,7 +235,7 @@ export default function Security() {
                 type="button"
                 data-testid="security-disable"
                 onClick={handleDisable}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-500/30 text-red-600 text-sm font-semibold hover:bg-red-500/5 transition-colors"
+                className="w-full min-h-12 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-danger/30 text-danger text-sm font-semibold hover:bg-danger-tint transition-colors"
               >
                 <ShieldOff size={15} />
                 Disable App Lock
@@ -246,7 +244,7 @@ export default function Security() {
           )}
 
           {(message || error) && (
-            <p className={error ? 'text-xs font-medium text-red-500' : 'text-xs font-medium text-emerald-600 dark:text-emerald-400'}>
+            <p className={error ? 'text-xs font-medium text-destructive' : 'text-xs font-medium text-success'}>
               {error || message}
             </p>
           )}

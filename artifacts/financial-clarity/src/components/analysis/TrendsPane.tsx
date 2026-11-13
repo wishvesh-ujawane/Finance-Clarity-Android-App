@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'wouter';
-import { Bar, BarChart, Cell, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
@@ -172,11 +172,11 @@ export default function TrendsPane({ shared }: Props) {
         <div className="grid grid-cols-7 gap-1 mb-2 text-[11px] font-semibold text-muted-foreground text-center">
           {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(l => <div key={l}>{l}</div>)}
         </div>
-        <div className="grid grid-cols-7 gap-1">
+        <div data-dense-grid className="grid grid-cols-7 gap-1">
           {calendarCells.map((c, i) => {
             if (c.kind === 'blank') return <div key={`b${i}`} className="aspect-square" />;
             const bg = c.total > 0
-              ? `rgba(239, 68, 68, ${0.15 + 0.65 * c.intensity})`
+              ? `hsl(var(--spending) / ${0.15 + 0.65 * c.intensity})`
               : 'transparent';
             return (
               <button
@@ -186,7 +186,7 @@ export default function TrendsPane({ shared }: Props) {
                 disabled={c.total === 0}
                 className={cn(
                   'aspect-square rounded-lg flex flex-col items-center justify-center text-[11px] font-semibold transition-all border',
-                  c.total > 0 ? 'border-red-500/20 hover:scale-105 cursor-pointer text-foreground' : 'border-border/40 text-muted-foreground/60'
+                  c.total > 0 ? 'border-spending/20 hover:scale-105 cursor-pointer text-foreground' : 'border-border/40 text-muted-foreground/60'
                 )}
                 style={{ backgroundColor: bg }}
                 data-testid={`cal-day-${c.day}`}
@@ -218,20 +218,20 @@ export default function TrendsPane({ shared }: Props) {
             )}
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={spendingTrendData} barSize={18} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-                <XAxis dataKey="month" axisLine={false} tickLine={false} interval={0} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} />
-                <YAxis axisLine={false} tickLine={false} domain={[0, barChartYMax]} tickFormatter={formatShortINR} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} width={44} />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} interval={0} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis axisLine={false} tickLine={false} domain={[0, barChartYMax]} tickFormatter={formatShortINR} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={44} />
                 <Tooltip formatter={(value: number, name: string) => [formatAmount(value), name === 'spent' ? 'Spent' : 'Income']} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: '12px' }} />
-                <Bar dataKey="spent" fill="#EF4444" radius={[4, 4, 0, 0]} minPointSize={4} />
-                <Bar dataKey="income" fill="#10B981" radius={[4, 4, 0, 0]} minPointSize={4} />
+                <Bar dataKey="spent" fill="hsl(var(--spending))" radius={[4, 4, 0, 0]} minPointSize={4} />
+                <Bar dataKey="income" fill="hsl(var(--income))" radius={[4, 4, 0, 0]} minPointSize={4} />
               </BarChart>
             </ResponsiveContainer>
             <div className="flex items-center justify-center gap-4 mt-3 text-xs">
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-red-500" />
+                <span className="w-2.5 h-2.5 rounded-sm bg-spending" />
                 <span className="text-muted-foreground">Spent</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+                <span className="w-2.5 h-2.5 rounded-sm bg-income" />
                 <span className="text-muted-foreground">Income</span>
               </div>
             </div>
@@ -250,11 +250,11 @@ export default function TrendsPane({ shared }: Props) {
         ) : (
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={savingsRateSeries} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-              <XAxis dataKey="month" axisLine={false} tickLine={false} interval={0} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} />
-              <YAxis axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} width={44} />
+              <XAxis dataKey="month" axisLine={false} tickLine={false} interval={0} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+              <YAxis axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={44} />
               <Tooltip formatter={(value) => [value == null ? 'No transactions recorded' : `${value}%`, 'Savings rate']} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: '12px' }} />
-              <ReferenceLine y={20} stroke="#94A3B8" strokeDasharray="4 4" label={{ value: 'Recommended 20%', fontSize: 11, fill: '#94A3B8', position: 'insideTopRight' }} />
-              <Line type="monotone" dataKey="rate" stroke="#14B8A6" strokeWidth={2.5} dot={{ r: 4, fill: '#14B8A6' }} activeDot={{ r: 6 }} connectNulls={false} />
+              <ReferenceLine y={20} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" label={{ value: 'Recommended 20%', fontSize: 11, fill: 'hsl(var(--muted-foreground))', position: 'insideTopRight' }} />
+              <Line type="monotone" dataKey="rate" stroke="hsl(var(--savings))" strokeWidth={2.5} dot={{ r: 4, fill: 'hsl(var(--savings))' }} activeDot={{ r: 6 }} connectNulls={false} />
             </LineChart>
           </ResponsiveContainer>
         )}
@@ -270,7 +270,7 @@ export default function TrendsPane({ shared }: Props) {
           <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">No spend recorded this month</div>
         ) : (
           <>
-            <div className="grid grid-cols-7 gap-2">
+            <div data-dense-grid className="grid grid-cols-7 gap-2">
               {weekdayHeatmap.map(d => {
                 const active = selectedWeekday === d.idx;
                 const bgOpacity = 0.15 + 0.65 * d.intensity;
@@ -283,7 +283,7 @@ export default function TrendsPane({ shared }: Props) {
                       'aspect-square rounded-xl flex flex-col items-center justify-center text-[11px] font-semibold transition-all',
                       active ? 'ring-2 ring-accent text-foreground' : 'text-foreground'
                     )}
-                    style={{ backgroundColor: `rgba(99, 102, 241, ${bgOpacity})` }}
+                    style={{ backgroundColor: `hsl(var(--accent) / ${bgOpacity})` }}
                     data-testid={`heatmap-${d.label}`}
                   >
                     <span>{d.label}</span>
@@ -297,7 +297,7 @@ export default function TrendsPane({ shared }: Props) {
               return (
                 <div className="mt-4 p-3 rounded-xl bg-muted/40 border border-border">
                   <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">{d.label}s in {formatMonthYear(selectedMonth)}</p>
-                  <p className="text-sm font-bold text-foreground mt-0.5">Total spend: {formatAmount(d.total)}</p>
+                  <p className="text-sm font-bold text-foreground amount mt-0.5">Total spend: {formatAmount(d.total)}</p>
                   {d.topCategory && (
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Top category: <span className="font-semibold text-foreground">{d.topCategory.name}</span> ({formatAmount(d.topCategory.amount)})
@@ -320,40 +320,40 @@ export default function TrendsPane({ shared }: Props) {
         {burndownData.dayToDayBudget === 0 ? (
           <div className="h-32 flex items-center justify-center text-sm text-muted-foreground text-center px-4">
             No day-to-day budget set for {formatMonthYear(selectedMonth)}.{' '}
-            <Link href="/budgets" className="text-accent font-semibold hover:underline ml-1">Set budgets</Link>
+            <Link href="/budgets" className="tap-target text-accent font-semibold hover:underline ml-1">Set budgets</Link>
           </div>
         ) : (
           <>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={burndownData.points} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} interval={Math.ceil(burndownData.points.length / 8)} />
-                <YAxis axisLine={false} tickLine={false} tickFormatter={formatShortINR} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} width={44} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} interval={Math.ceil(burndownData.points.length / 8)} />
+                <YAxis axisLine={false} tickLine={false} tickFormatter={formatShortINR} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={44} />
                 <Tooltip
                   formatter={(value: number, name: string) => [value == null ? '—' : formatAmount(value), name === 'actual' ? 'Actual' : name === 'ideal' ? 'Ideal pace' : 'Over budget']}
                   labelFormatter={(day: number) => `Day ${day}`}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: '12px' }}
                 />
-                <Line type="monotone" dataKey="ideal" stroke="#94A3B8" strokeWidth={2} strokeDasharray="4 4" dot={false} />
-                <Line type="monotone" dataKey="actual" stroke="#10B981" strokeWidth={2.5} dot={false} connectNulls={false} />
-                <Line type="monotone" dataKey="overActual" stroke="#EF4444" strokeWidth={2.5} dot={false} connectNulls={false} />
+                <Line type="monotone" dataKey="ideal" stroke="hsl(var(--muted-foreground))" strokeWidth={2} strokeDasharray="4 4" dot={false} />
+                <Line type="monotone" dataKey="actual" stroke="hsl(var(--income))" strokeWidth={2.5} dot={false} connectNulls={false} />
+                <Line type="monotone" dataKey="overActual" stroke="hsl(var(--spending))" strokeWidth={2.5} dot={false} connectNulls={false} />
               </LineChart>
             </ResponsiveContainer>
             <div className="flex items-center justify-center gap-4 mt-3 text-xs">
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+                <span className="w-2.5 h-2.5 rounded-sm bg-income" />
                 <span className="text-muted-foreground">On pace</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-red-500" />
+                <span className="w-2.5 h-2.5 rounded-sm bg-spending" />
                 <span className="text-muted-foreground">Over budget</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-1 bg-slate-400" />
+                <span className="w-2.5 h-1 bg-muted-foreground" />
                 <span className="text-muted-foreground">Ideal</span>
               </div>
             </div>
             {burndownData.crossoverDay !== null && (
-              <p className="text-xs text-red-600 dark:text-red-400 font-semibold text-center mt-2">
+              <p className="text-xs text-danger font-semibold text-center mt-2">
                 You crossed the ideal pace on day {burndownData.crossoverDay}.
               </p>
             )}
@@ -395,7 +395,7 @@ export default function TrendsPane({ shared }: Props) {
                     className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
                     data-testid={`day-txn-${t.id}`}
                   >
-                    <div className="min-w-0 flex items-center gap-2.5">
+                    <div className="min-w-0 flex items-center gap-3">
                       <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${cat?.color || '#94A3B8'}22` }}>
                         <CategoryIcon icon={cat?.icon || 'circle'} color={cat?.color || '#94A3B8'} size={16} />
                       </div>
@@ -404,7 +404,7 @@ export default function TrendsPane({ shared }: Props) {
                         <p className="text-[11px] text-muted-foreground">{cat?.name || 'Uncategorized'}</p>
                       </div>
                     </div>
-                    <span className="text-sm font-bold text-red-500 flex-shrink-0">{formatAmount(t.amount)}</span>
+                    <span className="text-sm font-bold text-spending amount flex-shrink-0 whitespace-nowrap">{formatAmount(t.amount)}</span>
                   </button>
                 );
               })}

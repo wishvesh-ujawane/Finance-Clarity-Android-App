@@ -101,8 +101,8 @@ export function BudgetSheet() {
           ) : (
             <>
               <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Category</label>
-                <select
+                <label htmlFor="budget-category-select" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Category</label>
+                <select id="budget-category-select"
                   data-testid="budget-category-select"
                   value={newCatId}
                   onChange={e => { setNewCatId(e.target.value); setSaveError(''); }}
@@ -113,10 +113,10 @@ export function BudgetSheet() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Monthly Limit</label>
+                <label htmlFor="budget-limit-input" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Monthly Limit</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₹</span>
-                  <input
+                  <input id="budget-limit-input"
                     data-testid="budget-limit-input"
                     type="number"
                     placeholder="0"
@@ -132,7 +132,7 @@ export function BudgetSheet() {
         <div className="flex gap-2 pt-4 border-t border-border">
           <button
             onClick={closeBudgetSheet}
-            className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors"
+            className="flex-1 min-h-12 rounded-xl border border-border bg-card text-sm font-semibold text-foreground hover:bg-muted transition-colors"
           >
             Cancel
           </button>
@@ -140,7 +140,7 @@ export function BudgetSheet() {
             data-testid="budget-save"
             onClick={handleSave}
             disabled={!newCatId || !newLimit || parseCurrencyInput(newLimit) <= 0 || unbudgetedCategories.length === 0}
-            className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-50"
+            className="flex-1 min-h-12 rounded-xl bg-accent text-accent-foreground text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-50"
           >
             Save Budget
           </button>

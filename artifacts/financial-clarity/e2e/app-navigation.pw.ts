@@ -66,7 +66,7 @@ test('[NAV-002] removed SMS route shows Not Found and Settings has no SMS entry'
   });
 
   await page.goto('/settings/sms-auto-import');
-  await expect(page.getByRole('heading', { name: '404 Page Not Found' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
 
   await page.goto('/settings');
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();

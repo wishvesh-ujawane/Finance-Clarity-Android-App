@@ -121,7 +121,7 @@ export function MonthEndReviewFlow() {
                 <button
                   type="button"
                   onClick={closeFromStep}
-                  className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="tap-target rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                   aria-label="Close review"
                   data-testid="month-end-close"
                 >
@@ -176,7 +176,7 @@ export function MonthEndReviewFlow() {
 
             {/* Footer only for the first step; later steps own their own controls. */}
             {step === 'look-back' && (
-              <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -195,7 +195,7 @@ export function MonthEndReviewFlow() {
               </div>
             )}
             {step === 'plan' && (
-              <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
                 <Button
                   variant="ghost"
                   size="sm"

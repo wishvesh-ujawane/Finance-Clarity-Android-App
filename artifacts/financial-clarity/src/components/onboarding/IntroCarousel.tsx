@@ -25,26 +25,26 @@ interface Slide {
 const SLIDES: Slide[] = [
   {
     Icon: Wallet,
-    iconBg: 'bg-emerald-400/15 ring-1 ring-emerald-400/30',
-    iconColor: 'text-emerald-300',
-    glow: 'bg-emerald-500/25',
+    iconBg: 'bg-income-on-hero/15 ring-1 ring-income-on-hero/30',
+    iconColor: 'text-income-on-hero',
+    glow: 'bg-income-on-hero/25',
     eyebrow: 'Welcome to Fiscal Focus',
     title: 'Track every rupee, your way.',
     body: 'A fast, offline-first companion for daily spending, income and recurring bills — no account required to get started.',
   },
   {
     Icon: ShieldCheck,
-    iconBg: 'bg-sky-400/15 ring-1 ring-sky-400/30',
-    iconColor: 'text-sky-300',
-    glow: 'bg-sky-500/25',
+    iconBg: 'bg-savings-on-hero/15 ring-1 ring-savings-on-hero/30',
+    iconColor: 'text-savings-on-hero',
+    glow: 'bg-savings-on-hero/25',
     eyebrow: 'Private by design',
     title: 'Your data stays on your device.',
     body: 'Nothing leaves your phone unless you choose to back it up to your own Google Drive. You control your data — always.',
   },
   {
     Icon: GoogleDriveIcon,
-    iconBg: 'bg-white/10 ring-1 ring-white/20',
-    glow: 'bg-amber-400/20',
+    iconBg: 'bg-hero-foreground/10 ring-1 ring-hero-foreground/20',
+    glow: 'bg-warning-fill/20',
     eyebrow: 'Backup, restore, switch devices',
     title: 'Carry your data with Google Drive.',
     body: 'Sign in with Google and your encrypted backup lives in your own Drive — restore it anytime, on any device.',
@@ -130,12 +130,12 @@ export function IntroCarousel({ onComplete, onSkip }: IntroCarouselProps) {
 
   return (
     <div
-      className="relative flex h-full w-full flex-col overflow-hidden bg-[hsl(222,65%,13%)] text-white"
+      className="relative flex h-full w-full flex-col overflow-hidden bg-hero text-hero-foreground"
     >
       {/* Full-screen decorative background — same language as the Dashboard hero */}
-      <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white/[0.04]" />
-      <div className="pointer-events-none absolute -right-10 top-32 h-96 w-96 rounded-full bg-white/[0.03]" />
-      <div className="pointer-events-none absolute -left-28 -bottom-24 h-80 w-80 rounded-full bg-white/[0.04]" />
+      <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-hero-foreground/[0.04]" />
+      <div className="pointer-events-none absolute -right-10 top-32 h-96 w-96 rounded-full bg-hero-foreground/[0.03]" />
+      <div className="pointer-events-none absolute -left-28 -bottom-24 h-80 w-80 rounded-full bg-hero-foreground/[0.04]" />
       <div
         className={cn(
           'pointer-events-none absolute -left-16 top-1/3 h-72 w-72 rounded-full blur-3xl transition-colors duration-500',
@@ -151,7 +151,7 @@ export function IntroCarousel({ onComplete, onSkip }: IntroCarouselProps) {
 
       {/* Top bar: step indicator + Skip */}
       <div className="relative flex items-center justify-between px-6 pt-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-hero-foreground/60">
           {String(index + 1).padStart(2, '0')} / {String(SLIDES.length).padStart(2, '0')}
         </p>
         <Button
@@ -159,7 +159,7 @@ export function IntroCarousel({ onComplete, onSkip }: IntroCarouselProps) {
           size="sm"
           onClick={onSkip}
           data-testid="onboarding-skip"
-          className="text-white/70 hover:bg-white/10 hover:text-white"
+          className="text-hero-foreground/70 hover:bg-hero-foreground/10 hover:text-hero-foreground"
         >
           Skip
         </Button>
@@ -194,7 +194,7 @@ export function IntroCarousel({ onComplete, onSkip }: IntroCarouselProps) {
               >
                 <div
                   className={cn(
-                    'mb-8 flex h-24 w-24 items-center justify-center rounded-3xl shadow-lg shadow-black/30',
+                    'mb-8 flex h-24 w-24 items-center justify-center rounded-3xl shadow-lg shadow-scrim/30',
                     s.iconBg,
                   )}
                 >
@@ -204,7 +204,7 @@ export function IntroCarousel({ onComplete, onSkip }: IntroCarouselProps) {
                   />
                 </div>
 
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-hero-foreground/60">
                   {s.eyebrow}
                 </p>
                 <h2
@@ -213,7 +213,7 @@ export function IntroCarousel({ onComplete, onSkip }: IntroCarouselProps) {
                 >
                   {s.title}
                 </h2>
-                <p className="max-w-md text-sm leading-relaxed text-white/75 sm:text-base">
+                <p className="max-w-md text-sm leading-relaxed text-hero-foreground/75 sm:text-base">
                   {s.body}
                 </p>
               </div>
@@ -233,11 +233,16 @@ export function IntroCarousel({ onComplete, onSkip }: IntroCarouselProps) {
               aria-selected={i === index}
               aria-label={`Slide ${i + 1}`}
               onClick={() => setIndex(i)}
-              className={cn(
-                'h-2 rounded-full transition-all',
-                i === index ? 'w-8 bg-white' : 'w-2 bg-white/25',
-              )}
-            />
+              className="flex h-12 items-center px-1"
+            >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'block h-2 rounded-full transition-all',
+                  i === index ? 'w-8 bg-hero-foreground' : 'w-2 bg-hero-foreground/40',
+                )}
+              />
+            </button>
           ))}
         </div>
 
@@ -246,14 +251,14 @@ export function IntroCarousel({ onComplete, onSkip }: IntroCarouselProps) {
             variant="ghost"
             onClick={back}
             disabled={index === 0}
-            className="min-w-20 text-white/80 hover:bg-white/10 hover:text-white disabled:opacity-30"
+            className="min-w-20 text-hero-foreground/80 hover:bg-hero-foreground/10 hover:text-hero-foreground disabled:opacity-30"
           >
             Back
           </Button>
           <Button
             onClick={next}
             size="lg"
-            className="min-w-36 bg-white text-[hsl(222,65%,13%)] hover:bg-white/90"
+            className="min-w-36 bg-hero-foreground text-hero hover:bg-hero-foreground/90"
             data-testid="onboarding-next"
           >
             {isLast ? 'Get started' : 'Next'}
