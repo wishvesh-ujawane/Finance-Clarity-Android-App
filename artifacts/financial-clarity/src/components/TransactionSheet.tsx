@@ -286,6 +286,48 @@ export function TransactionSheet() {
     setShowNewCat(false);
   };
 
+  // DESIGN §5.14 / §12.4: the sheet is a modal dialog. Focus moves in on
+  // open, Tab stays inside, Escape closes it (unless a confirmation dialog is
+  // open above it), and focus returns to the trigger on close.
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose;
+  useEffect(() => {
+    if (!isSheetOpen) return;
+    const returnTo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const frame = requestAnimationFrame(() => sheetRef.current?.focus());
+    const onKeyDown = (e: KeyboardEvent) => {
+      const sheet = sheetRef.current;
+      if (!sheet || document.querySelector('[role="alertdialog"]')) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleCloseRef.current();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const focusable = Array.from(sheet.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      )).filter(el => el.offsetParent !== null);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === sheet)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !sheet.contains(active))) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', onKeyDown);
+      if (returnTo && document.contains(returnTo)) returnTo.focus();
+    };
+  }, [isSheetOpen]);
+
   const handleDelete = () => {
     if (!editingTransaction) return;
     const result = deleteTransaction(editingTransaction.id);
@@ -306,7 +348,7 @@ export function TransactionSheet() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={handleClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-scrim/50 backdrop-blur-sm z-50"
             data-testid="sheet-backdrop"
           />
           <motion.div
@@ -315,12 +357,17 @@ export function TransactionSheet() {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 380, damping: 36 }}
-            className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-[hsl(222,65%,10%)] rounded-t-3xl shadow-2xl max-h-[92vh] overflow-y-auto"
+            className="fixed bottom-0 left-0 right-0 z-50 mx-auto w-full max-w-[560px] bg-card rounded-t-3xl shadow-2xl max-h-[92vh] overflow-y-auto focus:outline-none"
             data-testid="transaction-sheet"
+            ref={sheetRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="transaction-sheet-title"
+            tabIndex={-1}
           >
-            <div className="sticky top-0 bg-white dark:bg-[hsl(222,65%,10%)] z-10 px-6 pt-4 pb-2">
+            <div className="sticky top-0 bg-card z-10 px-6 pt-4 pb-2">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+                <h2 id="transaction-sheet-title" className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
                   {isEditing ? 'Edit Transaction' : 'Add Transaction'}
                 </h2>
                 <div className="flex items-center gap-2">
@@ -330,7 +377,7 @@ export function TransactionSheet() {
                         <button
                           data-testid="delete-transaction-in-sheet"
                           aria-label="Delete transaction"
-                          className="w-8 h-8 rounded-full bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive/15 transition-colors relative before:absolute before:-inset-2 before:content-['']"
+                          className="w-8 h-8 rounded-full bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive/15 transition-colors tap-target"
                         >
                           <Trash2 size={15} />
                         </button>
@@ -366,7 +413,7 @@ export function TransactionSheet() {
                     data-testid="sheet-close"
                     aria-label="Close transaction sheet"
                     onClick={handleClose}
-                    className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors relative before:absolute before:-inset-2 before:content-['']"
+                    className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors tap-target"
                   >
                     <X size={16} />
                   </button>
@@ -378,17 +425,17 @@ export function TransactionSheet() {
                 {(['expense', 'income', 'save'] as const).map(t => {
                   const label = t === 'save' ? 'Save' : t;
                   const activeBg = t === 'expense'
-                    ? 'bg-red-600 text-white shadow'
+                    ? 'bg-spending text-hero-foreground shadow'
                     : t === 'income'
-                      ? 'bg-emerald-600 text-white shadow'
-                      : 'bg-sky-600 text-white shadow';
+                      ? 'bg-income text-hero-foreground shadow'
+                      : 'bg-savings text-hero-foreground shadow';
                   return (
                     <button
                       key={t}
                       data-testid={`type-${t}`}
                       onClick={() => { setMode(t); setCategoryId(''); }}
                       className={cn(
-                        'flex-1 py-2 rounded-lg text-sm font-semibold transition-all capitalize',
+                        'tap-target flex-1 min-h-10 rounded-lg text-sm font-semibold capitalize',
                         mode === t ? activeBg : 'text-muted-foreground'
                       )}
                     >
@@ -399,15 +446,15 @@ export function TransactionSheet() {
               </div>
             </div>
 
-            <div className="px-6 pb-8 space-y-5">
+            <div className="px-6 pb-8 space-y-6">
               {/* Amount */}
               <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                <label htmlFor="amount-input" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
                   Amount
                 </label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-muted-foreground">₹</span>
-                  <input
+                  <input id="amount-input"
                     ref={amountInputRef}
                     data-testid="amount-input"
                     type="text"
@@ -418,7 +465,7 @@ export function TransactionSheet() {
                     className="w-full pl-10 pr-4 py-4 text-3xl font-bold bg-muted rounded-2xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground placeholder:text-muted-foreground/40"
                   />
                 </div>
-                <div className="grid grid-cols-5 gap-1.5 mt-2" data-testid="amount-calculator">
+                <div className="grid grid-cols-5 gap-2 mt-2" data-testid="amount-calculator">
                   {CALCULATOR_KEYS.map(key => (
                     <button
                       key={key}
@@ -433,9 +480,9 @@ export function TransactionSheet() {
                       onTouchStart={e => e.preventDefault()}
                       onClick={() => handleCalculatorKey(key)}
                       className={cn(
-                        'h-10 rounded-xl text-sm font-bold transition-colors',
+                        'min-h-12 rounded-xl text-sm font-bold transition-colors',
                         key === '='
-                          ? 'bg-accent text-white hover:bg-accent/90'
+                          ? 'bg-accent text-accent-foreground hover:bg-accent/90'
                           : 'bg-muted text-foreground hover:bg-muted/80'
                       )}
                     >
@@ -447,6 +494,7 @@ export function TransactionSheet() {
 
               {/* Payment method remains hidden from manual entry; existing
                   values are preserved when an entry is edited and saved. */}
+              {/* eslint-disable-next-line no-constant-binary-expression -- intentionally hidden, see above */}
               {false && (
               <div>
                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
@@ -461,9 +509,9 @@ export function TransactionSheet() {
                         type="button"
                         onClick={() => setPaymentMethod(paymentMethod === method ? undefined : method)}
                         className={cn(
-                          'flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all',
+                          'flex-1 py-3 rounded-xl text-sm font-semibold transition-all',
                           paymentMethod === method
-                            ? 'bg-accent text-white shadow-md'
+                            ? 'bg-accent text-accent-foreground shadow-md'
                             : 'bg-muted text-muted-foreground hover:text-foreground'
                         )}
                       >
@@ -487,7 +535,7 @@ export function TransactionSheet() {
                       data-testid={`category-${cat.id}`}
                       onClick={() => setCategoryId(cat.id)}
                       className={cn(
-                        'flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all text-xs font-medium',
+                        'flex flex-col items-center gap-2 p-3 rounded-xl border transition-all text-xs font-medium',
                         categoryId === cat.id
                           ? 'border-accent bg-accent/10 text-foreground'
                           : 'border-border bg-muted/30 text-muted-foreground hover:border-accent/50'
@@ -512,7 +560,7 @@ export function TransactionSheet() {
                       data-testid="add-new-category"
                       onClick={() => setShowNewCat(v => !v)}
                       className={cn(
-                        'flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-dashed transition-all text-xs font-medium',
+                        'flex flex-col items-center gap-2 p-3 rounded-xl border-2 border-dashed transition-all text-xs font-medium',
                         showNewCat
                           ? 'border-accent text-accent'
                           : 'border-border text-muted-foreground hover:border-accent/50'
@@ -544,19 +592,19 @@ export function TransactionSheet() {
                           placeholder="Category name"
                           value={newCatName}
                           onChange={e => setNewCatName(e.target.value)}
-                          className="w-full px-3 py-2 text-sm bg-white dark:bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-accent"
+                          className="w-full px-3 py-2 text-sm bg-card rounded-xl border border-border outline-none focus:ring-2 focus:ring-accent"
                         />
 
                         <div>
-                          <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Type</p>
-                          <div className="flex gap-1.5">
+                          <p className="text-[11px] text-muted-foreground mb-2 font-medium">Type</p>
+                          <div className="flex gap-2">
                             {(['expense', 'income'] as const).map(t => (
                               <button
                                 key={t}
                                 onClick={() => setNewCatType(t)}
                                 className={cn(
                                   'flex-1 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors',
-                                  newCatType === t ? 'bg-accent text-white' : 'bg-white dark:bg-card text-muted-foreground border border-border'
+                                  newCatType === t ? 'bg-accent text-accent-foreground' : 'bg-card text-muted-foreground border border-border'
                                 )}
                               >
                                 {t}
@@ -566,17 +614,18 @@ export function TransactionSheet() {
                         </div>
 
                         <div>
-                          <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Color</p>
-                          <div className="flex flex-wrap gap-1.5">
+                          <p className="text-[11px] text-muted-foreground mb-2 font-medium">Color</p>
+                          <div className="flex flex-wrap gap-2">
                             {COLOR_SWATCHES.map(c => (
                               <button
                                 key={c}
+                                aria-label={`Choose colour ${c}`}
                                 onClick={() => setNewCatColor(c)}
                                 className="w-7 h-7 rounded-full relative transition-transform hover:scale-110"
                                 style={{ backgroundColor: c }}
                               >
                                 {newCatColor === c && (
-                                  <Check size={12} className="absolute inset-0 m-auto text-white" strokeWidth={3} />
+                                  <Check size={12} className="absolute inset-0 m-auto text-hero-foreground" strokeWidth={3} />
                                 )}
                               </button>
                             ))}
@@ -584,17 +633,18 @@ export function TransactionSheet() {
                         </div>
 
                         <div>
-                          <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Icon</p>
-                          <div className="grid grid-cols-6 gap-1.5">
+                          <p className="text-[11px] text-muted-foreground mb-2 font-medium">Icon</p>
+                          <div className="grid grid-cols-6 gap-2">
                             {ICON_OPTIONS.slice(0, 18).map(ico => (
                               <button
                                 key={ico}
+                                aria-label={`Choose icon ${ico}`}
                                 onClick={() => setNewCatIcon(ico)}
                                 className={cn(
                                   'w-9 h-9 rounded-lg flex items-center justify-center transition-colors',
                                   newCatIcon === ico
-                                    ? 'bg-accent text-white'
-                                    : 'bg-white dark:bg-card text-muted-foreground border border-border hover:border-accent/50'
+                                    ? 'bg-accent text-accent-foreground'
+                                    : 'bg-card text-muted-foreground border border-border hover:border-accent/50'
                                 )}
                               >
                                 <CategoryIcon icon={ico} size={14} />
@@ -606,7 +656,7 @@ export function TransactionSheet() {
                         <button
                           data-testid="create-category-submit"
                           onClick={handleCreateCategory}
-                          className="w-full py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors"
+                          className="w-full py-2 rounded-xl bg-accent text-accent-foreground text-sm font-semibold hover:bg-accent/90 transition-colors"
                         >
                           Create Category
                         </button>
@@ -618,10 +668,10 @@ export function TransactionSheet() {
 
               {/* Date */}
               <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                <label htmlFor="date-input" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
                   Date
                 </label>
-                <input
+                <input id="date-input"
                   data-testid="date-input"
                   type="date"
                   value={date}
@@ -632,10 +682,10 @@ export function TransactionSheet() {
 
               {/* Note */}
               <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                <label htmlFor="note-input" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
                   Note (optional)
                 </label>
-                <input
+                <input id="note-input"
                   data-testid="note-input"
                   type="text"
                   placeholder="Add a note..."
@@ -660,10 +710,10 @@ export function TransactionSheet() {
                   !calculatedAmount || calculatedAmount <= 0 || !categoryId
                     ? 'bg-muted text-muted-foreground cursor-not-allowed'
                     : mode === 'income'
-                      ? 'bg-emerald-600 text-white shadow-lg hover:bg-emerald-700'
+                      ? 'bg-income text-hero-foreground shadow-lg hover:bg-income/90'
                       : mode === 'save'
-                        ? 'bg-sky-600 text-white shadow-lg hover:bg-sky-700'
-                        : 'bg-red-600 text-white shadow-lg hover:bg-red-700'
+                        ? 'bg-savings text-hero-foreground shadow-lg hover:bg-savings/90'
+                        : 'bg-spending text-hero-foreground shadow-lg hover:bg-spending/90'
                 )}
                 whileTap={{ scale: 0.97 }}
               >

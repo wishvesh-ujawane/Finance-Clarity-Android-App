@@ -54,7 +54,7 @@ function formatPeriodLabel(preset: RangePreset, from: string, to: string): strin
 }
 
 export default function Transactions() {
-  const { transactions, categories, openEditSheet, openSheet, deleteTransaction } = useFinance();
+  const { transactions, categories, openEditSheet, deleteTransaction } = useFinance();
 
   useDefaultFabMenu();
 
@@ -145,7 +145,7 @@ export default function Transactions() {
   };
 
   return (
-    <div className="p-4 md:p-6 pb-24 md:pb-8">
+    <div className="p-4 md:p-6 pb-40 md:pb-8">
       <AlertDialog open={correctionToDelete !== null} onOpenChange={open => { if (!open) { setCorrectionToDelete(null); setDeleteError(''); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -172,14 +172,14 @@ export default function Transactions() {
             data-testid="download-csv"
             onClick={downloadCSV}
             disabled={transactions.length === 0}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[hsl(222,65%,13%)] text-white text-sm font-semibold hover:bg-[hsl(222,65%,18%)] transition-colors disabled:opacity-40"
+            className="tap-target flex min-h-10 items-center gap-2 px-4 rounded-xl bg-card border border-border text-foreground hover:bg-muted/60 text-sm font-semibold disabled:opacity-40"
           >
             <Download size={14} />
             Export CSV
           </button>
         </div>
       </div>
-      {exportError && <p className="text-xs font-medium text-red-500 mb-3">{exportError}</p>}
+      {exportError && <p className="text-xs font-medium text-destructive mb-3">{exportError}</p>}
 
       {/* Search */}
       <div className="relative mb-4">
@@ -190,14 +190,14 @@ export default function Transactions() {
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           placeholder="Search by category, note, or amount"
-          className="w-full pl-9 pr-9 py-2.5 text-sm bg-card border border-border rounded-xl outline-none focus:ring-2 focus:ring-accent text-foreground placeholder:text-muted-foreground"
+          className="w-full pl-9 pr-9 py-3 text-sm bg-card border border-border rounded-xl outline-none focus:ring-2 focus:ring-accent text-foreground placeholder:text-muted-foreground"
         />
         {searchQuery && (
           <button
             type="button"
             data-testid="transactions-search-clear"
             onClick={() => setSearchQuery('')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center"
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center tap-target"
             aria-label="Clear search"
           >
             <X size={12} />
@@ -219,8 +219,8 @@ export default function Transactions() {
               data-testid={`range-${key}`}
               onClick={() => setPreset(key)}
               className={cn(
-                'flex-1 py-2 rounded-xl text-[11px] font-semibold transition-all',
-                preset === key ? 'bg-accent text-white shadow' : 'bg-muted text-muted-foreground hover:text-foreground'
+                'flex-1 min-h-9 py-2 rounded-xl text-[11px] font-semibold transition-all tap-target',
+                preset === key ? 'bg-accent text-accent-foreground shadow' : 'bg-muted text-muted-foreground hover:text-foreground'
               )}
             >
               {label}
@@ -231,24 +231,24 @@ export default function Transactions() {
         {preset === 'custom' && (
           <div className="flex gap-2 items-center">
             <div className="flex-1">
-              <label className="text-[11px] text-muted-foreground font-medium block mb-1">From</label>
-              <input
+              <label htmlFor="from-date" className="text-[11px] text-muted-foreground font-medium block mb-1">From</label>
+              <input id="from-date"
                 data-testid="from-date"
                 type="date"
                 value={customFrom}
                 onChange={e => setCustomFrom(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-muted rounded-lg border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
+                className="w-full px-3 py-2 text-xs bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
               />
             </div>
             <Calendar size={14} className="text-muted-foreground mt-4 flex-shrink-0" />
             <div className="flex-1">
-              <label className="text-[11px] text-muted-foreground font-medium block mb-1">To</label>
-              <input
+              <label htmlFor="to-date" className="text-[11px] text-muted-foreground font-medium block mb-1">To</label>
+              <input id="to-date"
                 data-testid="to-date"
                 type="date"
                 value={customTo}
                 onChange={e => setCustomTo(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-muted rounded-lg border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
+                className="w-full px-3 py-2 text-xs bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground"
               />
             </div>
           </div>
@@ -270,9 +270,9 @@ export default function Transactions() {
               data-testid={`filter-${t}`}
               onClick={() => setFilterType(t)}
               className={cn(
-                'flex-1 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all',
+                'flex-1 min-h-9 py-2 rounded-lg text-xs font-semibold capitalize transition-all tap-target',
                 filterType === t
-                  ? t === 'all' ? 'bg-[hsl(222,65%,13%)] text-white' : t === 'income' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+                  ? t === 'all' ? 'bg-hero text-hero-foreground' : t === 'income' ? 'bg-income text-hero-foreground' : 'bg-spending text-hero-foreground'
                   : 'bg-muted text-muted-foreground'
               )}
             >
@@ -290,11 +290,11 @@ export default function Transactions() {
         </div>
         <div className="bg-card border border-border rounded-xl p-3 text-center">
           <p className="text-[11px] text-muted-foreground">Income</p>
-          <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 truncate">{formatAmount(totalIncome)}</p>
+          <p className="text-xs font-bold text-income whitespace-nowrap amount">{formatAmount(totalIncome)}</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-3 text-center">
           <p className="text-[11px] text-muted-foreground">Spending</p>
-          <p className="text-xs font-bold text-red-500 truncate" data-testid="transactions-spending-total">{formatAmount(totalSpending)}</p>
+          <p className="text-xs font-bold text-spending whitespace-nowrap amount" data-testid="transactions-spending-total">{formatAmount(totalSpending)}</p>
         </div>
       </div>
 
@@ -331,12 +331,12 @@ export default function Transactions() {
               >
                 {/* Date header */}
                 <div className="flex items-center justify-between mb-2 px-1">
-                  <p className="text-xs font-bold text-foreground">
+                  <p className="min-w-0 truncate text-xs font-bold text-foreground">
                     {formatDateLabel(date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                   </p>
-                  <div className="flex items-center gap-3 text-[11px] font-semibold">
-                    {dayIncome > 0 && <span className="text-emerald-600 dark:text-emerald-400">+{formatAmount(dayIncome)}</span>}
-                    {dayExpense > 0 && <span className="text-red-500">-{formatAmount(dayExpense)}</span>}
+                  <div className="flex flex-shrink-0 items-center gap-3 whitespace-nowrap text-[11px] font-semibold amount">
+                    {dayIncome > 0 && <span className="text-income">+{formatAmount(dayIncome)}</span>}
+                    {dayExpense > 0 && <span className="text-spending">-{formatAmount(dayExpense)}</span>}
                   </div>
                 </div>
 
@@ -365,7 +365,7 @@ export default function Transactions() {
                           <CategoryIcon icon={cat?.icon || 'DollarSign'} color={cat?.color || '#6366F1'} size={16} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground">
+                          <p className="truncate text-sm font-medium text-foreground">
                             {cat?.name || 'Unknown'}
                             {cat && !isCategoryActive(cat) && (
                               <span className="ml-1.5 rounded-lg bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground align-middle">Inactive</span>
@@ -373,8 +373,8 @@ export default function Transactions() {
                           </p>
                           {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
                         </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <span className={cn('text-sm font-bold', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={cn('flex-shrink-0 whitespace-nowrap amount text-sm font-bold', t.type === 'income' ? 'text-income' : cat?.type === 'savings' ? 'text-savings' : 'text-spending')}>
                             {t.type === 'income' ? '+' : '-'}{formatAmount(t.amount)}
                           </span>
                           {t.savingsCorrection && (

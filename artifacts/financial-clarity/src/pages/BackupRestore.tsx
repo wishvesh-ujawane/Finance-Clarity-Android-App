@@ -110,7 +110,7 @@ export default function BackupRestore() {
           type="button"
           data-testid="backup-back"
           onClick={() => setLocation('/settings')}
-          className="w-9 h-9 rounded-xl border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          className="tap-target w-9 h-9 rounded-xl border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           aria-label="Back to settings"
         >
           <ArrowLeft size={16} />
@@ -125,11 +125,11 @@ export default function BackupRestore() {
 
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center flex-shrink-0">
             <SettingsIcon size={18} />
           </div>
           <div>
-            <p className="text-sm font-bold text-foreground">CSV Backup</p>
+            <p className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>CSV Backup</p>
             <p className="text-xs text-muted-foreground">Transactions only. Not a full backup; use Google Drive backup for budgets, recurring rules, and settings.</p>
           </div>
         </div>
@@ -139,7 +139,7 @@ export default function BackupRestore() {
             data-testid="settings-export-csv"
             onClick={handleExport}
             disabled={isExporting || transactions.length === 0}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[hsl(222,65%,13%)] text-white text-sm font-semibold hover:bg-[hsl(222,65%,18%)] transition-colors disabled:opacity-40"
+            className="w-full min-h-12 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-card border border-border text-foreground hover:bg-muted/60 text-sm font-semibold disabled:opacity-40"
           >
             <Download size={15} />
             {isExporting ? 'Preparing Export' : 'Export CSV'}
@@ -157,14 +157,14 @@ export default function BackupRestore() {
             data-testid="settings-import-csv"
             onClick={() => inputRef.current?.click()}
             disabled={isImporting}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-40"
+            className="w-full min-h-12 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent text-accent-foreground text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-40"
           >
             <FileUp size={15} />
             {isImporting ? 'Importing CSV' : 'Import CSV'}
           </button>
 
           {(message || error) && (
-            <p className={cn('text-xs font-medium', error ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400')}>
+            <p className={cn('text-xs font-medium', error ? 'text-destructive' : 'text-success')}>
               {error || message}
             </p>
           )}

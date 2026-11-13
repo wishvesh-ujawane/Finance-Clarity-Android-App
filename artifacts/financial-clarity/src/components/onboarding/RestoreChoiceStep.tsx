@@ -54,8 +54,8 @@ export function RestoreChoiceStep({ remote, onDone }: RestoreChoiceStepProps) {
   return (
     <div className="flex h-full w-full flex-col">
       <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-        <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-3xl bg-emerald-500/15">
-          <CloudDownload className="h-12 w-12 text-emerald-500" strokeWidth={1.8} />
+        <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-3xl bg-success-tint">
+          <CloudDownload className="h-12 w-12 text-success" strokeWidth={1.8} />
         </div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Backup found
@@ -93,7 +93,7 @@ export function RestoreChoiceStep({ remote, onDone }: RestoreChoiceStepProps) {
         {error && (
           <div
             role="alert"
-            className="mt-6 flex max-w-md items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-left text-xs text-destructive"
+            className="mt-6 flex max-w-md items-start gap-2 rounded-xl border border-danger/30 bg-danger-tint p-3 text-left text-xs text-danger"
           >
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>

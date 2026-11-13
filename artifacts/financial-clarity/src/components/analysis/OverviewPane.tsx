@@ -32,7 +32,6 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
     monthlyExpenses,
     previousIncome,
     previousExpenses,
-    currentSummary,
     prevSummary,
     isCurrentMonthInProgress,
     monthlyBudgetTotal,
@@ -43,7 +42,6 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
     monthlyExpensesToDate,
     monthlyCommitmentsToDate,
     monthlyDayToDayToDate,
-    monthlySavingsToDate,
     daysLeftInMonth,
     elapsedDays,
     allCategorySpending,
@@ -328,20 +326,20 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
         {isBudgetExceeded && (
           <Link
             href="/budgets"
-            className="block bg-red-500/10 border border-red-500/30 rounded-2xl p-5 hover:bg-red-500/15 transition-colors"
+            className="block bg-danger-tint border border-danger/30 rounded-2xl p-5 hover:bg-danger-tint/70 transition-colors"
             data-testid="budget-exceeded-hero"
           >
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-600 dark:text-red-400 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-danger/10 text-danger flex items-center justify-center flex-shrink-0">
                 <AlertCircle size={20} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Budget exceeded</p>
+                <p className="text-xs font-semibold text-danger uppercase tracking-wider">Budget exceeded</p>
                 <h2 className="text-base font-bold text-foreground mt-0.5" style={{ fontFamily: 'var(--font-display)' }}>
                   Day-to-day spend is over by {formatAmount(monthlyDayToDayToDate - monthlyBudgetTotal)}
                 </h2>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Review category budgets and trim where possible. <span className="text-red-600 dark:text-red-400 font-semibold inline-flex items-center gap-0.5">Manage <ArrowRight size={11} /></span>
+                  Review category budgets and trim where possible. <span className="text-danger font-semibold inline-flex items-center gap-0.5">Manage <ArrowRight size={11} /></span>
                 </p>
               </div>
             </div>
@@ -376,7 +374,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             >
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Spendable Budget</p>
-                <p className="text-sm font-bold text-foreground">{formatAmount(monthlyDayToDayBudgetTotal)}</p>
+                <p className="text-sm font-bold text-foreground amount">{formatAmount(monthlyDayToDayBudgetTotal)}</p>
               </div>
               <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
             </Link>
@@ -389,7 +387,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             >
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Day-to-day</p>
-                <p className={cn('text-sm font-bold', isBudgetExceeded ? 'text-red-500' : 'text-foreground')}>{formatAmount(monthlyDayToDay)}</p>
+                <p className={cn('text-sm font-bold amount', isBudgetExceeded ? 'text-danger' : 'text-foreground')}>{formatAmount(monthlyDayToDay)}</p>
               </div>
               <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
             </button>
@@ -402,7 +400,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             >
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Commitments</p>
-                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{formatAmount(monthlyCommitments)}</p>
+                <p className="text-sm font-bold text-info amount">{formatAmount(monthlyCommitments)}</p>
               </div>
               <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
             </button>
@@ -415,7 +413,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             >
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Savings</p>
-                <p className="text-sm font-bold text-sky-600 dark:text-sky-400">{formatAmount(monthlySavings)}</p>
+                <p className="text-sm font-bold text-savings amount">{formatAmount(monthlySavings)}</p>
               </div>
               <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
             </button>
@@ -427,12 +425,12 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
 
           <div className="h-2 rounded-full overflow-hidden bg-muted mb-3 flex">
             <div
-              className={cn('h-full', spentPct <= 80 ? 'bg-emerald-500' : spentPct <= 100 ? 'bg-amber-500' : 'bg-red-500')}
+              className={cn('h-full', spentPct <= 80 ? 'bg-success-fill' : spentPct <= 100 ? 'bg-warning-fill' : 'bg-spending')}
               style={{ width: `${Math.min(Math.max(spentPct, 0), 100)}%` }}
               aria-hidden
             />
             <div
-              className="h-full bg-emerald-500/25"
+              className="h-full bg-success-fill/25"
               style={{ width: `${Math.max(0, 100 - Math.min(spentPct, 100))}%` }}
               aria-hidden
             />
@@ -442,8 +440,8 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             className={cn(
               'flex items-center justify-between rounded-xl px-3 py-2 text-sm',
               remainingBudget >= 0
-                ? 'bg-emerald-500/10 border border-emerald-500/20'
-                : 'bg-red-500/10 border border-red-500/20'
+                ? 'bg-success-tint border border-success/30'
+                : 'bg-danger-tint border border-danger/30'
             )}
             data-testid="remaining-budget"
           >
@@ -451,7 +449,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               <span
                 className={cn(
                   'inline-block w-2 h-2 rounded-full',
-                  remainingBudget >= 0 ? 'bg-emerald-500' : 'bg-red-500'
+                  remainingBudget >= 0 ? 'bg-success-fill' : 'bg-spending'
                 )}
                 aria-hidden
               />
@@ -459,7 +457,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                 {remainingBudget >= 0 ? 'Remaining budget' : 'Over budget'}
               </p>
             </div>
-            <p className={cn('text-base font-bold', remainingBudget >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+            <p className={cn('text-base font-bold amount', remainingBudget >= 0 ? 'text-success' : 'text-danger')}>
               {formatAmount(Math.abs(remainingBudget))}
             </p>
           </div>
@@ -470,9 +468,9 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
         <div className="grid grid-cols-2 gap-3" data-testid="key-numbers-grid">
           <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-total-spent">
             <p className="text-xs text-muted-foreground mb-1">Total Spent</p>
-            <p className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(monthlyExpensesToDate)}</p>
+            <p className="text-lg font-bold text-foreground amount" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(monthlyExpensesToDate)}</p>
             {spentChange.pct !== null && (
-              <p className={cn('text-[11px] mt-1 flex items-center gap-0.5 font-semibold', spentChange.pct <= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
+              <p className={cn('text-[11px] mt-1 flex items-center gap-0.5 font-semibold', spentChange.pct <= 0 ? 'text-success' : 'text-danger')}>
                 {spentChange.pct <= 0 ? <ArrowDownRight size={11} /> : <ArrowUpRight size={11} />}
                 {Math.abs(spentChange.pct).toFixed(1)}% vs last month
               </p>
@@ -487,7 +485,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               data-testid="biggest-expense-card"
             >
               <p className="text-xs text-muted-foreground mb-1">Biggest Expense</p>
-              <p className="text-lg font-bold text-red-500" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(biggestExpense.transaction.amount)}</p>
+              <p className="text-lg font-bold text-spending amount" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(biggestExpense.transaction.amount)}</p>
               <p className="text-[11px] text-muted-foreground truncate mt-1">{biggestExpense.categoryName}</p>
             </button>
           ) : (
@@ -500,7 +498,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
 
           <div className="bg-card border border-border rounded-2xl p-4" data-testid="kpi-avg-day">
             <p className="text-xs text-muted-foreground mb-1">Avg / day</p>
-            <p className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(Math.round(avgSpendPerDay))}</p>
+            <p className="text-lg font-bold text-foreground amount" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(Math.round(avgSpendPerDay))}</p>
             <p className="text-[11px] text-muted-foreground mt-1">Over {elapsedDays} day{elapsedDays === 1 ? '' : 's'}</p>
           </div>
 
@@ -512,7 +510,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             className="bg-card border border-border rounded-2xl p-4 text-left hover:bg-muted/40 transition-colors"
           >
             <p className="text-xs text-muted-foreground mb-1">Commitments</p>
-            <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(monthlyCommitmentsToDate)}</p>
+            <p className="text-lg font-bold text-info amount" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(monthlyCommitmentsToDate)}</p>
             <p className="text-[11px] text-muted-foreground mt-1">Paid so far this month</p>
           </button>
         </div>
@@ -529,7 +527,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             <button
               type="button"
               onClick={() => setAllCategoriesOpen(true)}
-              className="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+              className="tap-target px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors"
             >
               See All
             </button>
@@ -560,9 +558,9 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                     setSelectedPieSlice(null);
                   }}
                   className={cn(
-                    'px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border',
+                    'min-h-9 tap-target px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border',
                     active
-                      ? 'bg-accent text-white border-accent'
+                      ? 'bg-accent text-accent-foreground border-accent'
                       : 'bg-muted/40 text-muted-foreground border-border hover:bg-muted'
                   )}
                 >
@@ -581,7 +579,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                   value={customFrom}
                   max={customTo || undefined}
                   onChange={e => setCustomFrom(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-lg border border-border bg-background text-sm text-foreground"
+                  className="px-3 py-1.5 rounded-xl border border-border bg-background text-sm text-foreground"
                 />
               </label>
               <label className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -591,7 +589,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                   value={customTo}
                   min={customFrom || undefined}
                   onChange={e => setCustomTo(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-lg border border-border bg-background text-sm text-foreground"
+                  className="px-3 py-1.5 rounded-xl border border-border bg-background text-sm text-foreground"
                 />
               </label>
             </div>
@@ -604,40 +602,42 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                 : `No category spending in ${spendPeriodLabel.toLowerCase()}.`}
             </div>
           ) : (
-            <div className="grid md:grid-cols-[260px_1fr] gap-4 items-center">
-              <div className="h-56 relative">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={spendTop5}
-                      dataKey="amount"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={86}
-                      paddingAngle={2}
-                      onClick={(slice: { categoryId?: string }) => {
-                        if (slice?.categoryId) {
-                          setSelectedPieSlice(prev => prev === slice.categoryId ? null : (slice.categoryId ?? null));
-                        }
-                      }}
-                    >
-                      {spendTop5.map(item => {
-                        const isDimmed = selectedPieSlice !== null && selectedPieSlice !== item.categoryId;
-                        return (
-                          <Cell
-                            key={item.categoryId}
-                            fill={item.color}
-                            opacity={isDimmed ? 0.3 : 1}
-                            style={{ cursor: 'pointer', transition: 'opacity 0.2s' }}
-                          />
-                        );
-                      })}
-                    </Pie>
-                    <Tooltip formatter={(value: number) => [formatAmount(value), 'Spent']} />
-                  </PieChart>
-                </ResponsiveContainer>
+            <div className="grid grid-cols-1 md:grid-cols-[260px_minmax(0,1fr)] gap-4 items-center">
+              <div className="h-56 relative min-w-0">
+                <div className="h-full w-full" aria-hidden="true">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={spendTop5}
+                        dataKey="amount"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={86}
+                        paddingAngle={2}
+                        onClick={(slice: { categoryId?: string }) => {
+                          if (slice?.categoryId) {
+                            setSelectedPieSlice(prev => prev === slice.categoryId ? null : (slice.categoryId ?? null));
+                          }
+                        }}
+                      >
+                        {spendTop5.map(item => {
+                          const isDimmed = selectedPieSlice !== null && selectedPieSlice !== item.categoryId;
+                          return (
+                            <Cell
+                              key={item.categoryId}
+                              fill={item.color}
+                              opacity={isDimmed ? 0.3 : 1}
+                              style={{ cursor: 'pointer', transition: 'opacity 0.2s' }}
+                            />
+                          );
+                        })}
+                      </Pie>
+                      <Tooltip formatter={(value: number) => [formatAmount(value), 'Spent']} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   {selectedPieSlice ? (() => {
                     const slice = spendTop5.find(c => c.categoryId === selectedPieSlice);
@@ -659,7 +659,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 {spendTop5.map(item => {
                   const isSelected = selectedPieSlice === item.categoryId;
                   const isDimmed = selectedPieSlice !== null && !isSelected;
@@ -668,21 +668,22 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                       key={item.categoryId}
                       type="button"
                       onClick={() => setSelectedPieSlice(prev => prev === item.categoryId ? null : item.categoryId)}
+                      aria-pressed={isSelected}
                       className={cn(
-                        'w-full flex items-center justify-between rounded-xl border px-3 py-2 text-left transition-all',
+                        'w-full min-h-12 flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left',
                         isSelected ? 'border-accent bg-accent/5' : 'border-border hover:bg-muted/40',
                         isDimmed ? 'opacity-50' : ''
                       )}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${item.color}22` }}>
+                      <div className="flex flex-1 items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-lg flex flex-shrink-0 items-center justify-center" style={{ backgroundColor: `${item.color}22` }}>
                           <CategoryIcon icon={item.icon} color={item.color} size={14} />
                         </div>
-                        <span className="text-sm font-medium text-foreground truncate">{item.name}</span>
+                        <span className="min-w-0 truncate text-sm font-medium text-foreground">{item.name}</span>
                       </div>
-                      <div className="text-right pl-3">
-                        <p className="text-sm font-bold text-foreground">{formatAmount(item.amount)}</p>
-                        <p className="text-[11px] text-muted-foreground">{item.pct.toFixed(1)}%</p>
+                      <div className="flex-shrink-0 text-right">
+                        <p className="amount whitespace-nowrap text-sm font-bold text-foreground">{formatAmount(item.amount)}</p>
+                        <p className="amount text-[11px] text-muted-foreground">{item.pct.toFixed(1)}%</p>
                       </div>
                     </button>
                   );
@@ -695,7 +696,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
         <div className="bg-card border border-border rounded-2xl p-5" data-testid="budget-vs-spent-card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Budget vs Spent</h2>
-            <Link href="/budgets" className="px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent/90 transition-colors">
+            <Link href="/budgets" className="tap-target px-3 py-1.5 rounded-lg bg-accent text-accent-foreground text-xs font-semibold hover:bg-accent/90 transition-colors">
               Manage
             </Link>
           </div>
@@ -711,11 +712,11 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                     <p className="text-xs font-semibold text-muted-foreground">{Math.round(row.usagePct)}%</p>
                   </div>
                   <div className="h-1.5 rounded-full bg-muted overflow-hidden mb-2">
-                    <div className={cn('h-full rounded-full', row.usagePct > 100 ? 'bg-red-500' : row.usagePct > 80 ? 'bg-amber-500' : 'bg-emerald-500')} style={{ width: `${Math.min(100, Math.max(0, row.usagePct))}%` }} />
+                    <div className={cn('h-full rounded-full', row.usagePct > 100 ? 'bg-spending' : row.usagePct > 80 ? 'bg-warning-fill' : 'bg-success-fill')} style={{ width: `${Math.min(100, Math.max(0, row.usagePct))}%` }} />
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Budget: <span className="font-semibold text-foreground">{formatAmount(row.limit)}</span></span>
-                    <span className="text-muted-foreground">Spent: <span className="font-semibold text-foreground">{formatAmount(row.spent)}</span></span>
+                    <span className="text-muted-foreground">Budget: <span className="font-semibold text-foreground amount">{formatAmount(row.limit)}</span></span>
+                    <span className="text-muted-foreground">Spent: <span className="font-semibold text-foreground amount">{formatAmount(row.spent)}</span></span>
                   </div>
                 </div>
               ))}
@@ -727,7 +728,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
         <p className="text-base font-bold text-foreground px-1 pt-1" style={{ fontFamily: 'var(--font-display)' }} data-testid="zone-label-4">What should I do?</p>
         <div className="bg-card border border-border rounded-2xl p-5" data-testid="smart-insights-card">
           <div className="flex items-start gap-3 mb-3">
-            <div className="w-9 h-9 rounded-xl bg-accent/15 text-accent flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-accent/10 text-accent flex items-center justify-center flex-shrink-0">
               <Sparkles size={17} />
             </div>
             <div>
@@ -738,17 +739,17 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
           <div className="space-y-2">
             {smartInsights.map(item => {
               const severityStyles: Record<typeof item.severity, string> = {
-                positive: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300',
+                positive: 'bg-success-tint border-success/30 text-success',
                 neutral: 'bg-muted/40 border-border text-foreground',
-                warning: 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300',
-                danger: 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300',
+                warning: 'bg-warning-tint border-warning/30 text-warning',
+                danger: 'bg-danger-tint border-danger/30 text-danger',
               };
               return (
-                <div key={item.id} className={cn('rounded-xl border px-3 py-2.5', severityStyles[item.severity])}>
+                <div key={item.id} className={cn('rounded-xl border px-3 py-3', severityStyles[item.severity])}>
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-sm leading-relaxed">{item.text}</p>
                     {item.href && (
-                      <Link href={item.href} className="text-xs font-semibold inline-flex items-center gap-0.5 flex-shrink-0 hover:underline">
+                      <Link href={item.href} className="tap-target text-xs font-semibold inline-flex items-center gap-0.5 flex-shrink-0 hover:underline">
                         View <ArrowRight size={11} />
                       </Link>
                     )}
@@ -777,7 +778,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             <div className="divide-y divide-border rounded-xl border border-border overflow-hidden">
               {spendPeriodBreakdown.rows.map(item => (
                 <div key={item.categoryId} className="w-full flex items-center justify-between gap-3 px-4 py-3">
-                  <div className="min-w-0 flex items-center gap-2.5">
+                  <div className="min-w-0 flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${item.color}22` }}>
                       <CategoryIcon icon={item.icon} color={item.color} size={14} />
                     </div>
@@ -786,7 +787,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                       <p className="text-xs text-muted-foreground">{item.pct.toFixed(1)}% of period spend</p>
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-foreground flex-shrink-0">{formatAmount(item.amount)}</span>
+                  <span className="text-sm font-bold text-foreground amount flex-shrink-0 whitespace-nowrap">{formatAmount(item.amount)}</span>
                 </div>
               ))}
             </div>
@@ -834,7 +835,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                       <p className="text-xs text-muted-foreground">{tx.categoryName}</p>
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-foreground flex-shrink-0">{formatAmount(tx.amount)}</span>
+                  <span className="text-sm font-bold text-foreground amount flex-shrink-0 whitespace-nowrap">{formatAmount(tx.amount)}</span>
                 </button>
               ))}
             </div>
@@ -882,7 +883,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                       <p className="text-xs text-muted-foreground">{tx.categoryName}</p>
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 flex-shrink-0">{formatAmount(tx.amount)}</span>
+                  <span className="text-sm font-bold text-info amount flex-shrink-0 whitespace-nowrap">{formatAmount(tx.amount)}</span>
                 </button>
               ))}
             </div>
@@ -927,7 +928,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
                       <p className="text-xs text-muted-foreground">{tx.categoryName}</p>
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-sky-600 dark:text-sky-400 flex-shrink-0">{formatAmount(tx.amount)}</span>
+                  <span className="text-sm font-bold text-savings amount flex-shrink-0 whitespace-nowrap">{formatAmount(tx.amount)}</span>
                 </button>
               ))}
             </div>

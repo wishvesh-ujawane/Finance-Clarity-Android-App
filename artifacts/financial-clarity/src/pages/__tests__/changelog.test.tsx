@@ -9,7 +9,7 @@ vi.mock('wouter', async importOriginal => {
   const actual = await importOriginal<typeof import('wouter')>();
   return {
     ...actual,
-    Link: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    Link: ({ children, href, ...rest }: { children: ReactNode; href?: string }) => <a href={href} {...rest}>{children}</a>,
   };
 });
 

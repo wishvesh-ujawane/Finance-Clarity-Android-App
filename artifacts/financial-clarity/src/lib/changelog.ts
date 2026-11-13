@@ -27,6 +27,15 @@ export const MAX_CHANGE_TEXT_LENGTH = 140;
 
 export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-11-13',
+    version: '1.0.0',
+    changes: [
+      { kind: 'fixed', text: 'Screens now fit small phones without cut-off text or buttons.' },
+      { kind: 'new', text: 'Clearer colours for money in and out, and larger buttons that are easier to tap.' },
+      { kind: 'fixed', text: 'The add-entry form works better with screen readers and keyboards.' },
+    ],
+  },
+  {
     date: '2026-11-12',
     version: '1.0.0',
     changes: [

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import {
-  ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ArrowRightLeft, CreditCard,
+  ArrowUp, ArrowDown, ArrowUpDown, ArrowRightLeft, CreditCard,
   AlertOctagon, AlertTriangle, CheckCircle2, CircleDashed,
 } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
@@ -10,6 +10,7 @@ import { useDefaultFabMenu } from '@/hooks/useDefaultFabMenu';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { ConnectDriveBanner } from '@/components/ConnectDriveBanner';
 import { MonthEndReviewBanner } from '@/components/MonthEndReviewBanner';
+import { PeriodSelector } from '@/components/PeriodSelector';
 import { cn } from '@/lib/utils';
 import {
   addMonths, formatAmount, formatDateLabel, formatMonthLabel, localDateStr,
@@ -28,10 +29,10 @@ const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 
 export default function Dashboard() {
   const {
-    transactions, categories, budgets, selectedMonth, setSelectedMonth,
+    transactions, categories, budgets, selectedMonth,
     getTotalIncome, getTotalExpenses, getBalance, getCarryForward, getNetBalanceToDate, getOutstandingCardBalance, getSpentForCategory,
     getTotalCommitments, getTotalDayToDay, getTotalSavings,
-    openEditSheet, openSheet,
+    openEditSheet,
   } = useFinance();
 
   useDefaultFabMenu();
@@ -87,8 +88,8 @@ export default function Dashboard() {
         value: monthDayToDay,
         pct: safePct(monthDayToDay),
         href: '/transactions',
-        barClass: 'bg-amber-500',
-        dotClass: 'bg-amber-500',
+        barClass: 'bg-warning-fill',
+        dotClass: 'bg-warning-fill',
         amountClass: 'text-foreground',
       },
       {
@@ -97,9 +98,9 @@ export default function Dashboard() {
         value: monthCommitments,
         pct: safePct(monthCommitments),
         href: '/transactions',
-        barClass: 'bg-indigo-500',
-        dotClass: 'bg-indigo-500',
-        amountClass: 'text-indigo-600 dark:text-indigo-400',
+        barClass: 'bg-accent',
+        dotClass: 'bg-accent',
+        amountClass: 'text-accent',
       },
       {
         key: 'savings' as const,
@@ -107,9 +108,9 @@ export default function Dashboard() {
         value: monthSavings,
         pct: safePct(monthSavings),
         href: '/transactions',
-        barClass: 'bg-sky-500',
-        dotClass: 'bg-sky-500',
-        amountClass: 'text-sky-600 dark:text-sky-400',
+        barClass: 'bg-savings',
+        dotClass: 'bg-savings',
+        amountClass: 'text-savings',
       },
     ];
   }, [monthDayToDay, monthCommitments, monthSavings, bucketTotal]);
@@ -156,38 +157,30 @@ export default function Dashboard() {
   const getCategoryById = (id: string) => categories.find(c => c.id === id);
 
   return (
-    <div className="p-4 md:p-6 pb-24 md:pb-8">
+    <div className="p-4 md:p-6 pb-40 md:pb-8">
       <MonthEndReviewBanner />
       <ConnectDriveBanner />
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Overview</p>
           <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Dashboard</h1>
         </div>
-        <div className="flex items-center gap-1 bg-muted rounded-xl px-1 py-1" data-testid="month-selector">
-          <button data-testid="prev-month" onClick={() => setSelectedMonth(addMonths(selectedMonth, -1))} className="p-1.5 rounded-lg hover:bg-background transition-colors">
-            <ChevronLeft size={16} />
-          </button>
-          <span className="text-xs font-semibold text-foreground px-2 min-w-[110px] text-center">{formatMonthLabel(selectedMonth)}</span>
-          <button data-testid="next-month" onClick={() => setSelectedMonth(addMonths(selectedMonth, 1))} disabled={isCurrentMonth} className="p-1.5 rounded-lg hover:bg-background transition-colors disabled:opacity-30">
-            <ChevronRight size={16} />
-          </button>
-        </div>
+        <PeriodSelector />
       </div>
 
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-4">
         {/* Balance Hero */}
-        <motion.div variants={item} className="rounded-2xl bg-[hsl(222,65%,13%)] text-white p-5 relative overflow-hidden" data-testid="balance-card">
-          <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-white/5 pointer-events-none" />
-          <div className="absolute -right-4 -bottom-12 w-48 h-48 rounded-full bg-white/5 pointer-events-none" />
+        <motion.div variants={item} className="rounded-2xl bg-hero text-hero-foreground p-5 relative overflow-hidden" data-testid="balance-card">
+          <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-hero-foreground/5 pointer-events-none" />
+          <div className="absolute -right-4 -bottom-12 w-48 h-48 rounded-full bg-hero-foreground/5 pointer-events-none" />
 
-          <p className="text-xs text-white/50 font-medium uppercase tracking-wider mb-1">Lifetime balance</p>
+          <p className="text-xs text-hero-foreground/60 font-medium uppercase tracking-wider mb-1">Lifetime balance</p>
           <p
             className={cn(
-              'font-bold mb-1 leading-tight',
+              'amount font-bold mb-1 leading-tight',
               Math.abs(netBalance) >= 10000000 ? 'text-2xl' : Math.abs(netBalance) >= 100000 ? 'text-3xl' : 'text-4xl',
-              netBalance >= 0 ? 'text-emerald-400' : 'text-red-400'
+              netBalance >= 0 ? 'text-income-on-hero' : 'text-spending-on-hero'
             )}
             style={{ fontFamily: 'var(--font-display)' }}
             data-testid="balance-amount"
@@ -197,58 +190,58 @@ export default function Dashboard() {
 
           {cardDebt > 0 && (
             <div
-              className="inline-flex items-center gap-1.5 bg-white/10 rounded-full px-2.5 py-1 mb-2"
+              className="inline-flex items-center gap-1 bg-hero-foreground/10 rounded-full px-3 py-1 mb-2"
               data-testid="card-debt-chip"
             >
-              <CreditCard size={11} className="text-white/70" />
-              <span className="text-[11px] font-semibold text-white/90">
+              <CreditCard size={11} className="text-hero-foreground/70" />
+              <span className="amount text-[11px] font-semibold text-hero-foreground/90">
                 {formatAmount(cardDebt)} on your card
               </span>
             </div>
           )}
 
           {/* Today's spend + avg/day */}
-          <p className="text-[12px] text-white/65 mb-3 leading-tight">
+          <p className="amount text-[12px] text-hero-foreground/70 mb-3 leading-tight">
             Spent {formatAmount(todaySpend)} today · avg {formatAmount(Math.round(avgPerDay))}/day
           </p>
 
           {/* 2×2 stats grid: Income / Expenses / Carry-forward / {Month} Balance */}
-          <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/10">
+          <div className="grid grid-cols-2 gap-3 pt-3 border-t border-hero-foreground/10">
             <div>
               <div className="flex items-center gap-1 mb-0.5">
-                <ArrowUp size={10} className="text-emerald-400" />
-                <p className="text-[11px] text-white/50">Income</p>
+                <ArrowUp size={10} className="text-income-on-hero" />
+                <p className="text-[11px] text-hero-foreground/60">Income</p>
               </div>
-              <p className="text-sm font-bold text-emerald-400 truncate" data-testid="income-amount">{formatAmount(income)}</p>
+              <p className="amount text-sm font-bold text-income-on-hero truncate" data-testid="income-amount">{formatAmount(income)}</p>
             </div>
             <div>
               <div className="flex items-center gap-1 mb-0.5">
-                <ArrowDown size={10} className="text-red-400" />
-                <p className="text-[11px] text-white/50">Expenses</p>
+                <ArrowDown size={10} className="text-spending-on-hero" />
+                <p className="text-[11px] text-hero-foreground/60">Expenses</p>
               </div>
-              <p className="text-sm font-bold text-red-400 truncate" data-testid="expenses-amount">{formatAmount(expenses)}</p>
+              <p className="amount text-sm font-bold text-spending-on-hero truncate" data-testid="expenses-amount">{formatAmount(expenses)}</p>
             </div>
             <div>
               <div className="flex items-center gap-1 mb-0.5">
-                <ArrowRightLeft size={10} className="text-white/50" />
-                <p className="text-[11px] text-white/50">Carry-forward</p>
+                <ArrowRightLeft size={10} className="text-hero-foreground/60" />
+                <p className="text-[11px] text-hero-foreground/60">Carry-forward</p>
               </div>
-              <p className={cn('text-sm font-bold truncate', carryForward > 0 ? 'text-emerald-400' : carryForward < 0 ? 'text-red-400' : 'text-white/70')}>
+              <p className={cn('amount text-sm font-bold truncate', carryForward > 0 ? 'text-income-on-hero' : carryForward < 0 ? 'text-spending-on-hero' : 'text-hero-foreground/70')}>
                 {formatAmount(carryForward)}
               </p>
-              <p className="text-[11px] text-white/50 mt-0.5 truncate">from {formatMonthLabel(prevMonth(selectedMonth))}</p>
+              <p className="text-[11px] text-hero-foreground/60 mt-0.5 truncate">from {formatMonthLabel(prevMonth(selectedMonth))}</p>
             </div>
-            <div className={cn('transition-colors', balance < 0 && 'bg-[rgba(226,75,74,0.15)] rounded-lg px-2 py-1 -mx-2 -my-1')}>
+            <div className={cn('transition-colors', balance < 0 && 'bg-spending-on-hero/15 rounded-lg px-2 py-1 -mx-2 -my-1')}>
               <div className="flex items-center gap-1 mb-0.5">
                 {balance > 0
-                  ? <ArrowUp size={10} className="text-emerald-400" />
+                  ? <ArrowUp size={10} className="text-income-on-hero" />
                   : balance < 0
-                    ? <ArrowDown size={10} className="text-red-400" />
-                    : <ArrowUpDown size={10} className="text-white/50" />}
-                <p className="text-[11px] text-white/50 truncate">{formatMonthLabel(selectedMonth)} balance</p>
+                    ? <ArrowDown size={10} className="text-spending-on-hero" />
+                    : <ArrowUpDown size={10} className="text-hero-foreground/60" />}
+                <p className="text-[11px] text-hero-foreground/60 truncate">{formatMonthLabel(selectedMonth)} balance</p>
               </div>
               <p
-                className={cn('text-sm font-bold truncate', balance > 0 ? 'text-emerald-400' : balance < 0 ? 'text-red-400' : 'text-white')}
+                className={cn('amount text-sm font-bold truncate', balance > 0 ? 'text-income-on-hero' : balance < 0 ? 'text-spending-on-hero' : 'text-hero-foreground')}
                 data-testid="month-net-balance-amount"
               >
                 {formatAmount(balance)}
@@ -268,8 +261,8 @@ export default function Dashboard() {
                 // = green. At >100% they're still a goal met (never red). For
                 // 75–99%, show a neutral "almost there" chip.
                 const chipClass = isGoalBucket
-                  ? (alert.pct >= 100 ? 'bg-[#E6F4EC] text-[#1D7A4E]' : 'bg-[#EAF0FB] text-[#1E3A8A]')
-                  : (over ? 'bg-[#FCEBEB] text-[#A32D2D]' : 'bg-[#FAEEDA] text-[#854F0B]');
+                  ? (alert.pct >= 100 ? 'bg-success-tint text-success' : 'bg-info-tint text-info')
+                  : (over ? 'bg-danger-tint text-danger' : 'bg-warning-tint text-warning');
                 // Status = icon + words, never color or emoji alone (DESIGN §5.10).
                 const [StatusIcon, label] = isGoalBucket
                   ? (alert.pct >= 100
@@ -284,7 +277,7 @@ export default function Dashboard() {
                     type="button"
                     onClick={() => setLocation(`/budgets?highlight=${encodeURIComponent(alert.categoryId)}`)}
                     className={cn(
-                      'flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap hover:opacity-90 transition-opacity',
+                      'tap-target flex-shrink-0 inline-flex items-center gap-1 min-h-9 px-3 py-2 rounded-full text-xs font-semibold whitespace-nowrap hover:opacity-90 transition-opacity',
                       chipClass,
                     )}
                     data-testid={`budget-alert-${alert.categoryId}`}
@@ -318,7 +311,7 @@ export default function Dashboard() {
                   key={row.key}
                   type="button"
                   onClick={() => setLocation(row.href)}
-                  className="w-full text-left group"
+                  className="w-full min-h-12 text-left group rounded-xl px-2 -mx-2 py-2 hover:bg-muted/40 transition-colors"
                   data-testid={`bucket-row-${row.key}`}
                 >
                   <div className="flex items-center justify-between mb-1">
@@ -327,7 +320,7 @@ export default function Dashboard() {
                       <span className="text-sm font-medium text-foreground truncate">{row.label}</span>
                       <span className="text-[11px] text-muted-foreground flex-shrink-0">{Math.round(row.pct)}%</span>
                     </div>
-                    <span className={cn('text-sm font-bold flex-shrink-0', row.amountClass)}>
+                    <span className={cn('amount text-sm font-bold flex-shrink-0 whitespace-nowrap', row.amountClass)}>
                       {formatAmount(row.value)}
                     </span>
                   </div>
@@ -341,7 +334,7 @@ export default function Dashboard() {
               ))}
               <div className="pt-2 border-t border-border flex items-center justify-between">
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total outflow</span>
-                <span className="text-sm font-bold text-foreground">{formatAmount(bucketTotal)}</span>
+                <span className="amount text-sm font-bold text-foreground whitespace-nowrap">{formatAmount(bucketTotal)}</span>
               </div>
             </div>
           )}
@@ -380,9 +373,9 @@ export default function Dashboard() {
                               }
                             }}
                             className={cn(
-                              'group flex items-center gap-3 py-2.5 px-3 rounded-xl',
+                              'group flex items-center gap-3 py-3 px-3 rounded-xl',
                               !t.savingsCorrection && 'hover:bg-muted/60 transition-colors cursor-pointer',
-                              isIncome && 'border-l-[3px] border-[#1D9E75] bg-[rgba(29,158,117,0.04)]',
+                              isIncome && 'border-l-[3px] border-income bg-income/5',
                             )}
                             data-testid={`transaction-${t.id}`}
                           >
@@ -396,17 +389,17 @@ export default function Dashboard() {
                               <p className="text-sm font-medium text-foreground truncate">{cat?.name || 'Unknown'}</p>
                               {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
                             </div>
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <div className="flex items-center gap-1 flex-shrink-0">
                               {(() => {
                                 const isSavings = t.type === 'expense' && SAVINGS_CATEGORY_ID_SET.has(t.categoryId);
                                 const colorClass = t.type === 'income'
-                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  ? 'text-income'
                                   : isSavings
-                                    ? 'text-sky-600 dark:text-sky-400'
-                                    : 'text-red-500 dark:text-red-400';
+                                    ? 'text-savings'
+                                    : 'text-spending';
                                 const prefix = t.type === 'income' ? '+' : isSavings ? '↗' : '−';
                                 return (
-                                  <span className={cn('text-sm font-bold', colorClass)}>
+                                  <span className={cn('amount text-sm font-bold whitespace-nowrap', colorClass)}>
                                     {prefix}{formatAmount(t.amount)}
                                   </span>
                                 );
@@ -423,7 +416,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setLocation('/transactions')}
-                  className="block mx-auto mt-4 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="tap-target block mx-auto mt-4 text-sm font-medium text-accent hover:underline"
                   data-testid="view-all-transactions"
                 >
                   View all {monthTransactions.length} transactions →

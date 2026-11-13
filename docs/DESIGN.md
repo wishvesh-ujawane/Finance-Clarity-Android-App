@@ -54,6 +54,8 @@ The only decorative element permitted is the existing pair of low-contrast circl
 
 All color is consumed through **semantic tokens**, never raw hex values or Tailwind palette names in components. This keeps screens consistent and keeps dark mode possible.
 
+**Implemented tokens (2026-11-13).** Every value in §2.1–§2.4 exists as a Tailwind color token defined in `src/index.css`: `hero`, `hero-foreground`, `income` / `income-tint` / `income-on-hero`, `spending` / `spending-tint` / `spending-on-hero`, `savings` / `savings-tint` / `savings-on-hero`, `warning` / `warning-tint` / `warning-fill`, `danger` / `danger-tint`, `success` / `success-tint` / `success-fill`, `info` / `info-tint`, and `scrim` (backdrops). Rationale: §2 already required these meanings, but components used palette classes (`text-emerald-600`, `bg-amber-500`) instead, so the same meaning rendered in different shades and failed contrast on tints (G2, G13). `warning-fill` (Amber 600) and `success-fill` (Emerald 600) exist because progress fills must reach 3:1 on white (§12.1) and the 500-level fills did not. Category colors from data and chart category slices stay as data, not tokens (§2.5).
+
 ### 2.1 Core neutrals and accent (light theme — release theme)
 
 | Token | Value | Use |
@@ -63,7 +65,7 @@ All color is consumed through **semantic tokens**, never raw hex values or Tailw
 | `card` | White `#FFFFFF` | Card and sheet surfaces |
 | `border` / `input` | Slate 200 `#E2E8F0` | Hairlines, card borders, dividers |
 | `muted` | Slate 200 `#E2E8F0` | Input fills, segmented-control tracks, progress tracks |
-| `muted-foreground` | Slate 500 `#64748B` | Secondary text, captions, eyebrows |
+| `muted-foreground` | Slate 600 `#475569` (changed from Slate 500 on 2026-11-13) | Secondary text, captions, eyebrows. Slate 600 reaches 4.5:1 on white, the slate canvas, and every status tint; Slate 500 failed on tints and banners |
 | `accent` | Electric Blue `#2563EB` | Primary actions, active nav, selection, focus ring |
 | `accent-foreground` | White | Text/icons on accent |
 | `hero` | Deep Navy `hsl(222 65% 13%)` | Balance hero and desktop sidebar only |
@@ -189,7 +191,7 @@ Base unit 4 px. Use only these steps: **4, 8, 12, 16, 20, 24, 32, 48**.
 |---|---|
 | Page horizontal padding | 16 (mobile), 24 (≥ 768 px) |
 | Page top padding | 16 + status-bar safe area |
-| Page bottom padding | 96 mobile (clears bottom nav + FAB), 32 desktop |
+| Page bottom padding | 160 mobile on screens with a FAB (clears bottom nav + FAB, §5.13), 96 mobile without a FAB, 32 desktop |
 | Gap between page header and content | 24 |
 | Gap between cards / sections | 16 |
 | Card inner padding | 20 |
@@ -280,6 +282,7 @@ One component, used everywhere a screen is scoped to a month (Dashboard, Transac
 - Tapping the label opens the **month picker sheet** (last 13 months, current month tagged "Current").
 - The next arrow is disabled on the current month. Disabled is shown with reduced opacity **and** announced as disabled.
 - The selected month persists while navigating between tabs in the same session.
+- **Implementation (2026-11-13):** `components/PeriodSelector.tsx`, used on Dashboard and Analysis. Arrows and the label have accessible names ("Previous month", "Next month", and "Change month, selected:" followed by the visible month label) and 48 px hit areas. Below 400 px wide the label shows `Nov 2026` so the selector stays on the header row. Transactions and Budgets do not use it yet (see open issues in the 2026-11-13 audit).
 
 ### 5.4 Card
 
@@ -633,7 +636,7 @@ All items are **Must** unless marked.
 
 ### 12.3 Touch and pointer
 
-- Minimum touch target 48 × 48 dp. A smaller visual control gets padding to reach this.
+- Minimum touch target 48 × 48 dp. A smaller visual control gets padding to reach this. The `tap-target` utility (`src/index.css`, added 2026-11-13) expands a small control's hit area to 48 × 48 with a transparent `::after` without changing its look; form fields get a 48 px minimum height from a base rule.
 - At least 8 dp between adjacent targets.
 - No essential action is hidden behind hover, long-press, or swipe only.
 
@@ -788,18 +791,18 @@ Recorded so they are fixed deliberately, not copied. None of these is authorized
 | # | Area | Current build | Spec |
 |---|---|---|---|
 | G1 | Branding | **Resolved 2026-11-12.** Sidebar wordmark, page title, and share text read "Fiscal Focus" | "Fiscal Focus" (§1.4) |
-| G2 | Contrast | **Partly resolved 2026-11-12:** the `destructive` token is Red 600 and the entry sheet's submit and type-toggle fills are 600-level. Still open: other 500-level fills and 600-level list amounts on white | 600/700 fills and text colors (§2.2, §2.4, §12.1) |
+| G2 | Contrast | **Resolved 2026-11-13.** Money and status text, tints, and fills use the §2.2–2.3 tokens; `muted-foreground` is Slate 600; progress fills are 600-level. axe WCAG 2.1 AA scans pass on onboarding, Dashboard, entry sheet, month-end review, and lock screen (e2e A11Y-001–005) | 600/700 fills and text colors (§2.2, §2.4, §12.1) |
 | G3 | Minimum text | **Resolved 2026-11-12.** All 9–10 px text and chart labels raised to 11 px; sidebar text on navy at 60% white. E2E DSN-001 checks every visible text node on the main screens | 11 px minimum; ≥ 60% white on navy (§3.2, §12.1) |
 | G4 | Status chips | **Resolved 2026-11-12.** Dashboard budget chips use an icon plus words ("over by", "% used", "funded", "paid") | Icon + words (§5.10) |
 | G5 | Thresholds | **Resolved 2026-11-12.** Savings bars and the Analysis budget pill warn at 75% | Single 75% threshold (§5.9) |
-| G6 | Period selector | Dashboard uses arrow stepper; Analysis uses picker sheet | One combined component (§5.3) |
+| G6 | Period selector | **Resolved 2026-11-13** for Dashboard and Analysis: both use `PeriodSelector` (arrows + label that opens the picker sheet). Transactions and Budgets still have no period selector (placement change, needs approval) | One combined component (§5.3) |
 | G7 | Fonts | **Resolved 2026-11-12.** Inter 400–600 and Manrope 500–800 (latin + latin-ext, OFL) are bundled in `src/assets/fonts`; no font request leaves the device. Inter 700 renders at the nearest loaded weight | Bundled fonts; Inter max 600 (§3.1) |
 | G8 | Amount formatting | **Resolved 2026-11-12** outside month-end: lists, cards, tiles, and Analysis use `formatAmount` (compact from 1 lakh); inputs, edit screens, and confirmations use `formatAmountFull`; charts use `formatAmountShort`. Month-end cards still use the full-precision alias (pending D8) | One canonical formatter (§4.6) |
 | G9 | Safe areas | **Resolved in code 2026-11-12.** `viewport-fit=cover`; bottom navigation, FAB, and main content use `env(safe-area-inset-*)`. Needs a device check (notch and gesture bar) | Insets respected everywhere (§10) |
 | G10 | Reduced motion | **Resolved 2026-11-12.** framer-motion `MotionConfig reducedMotion="user"` plus a global `prefers-reduced-motion` CSS rule | All motion (§9.4) |
-| G11 | Touch targets | **Resolved 2026-11-12** for the entry sheet's close and delete buttons (32 px icon, 48 px hit area). Other small icon buttons still need an audit | 48 px hit area (§12.3) |
+| G11 | Touch targets | **Resolved 2026-11-13.** Buttons, inputs, chips, tabs, switches, sheet and dialog close buttons, and icon actions have a 48 px hit area (`tap-target` utility or `min-h-12`). E2E UI-AUDIT checks every screen and sheet at 320/360/412 px. Exception pending approval: dense 7-column grids (Trends calendar and weekday heatmap, category icon picker), marked `data-dense-grid` | 48 px hit area (§12.3) |
 | G12 | Layering | **Resolved 2026-11-06.** Nothing else is rendered while the lock screen is shown | Lock screen topmost (§4.4) |
-| G13 | Hard-coded colors | Raw hex and hsl values in components (hero, sheets, chips, nav) | Semantic tokens only (§2) |
+| G13 | Hard-coded colors | **Resolved 2026-11-13.** Components use semantic tokens; charts use `hsl(var(--token))`. Remaining literals are data or brand: category colors and the category palette, the §2.5 fallback indigo, decorative confetti colors, and the Google Drive and WhatsApp brand marks | Semantic tokens only (§2) |
 | G14 | SMS | **Resolved 2026-11-11.** SMS settings row and route removed; the old route renders Not Found | Removed (PRD FR-10, §6.1) |
 | G15 | Disabled submit | **Resolved 2026-11-12.** The entry sheet shows what is missing (amount, category) under the disabled button | Visible hint (§5.12, §7.2) |
 | G16 | Share errors | **Resolved 2026-11-12.** Analysis share failure shows a toast; cancelling the share sheet shows nothing | Visible error (§13.7) |

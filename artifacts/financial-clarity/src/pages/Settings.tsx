@@ -8,7 +8,7 @@ import { FeedbackSheet } from '@/components/FeedbackSheet';
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-2">
+    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-2">
       {children}
     </p>
   );
@@ -32,112 +32,102 @@ export default function Settings() {
 
       {/* Finances */}
       <SectionLabel>Finances</SectionLabel>
-      <div className="bg-card border border-border rounded-2xl overflow-hidden mb-5">
-        <Link href="/settings/categories">
-          <button
-            type="button"
-            data-testid="settings-categories-link"
-            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/5 transition-colors"
-          >
-            <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
-              <Shapes size={18} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-foreground">Manage Categories</p>
-              <p className="text-xs text-muted-foreground">Create, update, and delete your category list.</p>
-            </div>
-            <ChevronRight size={16} className="text-muted-foreground" />
-          </button>
+      <div className="bg-card border border-border rounded-2xl overflow-hidden mb-6">
+        <Link
+          href="/settings/categories"
+          data-testid="settings-categories-link"
+          className="w-full min-h-14 flex items-center gap-3 px-5 py-3 text-left hover:bg-muted/40 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center flex-shrink-0">
+            <Shapes size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground">Manage Categories</p>
+            <p className="text-xs text-muted-foreground">Create, update, and delete your category list.</p>
+          </div>
+          <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" />
         </Link>
 
         <div className="border-t border-border" />
 
-        <Link href="/settings/recurring">
-          <button
-            type="button"
-            data-testid="settings-recurring-link"
-            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/5 transition-colors"
-          >
-            <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
-              <Repeat size={18} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-foreground">Recurring Expenses</p>
-              <p className="text-xs text-muted-foreground">
-                {recurringExpenses.length === 0
-                  ? 'Auto-add rent, EMIs, SIPs, and subscriptions every month.'
-                  : `${recurringExpenses.length} configured \u2022 ${activeRecurringCount} active`}
-              </p>
-            </div>
-            <ChevronRight size={16} className="text-muted-foreground" />
-          </button>
+        <Link
+          href="/settings/recurring"
+          data-testid="settings-recurring-link"
+          className="w-full min-h-14 flex items-center gap-3 px-5 py-3 text-left hover:bg-muted/40 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center flex-shrink-0">
+            <Repeat size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground">Recurring Expenses</p>
+            <p className="text-xs text-muted-foreground">
+              {recurringExpenses.length === 0
+                ? 'Auto-add rent, EMIs, SIPs, and subscriptions every month.'
+                : `${recurringExpenses.length} configured \u2022 ${activeRecurringCount} active`}
+            </p>
+          </div>
+          <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" />
         </Link>
 
         <div className="border-t border-border" />
 
-        <Link href="/settings/savings">
-          <button
-            type="button"
-            data-testid="settings-savings-link"
-            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/5 transition-colors"
-          >
-            <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
-              <PiggyBank size={18} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-foreground">Savings</p>
-              <p className="text-xs text-muted-foreground">
-                {hasSavingsTarget
-                  ? `Goal ${formatAmount(savingsGoal.goal.monthly)}/mo \u2022 Emergency ${formatAmount(savingsGoal.emergency.monthly)}/mo`
-                  : 'Set goal savings and emergency fund targets.'}
-              </p>
-            </div>
-            <ChevronRight size={16} className="text-muted-foreground" />
-          </button>
+        <Link
+          href="/settings/savings"
+          data-testid="settings-savings-link"
+          className="w-full min-h-14 flex items-center gap-3 px-5 py-3 text-left hover:bg-muted/40 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center flex-shrink-0">
+            <PiggyBank size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground">Savings</p>
+            <p className="text-xs text-muted-foreground">
+              {hasSavingsTarget
+                ? `Goal ${formatAmount(savingsGoal.goal.monthly)}/mo \u2022 Emergency ${formatAmount(savingsGoal.emergency.monthly)}/mo`
+                : 'Set goal savings and emergency fund targets.'}
+            </p>
+          </div>
+          <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" />
         </Link>
       </div>
 
       {/* Privacy & Data */}
       <SectionLabel>Privacy & Data</SectionLabel>
-      <div className="bg-card border border-border rounded-2xl overflow-hidden mb-5">
-        <Link href="/settings/security">
-          <button
-            type="button"
-            data-testid="settings-security-link"
-            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/5 transition-colors"
-          >
-            <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
-              <ShieldCheck size={18} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-foreground">Security</p>
-              <p className="text-xs text-muted-foreground">
-                {isAppLockEnabled
-                  ? `App lock is on${securitySettings?.biometricEnabled ? ' \u2022 biometrics enabled' : ''}`
-                  : 'Set a PIN to lock the app. Biometrics are offered on supported devices.'}
-              </p>
-            </div>
-            <ChevronRight size={16} className="text-muted-foreground" />
-          </button>
+      <div className="bg-card border border-border rounded-2xl overflow-hidden mb-6">
+        <Link
+          href="/settings/security"
+          data-testid="settings-security-link"
+          className="w-full min-h-14 flex items-center gap-3 px-5 py-3 text-left hover:bg-muted/40 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center flex-shrink-0">
+            <ShieldCheck size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground">Security</p>
+            <p className="text-xs text-muted-foreground">
+              {isAppLockEnabled
+                ? `App lock is on${securitySettings?.biometricEnabled ? ' \u2022 biometrics enabled' : ''}`
+                : 'Set a PIN to lock the app. Biometrics are offered on supported devices.'}
+            </p>
+          </div>
+          <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" />
         </Link>
 
         <div className="border-t border-border" />
 
-        <Link href="/settings/backup">
-          <button
-            type="button"
-            data-testid="settings-backup-link"
-            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/5 transition-colors"
-          >
-            <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
-              <Cloud size={18} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-foreground">Backup & Restore</p>
-              <p className="text-xs text-muted-foreground">Google Drive backup and CSV import/export.</p>
-            </div>
-            <ChevronRight size={16} className="text-muted-foreground" />
-          </button>
+        <Link
+          href="/settings/backup"
+          data-testid="settings-backup-link"
+          className="w-full min-h-14 flex items-center gap-3 px-5 py-3 text-left hover:bg-muted/40 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center flex-shrink-0">
+            <Cloud size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground">Backup & Restore</p>
+            <p className="text-xs text-muted-foreground">Google Drive backup and CSV import/export.</p>
+          </div>
+          <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" />
         </Link>
       </div>
 
@@ -148,35 +138,33 @@ export default function Settings() {
           type="button"
           data-testid="settings-feedback-link"
           onClick={() => setFeedbackOpen(true)}
-          className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/5 transition-colors"
+          className="w-full min-h-14 flex items-center gap-3 px-5 py-3 text-left hover:bg-muted/40 transition-colors"
         >
-          <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center flex-shrink-0">
             <MessageCircle size={18} />
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-bold text-foreground">Send Feedback</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground">Send Feedback</p>
             <p className="text-xs text-muted-foreground">Message us on WhatsApp or send an email.</p>
           </div>
-          <ChevronRight size={16} className="text-muted-foreground" />
+          <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" />
         </button>
 
         <div className="border-t border-border" />
 
-        <Link href="/settings/changelog">
-          <button
-            type="button"
-            data-testid="settings-changelog-link"
-            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/5 transition-colors"
-          >
-            <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
-              <Sparkles size={18} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-foreground">What&rsquo;s New</p>
-              <p className="text-xs text-muted-foreground">See what was added and fixed in each update.</p>
-            </div>
-            <ChevronRight size={16} className="text-muted-foreground" />
-          </button>
+        <Link
+          href="/settings/changelog"
+          data-testid="settings-changelog-link"
+          className="w-full min-h-14 flex items-center gap-3 px-5 py-3 text-left hover:bg-muted/40 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center flex-shrink-0">
+            <Sparkles size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground">What&rsquo;s New</p>
+            <p className="text-xs text-muted-foreground">See what was added and fixed in each update.</p>
+          </div>
+          <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" />
         </Link>
       </div>
 
@@ -185,7 +173,7 @@ export default function Settings() {
           v{__APP_VERSION__}
         </p>
         <p className="text-sm text-muted-foreground inline-flex items-center gap-1.5">
-          Made with <Heart size={14} className="text-red-500 fill-red-500" /> for finance enthusiasts
+          Made with <Heart size={14} className="text-danger fill-danger" /> for finance enthusiasts
         </p>
       </div>
 

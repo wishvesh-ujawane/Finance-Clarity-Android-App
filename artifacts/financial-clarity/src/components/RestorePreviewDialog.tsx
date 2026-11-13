@@ -48,7 +48,7 @@ export function RestorePreviewDialog({
                 expense on this device with the contents of your Google Drive backup.
               </p>
               {remote && (
-                <div className="rounded-lg border border-border p-3 space-y-1">
+                <div className="rounded-xl border border-border p-3 space-y-1">
                   <p className="font-medium text-foreground">Backup details</p>
                   <p className="text-xs text-muted-foreground">
                     Created: {formatDate(remote.exportedAt)}
@@ -82,7 +82,7 @@ export function RestorePreviewDialog({
           <AlertDialogAction
             disabled={busy || !remote}
             onClick={(e) => { e.preventDefault(); onConfirm(); }}
-            className="bg-red-600 text-white hover:bg-red-700"
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
             {busy ? 'Restoring\u2026' : 'Replace data'}
           </AlertDialogAction>

@@ -55,11 +55,11 @@ export function StartupErrorScreen({ problem, onRetry, onContinue }: StartupErro
       data-testid="startup-error-screen"
     >
       <div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-danger-tint text-danger">
           <AlertTriangle size={28} aria-hidden="true" />
         </div>
         <div className="space-y-2">
-          <h1 className="text-xl font-semibold text-foreground">{copy.title}</h1>
+          <h1 className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{copy.title}</h1>
           <p className="text-sm text-muted-foreground">{copy.body}</p>
         </div>
         <div className="flex w-full flex-col gap-2">

@@ -15,6 +15,8 @@ type ToasterToast = ToastProps & {
   action?: ToastActionElement
 }
 
+// Only read as a type (ActionType); kept as a value to mirror the reducer's action names.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
   UPDATE_TOAST: "UPDATE_TOAST",

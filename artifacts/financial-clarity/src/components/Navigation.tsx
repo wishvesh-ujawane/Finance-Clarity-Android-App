@@ -26,13 +26,13 @@ export function Navigation() {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col fixed left-0 top-0 h-full w-64 bg-[hsl(222,65%,13%)] text-white z-40 border-r border-white/10">
-        <div className="p-6 border-b border-white/10">
-          <div className="flex items-center gap-2.5">
+      <aside className="hidden md:flex flex-col fixed left-0 top-0 h-full w-64 bg-hero text-hero-foreground z-40 border-r border-hero-foreground/10">
+        <div className="p-6 border-b border-hero-foreground/10">
+          <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-              <TrendingUp size={16} className="text-white" />
+              <TrendingUp size={16} className="text-accent-foreground" />
             </div>
-            <p className="text-base font-bold text-white leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
+            <p className="text-base font-bold text-hero-foreground leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
               Fiscal Focus
             </p>
           </div>
@@ -48,8 +48,8 @@ export function Navigation() {
                   className={cn(
                     'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer',
                     isActive
-                      ? 'bg-accent text-white shadow-lg'
-                      : 'text-white/60 hover:text-white hover:bg-white/8'
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-hero-foreground/70 hover:text-hero-foreground hover:bg-hero-foreground/10'
                   )}
                 >
                   <Icon size={18} />
@@ -60,26 +60,26 @@ export function Navigation() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-white/10">
-          <div className="bg-white/5 rounded-xl p-4 space-y-3">
-            <p className="text-xs text-white/60 uppercase tracking-wider font-medium">Overview</p>
+        <div className="p-4 border-t border-hero-foreground/10">
+          <div className="bg-hero-foreground/5 rounded-xl p-4 space-y-3">
+            <p className="text-xs text-hero-foreground/60 uppercase tracking-wider font-medium">Overview</p>
             <div>
-              <p className="text-xs text-white/60">Lifetime balance</p>
+              <p className="text-xs text-hero-foreground/60">Lifetime balance</p>
               <p className={cn(
-                'text-xl font-bold',
-                balance >= 0 ? 'text-emerald-400' : 'text-red-400'
+                'amount text-xl font-bold',
+                balance >= 0 ? 'text-income-on-hero' : 'text-spending-on-hero'
               )} style={{ fontFamily: 'var(--font-display)' }}>
                 {formatAmount(balance)}
               </p>
             </div>
             <div className="flex gap-3">
               <div className="flex-1">
-                <p className="text-[11px] text-white/60">Income (this month)</p>
-                <p className="text-xs font-semibold text-emerald-400">{formatAmount(income)}</p>
+                <p className="text-[11px] text-hero-foreground/60">Income (this month)</p>
+                <p className="amount text-xs font-semibold text-income-on-hero">{formatAmount(income)}</p>
               </div>
               <div className="flex-1">
-                <p className="text-[11px] text-white/60">Expenses (this month)</p>
-                <p className="text-xs font-semibold text-red-400">{formatAmount(expenses)}</p>
+                <p className="text-[11px] text-hero-foreground/60">Expenses (this month)</p>
+                <p className="amount text-xs font-semibold text-spending-on-hero">{formatAmount(expenses)}</p>
               </div>
             </div>
           </div>
@@ -88,7 +88,7 @@ export function Navigation() {
 
       {/* Mobile Bottom Nav */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[hsl(222,65%,12%)] border-t border-border z-40"
+        className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border z-40"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         data-testid="bottom-nav"
       >
@@ -100,8 +100,8 @@ export function Navigation() {
                 <div
                   data-testid={`mobile-nav-${label.toLowerCase()}`}
                   className={cn(
-                    'flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors',
-                    isActive ? 'text-accent' : 'text-muted-foreground'
+                    'flex flex-col items-center justify-center min-h-12 py-2 gap-0.5 transition-colors',
+                    isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
                   <Icon size={19} />

@@ -130,11 +130,11 @@ export function BackupSettingsCard() {
 
       {/* Testing-phase banner */}
       <div className="px-5 pt-4">
-        <div className="relative overflow-hidden rounded-xl border border-amber-300/60 dark:border-amber-500/30 bg-gradient-to-br from-amber-50 via-orange-50 to-pink-50 dark:from-amber-500/10 dark:via-orange-500/10 dark:to-pink-500/10 p-4">
-          <div className="pointer-events-none absolute -top-8 -right-8 w-28 h-28 rounded-full bg-amber-300/30 dark:bg-amber-400/10 blur-2xl" />
-          <div className="pointer-events-none absolute -bottom-10 -left-8 w-28 h-28 rounded-full bg-pink-300/30 dark:bg-pink-400/10 blur-2xl" />
+        <div className="relative overflow-hidden rounded-xl border border-warning/30 bg-warning-tint p-4">
+          <div className="pointer-events-none absolute -top-8 -right-8 w-28 h-28 rounded-full bg-warning/10 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-10 -left-8 w-28 h-28 rounded-full bg-warning/10 blur-2xl" />
           <div className="relative flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-sm shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-warning-fill text-hero-foreground flex items-center justify-center shrink-0">
               <FlaskConical size={18} />
             </div>
             <div className="flex-1 min-w-0">
@@ -147,7 +147,7 @@ export function BackupSettingsCard() {
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="backup-tester-whatsapp"
-                className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#25D366] text-white text-xs font-semibold hover:bg-[#1ebe57] transition-colors shadow-sm"
+                className="tap-target mt-3 inline-flex min-h-10 items-center gap-2 px-3 rounded-lg bg-[#25D366] text-white text-xs font-semibold hover:bg-[#1ebe57] transition-colors shadow-sm"
               >
                 <WhatsAppIcon size={14} />
                 Message on WhatsApp
@@ -175,7 +175,7 @@ export function BackupSettingsCard() {
             <button
               data-testid="backup-signout"
               onClick={() => void signOut()}
-              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+              className="tap-target min-h-9 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
             >
               <LogOut size={13} /> Disconnect
             </button>
@@ -185,7 +185,7 @@ export function BackupSettingsCard() {
             data-testid="backup-connect"
             onClick={handleConnect}
             disabled={busy}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-40"
+            className="w-full min-h-12 flex items-center justify-center gap-2 px-4 rounded-xl bg-accent text-accent-foreground text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-40"
           >
             <Cloud size={15} />
             {status === 'signing-in' ? 'Connecting\u2026' : 'Connect Google Drive'}
@@ -198,7 +198,7 @@ export function BackupSettingsCard() {
               data-testid="backup-now"
               onClick={handleBackupNow}
               disabled={busy}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[hsl(222,65%,13%)] text-white text-sm font-semibold hover:bg-[hsl(222,65%,18%)] transition-colors disabled:opacity-40"
+              className="w-full min-h-12 flex items-center justify-center gap-2 px-4 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90 text-sm font-semibold disabled:opacity-40"
             >
               <Upload size={15} />
               {status === 'backing-up' ? 'Uploading\u2026' : 'Backup now'}
@@ -235,13 +235,13 @@ export function BackupSettingsCard() {
             </label>
 
             {lastAutoBackupError && (
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 text-red-600 text-xs">
+              <div className="flex items-start gap-2 p-3 rounded-xl bg-danger-tint text-danger text-xs">
                 <AlertCircle size={14} className="mt-0.5 shrink-0" />
                 <div className="flex-1">
                   <p className="font-semibold">Last auto-backup failed</p>
                   <p>{lastAutoBackupError}</p>
                 </div>
-                <button onClick={handleBackupNow} className="font-semibold hover:underline">
+                <button onClick={handleBackupNow} className="tap-target font-semibold hover:underline">
                   Retry
                 </button>
               </div>
@@ -250,15 +250,15 @@ export function BackupSettingsCard() {
         )}
 
         {error && (
-          <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 text-red-600 text-xs">
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-danger-tint text-danger text-xs">
             <AlertCircle size={14} className="mt-0.5 shrink-0" />
             <div className="flex-1">{error}</div>
-            <button onClick={clearError} className="font-semibold hover:underline">Dismiss</button>
+            <button onClick={clearError} className="tap-target font-semibold hover:underline">Dismiss</button>
           </div>
         )}
 
         {status === 'idle' && lastBackupAt && !error && (
-          <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 pl-1">
+          <div className="flex items-center gap-2 text-xs text-success pl-1">
             <CheckCircle2 size={13} /> Up to date.
           </div>
         )}

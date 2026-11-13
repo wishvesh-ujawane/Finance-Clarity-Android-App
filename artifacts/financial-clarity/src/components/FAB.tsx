@@ -45,7 +45,7 @@ export function FAB() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setMenuOpen(false)}
-            className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40"
+            className="fixed inset-0 bg-scrim/40 backdrop-blur-[2px] z-40"
             data-testid="fab-backdrop"
           />
         )}
@@ -76,13 +76,13 @@ export function FAB() {
                 className="flex items-center gap-3"
                 aria-label={item.label}
               >
-                <span className="rounded-lg bg-white dark:bg-[hsl(222,65%,15%)] shadow-md px-2.5 py-1 text-xs font-semibold text-foreground border border-border">
+                <span className="rounded-lg bg-card shadow-md px-3 py-1 text-xs font-semibold text-foreground border border-border">
                   {item.label}
                 </span>
                 <span
                   className={cn(
                     'w-11 h-11 rounded-full shadow-lg flex items-center justify-center',
-                    item.className ?? 'bg-accent text-white',
+                    item.className ?? 'bg-accent text-accent-foreground',
                   )}
                 >
                   {item.icon}
@@ -99,7 +99,7 @@ export function FAB() {
         data-testid={fabAction.testId ?? 'fab-add'}
         onClick={handleMainClick}
         className={cn(
-          'fixed bottom-20 right-5 md:bottom-8 md:right-8 z-50 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center bg-accent text-white',
+          'fixed bottom-20 right-5 md:bottom-8 md:right-8 z-50 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center bg-accent text-accent-foreground',
           fabAction.className,
         )}
         style={{ marginBottom: 'env(safe-area-inset-bottom)' }}

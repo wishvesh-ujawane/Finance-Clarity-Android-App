@@ -187,6 +187,7 @@ export function LockScreen() {
             onChange={handleChange}
             disabled={cooldownRemaining > 0}
             autoFocus
+            aria-label="PIN"
             inputMode="numeric"
             pattern="[0-9]*"
           >
@@ -195,7 +196,7 @@ export function LockScreen() {
                 <InputOTPSlot
                   key={i}
                   index={i}
-                  className="h-14 w-12 text-lg rounded-md border border-input first:rounded-l-md last:rounded-r-md"
+                  className="h-14 w-12 text-lg rounded-xl border border-input first:rounded-l-xl last:rounded-r-xl"
                 />
               ))}
             </InputOTPGroup>
@@ -203,7 +204,7 @@ export function LockScreen() {
         </div>
 
         {(error || cooldownRemaining > 0) && (
-          <p className="text-xs font-medium text-destructive flex items-center gap-1.5" role="alert">
+          <p className="text-xs font-medium text-destructive flex items-center gap-1" role="alert">
             <ShieldAlert size={14} />
             {cooldownRemaining > 0 ? `Too many attempts. Try again in ${formatCooldown(cooldownRemaining)}.` : error}
           </p>
@@ -215,7 +216,7 @@ export function LockScreen() {
             onClick={handleBiometric}
             disabled={cooldownRemaining > 0 || isBiometricBusy}
             data-testid="lock-screen-biometric"
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card border border-border text-sm font-semibold text-foreground hover:bg-accent/5 transition-colors disabled:opacity-40"
+            className="flex items-center gap-2 min-h-12 px-4 py-3 rounded-xl bg-card border border-border text-sm font-semibold text-foreground hover:bg-muted/40 transition-colors disabled:opacity-40"
           >
             <Fingerprint size={16} />
             {isBiometricBusy ? 'Checking...' : 'Use biometrics'}
@@ -233,7 +234,7 @@ export function LockScreen() {
             <button
               type="button"
               data-testid="lock-screen-reset"
-              className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+              className="tap-target py-2 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
             >
               Forgot PIN? Reset app data
             </button>
@@ -250,7 +251,7 @@ export function LockScreen() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={resetAllData}
-                className="bg-red-600 text-white hover:bg-red-700"
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Reset everything
               </AlertDialogAction>

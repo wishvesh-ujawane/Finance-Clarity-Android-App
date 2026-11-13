@@ -22,18 +22,18 @@ export function StorageNoticeBanner({ reports }: { reports: QuarantineReport[] }
 
   return (
     <div
-      className="mx-4 mt-4 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 md:mx-8"
+      className="mx-4 mt-4 flex items-start gap-3 rounded-xl border border-info/20 bg-info-tint p-4 md:mx-8"
       role="status"
       aria-label={'Some data couldn\u2019t be read'}
       data-testid="storage-notice-banner"
     >
-      <Info className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+      <Info className="mt-0.5 h-5 w-5 shrink-0 text-info" aria-hidden="true" />
       <p className="flex-1 text-sm text-foreground">{noticeText(reports)}</p>
       <button
         type="button"
         onClick={() => setDismissed(true)}
         aria-label="Dismiss"
-        className="-m-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="-m-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-foreground/80 hover:bg-info/10 hover:text-foreground"
       >
         <X className="h-4 w-4" />
       </button>
