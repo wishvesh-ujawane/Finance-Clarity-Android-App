@@ -68,6 +68,7 @@ Do not create new top-level project documents on your own. Add one only when the
 |---|---|---|
 | `artifacts/financial-clarity/` | **The product** (Vite + React + Capacitor Android) and the only workspace package | All app work happens here |
 | `docs/` | Core documents (§1.1), implementation plan, testing notes, build guides | Keep the core documents here; AGENTS.md stays at the root |
+| `docs/PROGRESS.md` | Progress snapshot: what is built, current versions, open items | Read it first when starting a session. It is a summary, not a source of truth; update it after each merged change |
 | `scripts/` | Android build helpers (`build-debug-apk.ps1`, `clean-build.ps1`) | Plain scripts, not a workspace package |
 | `docs/knowledge-base/` | Canonical project record | Update it after non-trivial work (§12) |
 | `docs/audits/`, `docs/manuals/` | Reports and manuals | Add dated files; do not rewrite history |
