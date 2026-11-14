@@ -27,6 +27,16 @@ export const MAX_CHANGE_TEXT_LENGTH = 140;
 
 export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-11-14',
+    version: '1.0.0',
+    changes: [
+      { kind: 'new', text: 'Tap the round picture at the top of Settings to open your profile with your Google name, email, and photo.' },
+      { kind: 'new', text: 'Sign in to Google, refresh your profile, or disconnect, all from the Profile page.' },
+      { kind: 'new', text: 'App lock and security settings now live inside your profile.' },
+      { kind: 'fixed', text: 'Switching to another Google account no longer reuses the previous account\u2019s backup folder.' },
+    ],
+  },
+  {
     date: '2026-11-13',
     version: '1.0.0',
     changes: [
