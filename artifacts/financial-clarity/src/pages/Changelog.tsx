@@ -44,9 +44,9 @@ export function ChangelogView({ entries }: { entries: ChangelogEntry[] }) {
         </div>
       ) : (
         <ol className="flex flex-col gap-4" data-testid="changelog-list">
-          {entries.map(entry => (
+          {entries.map((entry, index) => (
             <li
-              key={`${entry.date}-${entry.version}`}
+              key={`${entry.date}-${entry.version}-${index}`}
               className="bg-card border border-border rounded-2xl p-5"
               data-testid="changelog-entry"
             >

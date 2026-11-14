@@ -6,6 +6,10 @@ Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-11-14 — AGENTS.md §13.1, §14; DESIGN §13.16; BUILD_AND_DEPLOY §3; PROGRESS.md; features/changelog.md; testing.md — Owner standing instruction: every user-visible app change adds a What's New line in the same change, without separate approval. Added the missing PR #29 entry (card dues, budget summary, Trends) as a second 2026-11-14 card, and fixed duplicate React keys for same-date entries.
+
+2026-11-14 — decisions/0011-google-profile-photo-host.md; decisions/README.md; features/profile.md; API.md §1.1, §11.1; ARCHITECTURE §3; DATABASE §9.1; DESIGN §5.21; PROGRESS.md; testing.md — Owner approved Google's profile-photo host as a destination; the avatar now loads only https `*.googleusercontent.com` photos. What's New entry added for the Profile page.
+
 2026-11-14 — PROGRESS.md; testing.md (NAV-001, PRF-001, release check 8, run log); BUILD_ON_HOME_PC.md §9; ARCHITECTURE §4.3; DATABASE drive_folder_cache and disconnect rows; architecture/financial-clarity.md — Post-merge doc sweep for PR #32 (Profile page): routes, device checklist, test register, folder-cache clearing on disconnect and account switch, and open follow-ups.
 
 2026-11-14 — features/profile.md; features/settings.md; features/security.md; features/backup-restore.md; features/README.md; DESIGN §5.21, §6.1, §6.4, §13.8, §13.12, §13.13, §13.17; API.md §3.4; ARCHITECTURE §9.3 — Profile page behind a round avatar button on Settings: Google name, email, and photo (read-only, Refresh from Google), sign in and Disconnect moved from the Backup card, Security moved from the Settings list. Switching Google accounts now clears the previous account's Drive folder cache.

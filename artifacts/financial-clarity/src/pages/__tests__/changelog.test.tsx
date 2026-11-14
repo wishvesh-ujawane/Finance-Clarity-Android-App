@@ -60,6 +60,28 @@ describe('Changelog page', () => {
     expect(screen.queryByTestId('changelog-empty')).toBeNull();
   });
 
+  it('shows every entry when one date has more than one entry', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      render(
+        <ChangelogView
+          entries={[
+            { date: '2026-03-01', version: '1.2.0', changes: [{ kind: 'new', text: 'First batch.' }] },
+            { date: '2026-03-01', version: '1.2.0', changes: [{ kind: 'new', text: 'Second batch.' }] },
+          ]}
+        />,
+      );
+
+      const items = screen.getAllByTestId('changelog-entry');
+      expect(items).toHaveLength(2);
+      expect(within(items[0]).getByText('First batch.')).toBeTruthy();
+      expect(within(items[1]).getByText('Second batch.')).toBeTruthy();
+      expect(consoleError.mock.calls.some(args => String(args[0]).includes('same key'))).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it('shows an empty state when there are no release notes', () => {
     render(<ChangelogView entries={[]} />);
     expect(screen.getByTestId('changelog-empty')).toBeTruthy();

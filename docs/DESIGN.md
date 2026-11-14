@@ -441,7 +441,7 @@ Inline inside the card or list it replaces. No illustration.
 
 - **Added 2026-11-14** (`components/ProfileAvatar.tsx`). Rationale: the Google profile picture appears on Settings, Profile, and the Backup card, and each needs the same fallbacks. One component replaces the inline avatar the Backup card used to draw.
 - Full radius (§4.3). Sizes: 36 px (header button, Backup card) and 80 px (Profile page).
-- Shows the Google photo. If the photo fails to load, it shows the first letter of the name (or email) on an accent tint. When no Google account is connected, it shows a generic person icon on `muted`.
+- Shows the Google photo, loaded only over `https` from Google's photo host (API.md §1.1, ADR-0011). If the photo fails to load or its URL is not allowed, it shows the first letter of the name (or email) on an accent tint. When no Google account is connected, it shows a generic person icon on `muted`.
 - Decorative only (`aria-hidden`). The surrounding button or link carries the accessible name. No new tokens.
 
 ---
@@ -787,7 +787,7 @@ Standard page: title "Page not found", one sentence, primary button "Go to Dashb
 
 ### 13.16 What's New
 
-Settings sub-page (`/settings/changelog`) listing release notes bundled with the app, newest first. Each release is a card with the date and version, then 1 to 4 short lines, each with a text badge **New** (accent tint) or **Fixed** (secondary). Badges carry text, so meaning does not rely on color (§12.2). If there are no notes, it shows an empty state card ("No updates yet"). Notes are static, so there is no loading or error state. Built from the existing card, settings-row, and page-header patterns; no new components or tokens. Entry rules are in AGENTS.md §13.1.
+Settings sub-page (`/settings/changelog`) listing release notes bundled with the app, newest first. Each release is a card with the date and version, then 1 to 4 short lines, each with a text badge **New** (accent tint) or **Fixed** (secondary). Badges carry text, so meaning does not rely on color (§12.2). If there are no notes, it shows an empty state card ("No updates yet"). Notes are static, so there is no loading or error state. Built from the existing card, settings-row, and page-header patterns; no new components or tokens. One date can have more than one card when it has more than four lines. Entry rules are in AGENTS.md §13.1: every user-visible app change adds a line, without separate owner approval (standing instruction, 2026-11-14).
 
 ### 13.17 Profile
 

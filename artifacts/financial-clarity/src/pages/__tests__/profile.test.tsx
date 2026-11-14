@@ -11,7 +11,7 @@ const SYNTHETIC_USER = {
   id: 'u1',
   email: 'synthetic@example.invalid',
   name: 'Synthetic User',
-  imageUrl: 'https://example.invalid/photo.png',
+  imageUrl: 'https://lh3.googleusercontent.com/a/synthetic-photo',
 };
 
 const session = vi.hoisted(() => ({ user: null as null | { id: string; email: string; name: string; imageUrl?: string } }));
@@ -192,6 +192,20 @@ describe('Profile page when signed in to Google', () => {
 
     expect(screen.getByTestId('profile-account-card').querySelector('img')).toBeNull();
     expect(screen.getByTestId('profile-account-card').querySelector('[data-testid="profile-avatar"]')?.textContent).toBe('S');
+  });
+
+  it.each([
+    ['another host', 'https://example.invalid/photo.png'],
+    ['a look-alike host', 'https://googleusercontent.com.example.invalid/photo.png'],
+    ['plain http', 'http://lh3.googleusercontent.com/a/synthetic-photo'],
+    ['an unparseable URL', 'not a url'],
+  ])('loads no photo from %s and shows the initial instead', async (_label, imageUrl) => {
+    session.user = { ...SYNTHETIC_USER, imageUrl };
+    await renderProfile();
+
+    const card = screen.getByTestId('profile-account-card');
+    expect(card.querySelector('img')).toBeNull();
+    expect(card.querySelector('[data-testid="profile-avatar"]')?.textContent).toBe('S');
   });
 
   it('shows app lock status on the security row', async () => {

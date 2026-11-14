@@ -466,7 +466,7 @@ Pages and components never access storage directly. **Only the storage layer rea
 |---|---|---|
 | **Financial (high)** | `transactions` (amount, note, merchant, date), `budgets`, `recurring_rules`, `savings_targets`, `reconciliations`, CSV and PNG exports, backup files | Stored only on the device or in the user's Drive. Never logged. Never sent to any diagnostics service |
 | **Credential-derived (high)** | `security_settings.pinHash` and `pinSalt` | The PIN itself is never stored. The hash is never logged or exported. Excluded from backups |
-| **Personal (medium)** | `google_profile_cache` (email, name, photo URL) | Display only. Excluded from backups. Cleared when Google is disconnected. Never sent off the device by the app |
+| **Personal (medium)** | `google_profile_cache` (email, name, photo URL) | Display only. Excluded from backups. Cleared when Google is disconnected. The photo URL is used only to load the image from Google's photo host (API.md §1.1); nothing else is sent off the device |
 | **Legacy (medium)** | `legacy_sms`, `transactions.sourceSmsFingerprint` | Read-only. Not shown in the UI or CSV. Carried in backups for compatibility. Any purge needs a separate proposal (PRD FR-10) |
 | **Operational (low)** | Flags, caches, `backup_preferences`, `storage_meta` | `lastAutoBackupError` holds only an error category |
 | **Secrets** | OAuth access and refresh tokens | **Never stored** by the app. The auth plugin manages them |
