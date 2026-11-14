@@ -66,7 +66,7 @@ All Analysis totals use the PRD §6 classification from
 - **Budget suggestions** skip inactive categories (unless next month already
   has that budget), ask before replacing an existing limit, and report a save
   failure with how many suggestions were saved.
-- **Trends** (since 2026-11-14, ADR-0009): daily spend calendar and Income vs
+- **Trends** (since 2026-11-14, ADR-0010): daily spend calendar and Income vs
   Spend show consumption. "What changed vs last month"
   (`categorySpendChanges`) compares consumption per category; a month in
   progress is compared with the same days of the previous month, and it shows

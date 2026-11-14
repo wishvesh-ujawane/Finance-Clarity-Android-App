@@ -102,9 +102,9 @@ export function MonthEndReconcileCard({ reviewMonth, onContinue, onBack, onSkip 
         </div>
 
         {existing && !confirmed && (
-          <div className="mb-4 flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            <div className="text-xs text-emerald-800 dark:text-emerald-200">
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-success/30 bg-success-tint p-3">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+            <div className="text-xs text-success">
               You already reconciled this month on{' '}
               <span className="font-semibold">
                 {new Date(existing.reconciledAt).toLocaleDateString('en-IN', {
@@ -179,9 +179,9 @@ export function MonthEndReconcileCard({ reviewMonth, onContinue, onBack, onSkip 
         </div>
 
         <div className="rounded-xl border border-border bg-muted/30 p-3">
-          <div className="flex items-center justify-between py-1.5 text-sm">
-            <span className="text-muted-foreground">App calculated</span>
-            <span className="font-semibold text-foreground" data-testid="reconcile-expected">
+          <div className="flex items-center justify-between gap-2 py-1.5 text-sm">
+            <span className="min-w-0 text-muted-foreground">App calculated</span>
+            <span className="amount shrink-0 whitespace-nowrap font-semibold text-foreground" data-testid="reconcile-expected">
               {formatAmountFull(expected)}
             </span>
           </div>
@@ -191,23 +191,23 @@ export function MonthEndReconcileCard({ reviewMonth, onContinue, onBack, onSkip 
               Includes {formatAmountFull(unpaidCard)} of card purchases not yet paid from your bank.
             </p>
           )}
-          <div className="flex items-center justify-between py-1.5 text-sm">
-            <span className="text-muted-foreground">You said</span>
-            <span className={cn('font-semibold', hasInput ? 'text-foreground' : 'text-muted-foreground/60')} data-testid="reconcile-actual">
+          <div className="flex items-center justify-between gap-2 py-1.5 text-sm">
+            <span className="min-w-0 text-muted-foreground">You said</span>
+            <span className={cn('amount shrink-0 whitespace-nowrap font-semibold', hasInput ? 'text-foreground' : 'text-muted-foreground/60')} data-testid="reconcile-actual">
               {parsed !== null ? formatAmountFull(parsed) : '—'}
             </span>
           </div>
           <div className={cn(
-            'mt-1 flex items-center justify-between border-t border-border/70 py-1.5 text-sm',
+            'mt-1 flex items-center justify-between gap-2 border-t border-border/70 py-1.5 text-sm',
           )}>
             <span className="font-semibold text-foreground">Gap</span>
             <span
               className={cn(
-                'font-bold',
+                'amount shrink-0 whitespace-nowrap font-bold',
                 !hasInput ? 'text-muted-foreground/60'
-                : absGap < 0.005 ? 'text-emerald-600 dark:text-emerald-400'
-                : gap > 0 ? 'text-amber-600 dark:text-amber-400'
-                : 'text-sky-600 dark:text-sky-400',
+                : absGap < 0.005 ? 'text-success'
+                : gap > 0 ? 'text-warning'
+                : 'text-info',
               )}
               data-testid="reconcile-gap"
             >
@@ -222,7 +222,7 @@ export function MonthEndReconcileCard({ reviewMonth, onContinue, onBack, onSkip 
         </div>
 
         {hasInput && absGap >= 0.005 && !confirmed && (
-          <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-100">
+          <div className="mt-4 rounded-xl border border-warning/30 bg-warning-tint p-3 text-xs text-warning">
             <div className="flex items-start gap-2">
               <HelpCircle className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
@@ -254,7 +254,7 @@ export function MonthEndReconcileCard({ reviewMonth, onContinue, onBack, onSkip 
         )}
 
         {confirmed && (
-          <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-900 dark:text-emerald-100">
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-success/30 bg-success-tint p-3 text-xs text-success">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               Saved. Existing transactions remain available.

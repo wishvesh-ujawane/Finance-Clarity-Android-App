@@ -23,7 +23,7 @@ source-of-truth-files:
 Monthly budgets and savings targets. Header shows "Monthly · Budgets" and a
 "Copy to {next month}" button.
 
-**Budget summary** (since 2026-11-14, ADR-0009): `BudgetSummaryCard` shows
+**Budget summary** (since 2026-11-14, ADR-0010): `BudgetSummaryCard` shows
 "Budgets for {Month}" with one row each for Day-to-day, Commitments, and
 Savings ("₹X spent/paid/saved of ₹Y" with a status line), a "+ ₹N … in
 categories without a budget" line where it applies, and "All spending this

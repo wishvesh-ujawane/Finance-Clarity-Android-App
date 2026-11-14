@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
 import { Cloud, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { useBackup } from '@/context/BackupContext';
 import {
   dismissConnectDriveBanner,
@@ -30,26 +30,24 @@ export function ConnectDriveBanner() {
 
   return (
     <div
-      className="mb-4 flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4"
+      className="mb-4 flex items-start gap-3 rounded-xl border border-info/20 bg-info-tint p-4"
       role="region"
       aria-label="Connect Google Drive"
       data-testid="connect-drive-banner"
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-        <Cloud className="h-5 w-5 text-primary" />
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info/10">
+        <Cloud className="h-5 w-5 text-info" aria-hidden="true" />
       </div>
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-foreground">
           Keep your data safe
         </p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
+        <p className="mt-1 text-xs text-foreground">
           Connect Google Drive to back up your transactions and restore them on another device.
         </p>
         <div className="mt-3 flex gap-2">
-          <Link href="/settings/backup">
-            <Button size="sm" data-testid="connect-drive-banner-cta">
-              Connect Drive
-            </Button>
+          <Link href="/settings/backup" className={buttonVariants({ size: 'sm' })} data-testid="connect-drive-banner-cta">
+            Connect Drive
           </Link>
           <Button size="sm" variant="ghost" onClick={handleDismiss}>
             Not now
@@ -60,7 +58,7 @@ export function ConnectDriveBanner() {
         type="button"
         onClick={handleDismiss}
         aria-label="Dismiss"
-        className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="tap-target rounded-lg p-1 text-foreground/80 hover:bg-info/10 hover:text-foreground"
       >
         <X className="h-4 w-4" />
       </button>

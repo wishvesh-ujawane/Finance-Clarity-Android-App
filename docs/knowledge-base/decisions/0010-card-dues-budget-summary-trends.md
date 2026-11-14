@@ -1,6 +1,6 @@
 ---
-id: decision-0009
-title: ADR-0009 — Card dues from the Dashboard, one shared budget summary, new Trends cards
+id: decision-0010
+title: ADR-0010 — Card dues from the Dashboard, one shared budget summary, new Trends cards
 date: 2026-11-14
 updated: 2026-11-14
 status: accepted
@@ -25,7 +25,7 @@ source-of-truth-files:
   - artifacts/financial-clarity/src/components/month-end/MonthEndCardBillCard.tsx
 ---
 
-# ADR-0009 — Card dues from the Dashboard, one shared budget summary, new Trends cards
+# ADR-0010 — Card dues from the Dashboard, one shared budget summary, new Trends cards
 
 ## Context
 
@@ -98,6 +98,19 @@ No new field, storage key, schema version, dependency, or permission.
 
 ## Consequences
 
+- Integration: main's UI-polish commit was committed on 2026-11-13 at
+  22:58 IST and merged at 23:03 IST. The card/budget change was committed
+  on 2026-11-14 at 12:35 IST from the same older base. The merge preserves
+  the UI polish and the new financial behavior rather than choosing a
+  whole file by timestamp. This ADR was renumbered from 0009 to 0010
+  because the earlier UI-tooling decision already uses 0009.
+- Integration checks caught a missing 48 px budget-link hit area, clipped
+  Trends values at 130% text size, and a focus race between the card sheet
+  and transaction editor. The link uses the shared hit-area helper,
+  category totals wrap below their label, and editing waits for the sheet's
+  close-focus callback instead of a fixed delay. Closing the card sheet
+  restores focus to its opener. A11Y-008 and the existing layout audit
+  cover the integrated behavior, including the optional month-end card step.
 - Positive: card dues can be cleared at any time; month-end cannot
   double-record them; both budget screens agree and add up to the Dashboard.
 - Negative: the payment limit uses entries dated after the payment date, so a

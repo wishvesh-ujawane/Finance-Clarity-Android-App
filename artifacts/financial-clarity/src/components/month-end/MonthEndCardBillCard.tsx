@@ -88,19 +88,19 @@ export function MonthEndCardBillCard({ reviewMonth, onContinue, onBack }: Props)
         </div>
 
         <div className="rounded-xl border border-border bg-muted/30 p-3">
-          <div className="flex items-center justify-between py-1.5 text-sm">
-            <span className="flex items-center gap-1.5 text-muted-foreground">
+          <div className="flex items-center justify-between gap-2 py-1.5 text-sm">
+            <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
               <CreditCard className="h-4 w-4" aria-hidden="true" />
               Still unpaid on {dayLabel}
             </span>
-            <span className="font-semibold text-foreground" data-testid="card-bill-owed">
+            <span className="amount shrink-0 whitespace-nowrap font-semibold text-foreground" data-testid="card-bill-owed">
               {formatAmountFull(owed)}
             </span>
           </div>
           {paidThisMonth > 0 && (
-            <div className="flex items-center justify-between py-1.5 text-sm">
-              <span className="text-muted-foreground">Bill payments recorded in {monthLabel}</span>
-              <span className="font-semibold text-foreground" data-testid="card-bill-paid">
+            <div className="flex items-center justify-between gap-2 py-1.5 text-sm">
+              <span className="min-w-0 text-muted-foreground">Bill payments recorded in {monthLabel}</span>
+              <span className="amount shrink-0 whitespace-nowrap font-semibold text-foreground" data-testid="card-bill-paid">
                 {formatAmountFull(paidThisMonth)}
               </span>
             </div>
@@ -171,8 +171,8 @@ export function MonthEndCardBillCard({ reviewMonth, onContinue, onBack }: Props)
         )}
 
         {recorded !== null && (
-          <div className="mt-4 flex items-start gap-2 rounded-xl border border-border bg-muted/30 p-3 text-xs text-foreground" role="status">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-success/30 bg-success-tint p-3 text-xs text-foreground" role="status">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden="true" />
             <div data-testid="card-bill-recorded">
               Recorded a {formatAmountFull(recorded)} card bill payment dated {dayLabel}. Still unpaid:{' '}
               {formatAmountFull(owed)}.
@@ -181,11 +181,11 @@ export function MonthEndCardBillCard({ reviewMonth, onContinue, onBack }: Props)
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-2 border-t border-border px-1 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-1 py-3">
         <Button variant="ghost" size="sm" onClick={onBack} data-testid="card-bill-back">
           ← Back
         </Button>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {owed > 0 && limit > 0 && (
             <Button size="sm" variant="secondary" onClick={handleRecord} disabled={!canRecord} data-testid="card-bill-record">
               <Check className="mr-1 h-4 w-4" />

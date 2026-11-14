@@ -36,16 +36,16 @@ const TYPE_GROUPS: { key: CategoryType; label: string }[] = [
 ];
 
 const TYPE_BADGE: Record<CategoryType, { dot: string; text: string }> = {
-  expense: { dot: 'bg-sky-500', text: 'text-sky-600 dark:text-sky-400' },
-  commitment: { dot: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' },
-  income: { dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
+  expense: { dot: 'bg-spending', text: 'text-spending' },
+  commitment: { dot: 'bg-warning', text: 'text-warning' },
+  income: { dot: 'bg-income', text: 'text-income' },
 };
 
 function CommitmentHint() {
   return (
-    <div className="flex gap-2 rounded-xl border border-amber-200/60 bg-amber-50 px-3 py-2.5 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-      <Info size={14} className="mt-0.5 flex-shrink-0" />
-      <p className="text-[12px] leading-relaxed">
+    <div className="flex gap-2 rounded-xl border border-warning/30 bg-warning-tint p-3 text-foreground">
+      <Info size={14} className="mt-0.5 flex-shrink-0 text-warning" />
+      <p className="text-xs leading-relaxed">
         <span className="font-semibold">Commitment</span> = fixed monthly bill (rent, EMI, SIP, subscriptions). Commitments are excluded from discretionary spend on Analysis.
       </p>
     </div>
@@ -127,7 +127,7 @@ export default function Categories() {
     () => setShowAddCat(true),
     'Add category',
     'fab-add-category',
-    { className: 'bg-emerald-500 hover:bg-emerald-600 text-white' },
+    { className: 'bg-accent hover:bg-accent/90 text-accent-foreground' },
   );
 
   const groupedCategories = useMemo(() => {
@@ -148,19 +148,19 @@ export default function Categories() {
   }, [categories]);
 
   return (
-    <div className="p-4 md:p-6 pb-32">
+    <div className="p-4 md:p-6 pb-40 md:pb-8">
       <div className="flex items-center gap-3 mb-6">
         <button
           type="button"
           data-testid="categories-back"
           onClick={() => setLocation('/settings')}
-          className="w-10 h-10 rounded-xl border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          className="tap-target w-10 h-10 rounded-xl border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           aria-label="Back to settings"
         >
           <ArrowLeft size={18} />
         </button>
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Settings</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Settings</p>
           <h1 className="text-2xl font-bold text-foreground leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
             Manage Categories
           </h1>
@@ -179,7 +179,7 @@ export default function Categories() {
               <div key={group.key} className="space-y-1">
                 <div className="flex items-center gap-2 px-2 pt-3 pb-1">
                   <span className={cn('w-1.5 h-1.5 rounded-full', TYPE_BADGE[group.key].dot)} />
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     {group.label}
                   </p>
                   <span className="text-[11px] text-muted-foreground/70">· {rows.length}</span>
@@ -200,7 +200,7 @@ export default function Categories() {
                             <input
                               value={editCatName}
                               onChange={e => setEditCatName(e.target.value)}
-                              className="w-full px-3 py-2.5 text-[15px] font-medium bg-white dark:bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-accent"
+                              className="w-full px-3 py-3 text-[15px] font-medium bg-card rounded-xl border border-border outline-none focus:ring-2 focus:ring-accent"
                               placeholder="Name"
                             />
                             <div className="flex gap-1.5">
@@ -209,10 +209,10 @@ export default function Categories() {
                                   key={t}
                                   onClick={() => setEditCatType(t)}
                                   className={cn(
-                                    'flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-colors',
+                                    'tap-target flex-1 min-h-9 py-2 rounded-lg text-sm font-medium capitalize transition-colors',
                                     editCatType === t
-                                      ? 'bg-accent text-white'
-                                      : 'bg-white dark:bg-card text-muted-foreground border border-border hover:text-foreground',
+                                      ? 'bg-accent text-accent-foreground'
+                                      : 'bg-card text-muted-foreground border border-border hover:text-foreground',
                                   )}
                                 >
                                   {t}
@@ -234,24 +234,24 @@ export default function Categories() {
                               )}
                             </AnimatePresence>
                             <div>
-                              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Color</p>
+                              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Color</p>
                               <div className="flex flex-wrap gap-2">
                                 {COLOR_SWATCHES.map(c => (
                                   <button
                                     key={c}
                                     onClick={() => setEditCatColor(c)}
-                                    className="w-8 h-8 rounded-full relative ring-offset-2 ring-offset-background"
+                                    className="tap-target w-8 h-8 rounded-full relative ring-offset-2 ring-offset-background"
                                     style={{ backgroundColor: c }}
                                     aria-label={`Pick color ${c}`}
                                   >
-                                    {editCatColor === c && <Check size={14} className="absolute inset-0 m-auto text-white" strokeWidth={3} />}
+                                    {editCatColor === c && <Check size={14} className="absolute inset-0 m-auto text-hero-foreground" strokeWidth={3} />}
                                   </button>
                                 ))}
                               </div>
                             </div>
                             <div>
-                              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Icon</p>
-                              <div className="grid grid-cols-7 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Icon</p>
+                              <div data-dense-grid className="grid grid-cols-7 gap-2 max-h-48 overflow-y-auto pr-1">
                                 {ICON_OPTIONS.map(ico => (
                                   <button
                                     key={ico}
@@ -259,8 +259,8 @@ export default function Categories() {
                                     className={cn(
                                       'aspect-square rounded-lg flex items-center justify-center transition-colors',
                                       editCatIcon === ico
-                                        ? 'bg-accent text-white'
-                                        : 'bg-white dark:bg-card border border-border text-muted-foreground hover:text-foreground',
+                                        ? 'bg-accent text-accent-foreground'
+                                        : 'bg-card border border-border text-muted-foreground hover:text-foreground',
                                     )}
                                     aria-label={`Pick icon ${ico}`}
                                   >
@@ -270,10 +270,10 @@ export default function Categories() {
                               </div>
                             </div>
                             <div className="flex gap-2">
-                              <button onClick={saveEditCat} className="flex-1 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors">
+                              <button onClick={saveEditCat} className="flex-1 min-h-12 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground text-sm font-semibold transition-colors">
                                 <Check size={14} className="inline mr-1" />Save
                               </button>
-                              <button onClick={() => setEditingCatId(null)} className="flex-1 py-2 rounded-lg bg-muted text-muted-foreground hover:text-foreground text-sm font-semibold transition-colors">
+                              <button onClick={() => setEditingCatId(null)} className="flex-1 min-h-12 rounded-xl bg-muted text-foreground hover:bg-muted/80 text-sm font-semibold transition-colors">
                                 <X size={14} className="inline mr-1" />Cancel
                               </button>
                             </div>
@@ -286,7 +286,7 @@ export default function Categories() {
                                     const result = setCategoryActive(cat.id, !isCategoryActive(cat));
                                     setDeleteError(result.ok ? '' : result.message);
                                   }}
-                                  className="w-full py-2 rounded-lg bg-muted text-foreground hover:bg-muted/80 text-sm font-semibold transition-colors"
+                                  className="w-full min-h-12 rounded-xl bg-muted text-foreground hover:bg-muted/80 text-sm font-semibold transition-colors"
                                 >
                                   {isCategoryActive(cat) ? 'Mark inactive' : 'Mark active'}
                                 </button>
@@ -307,7 +307,7 @@ export default function Categories() {
                               return (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <button className="w-full py-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/15 text-sm font-semibold transition-colors">
+                                    <button className="w-full min-h-12 rounded-xl bg-danger-tint text-danger hover:bg-danger-tint/80 text-sm font-semibold transition-colors">
                                       <Trash2 size={14} className="inline mr-1" />Delete Category
                                     </button>
                                   </AlertDialogTrigger>
@@ -355,7 +355,7 @@ export default function Categories() {
                           exit={{ opacity: 0, y: -4 }}
                           transition={{ duration: 0.18, ease: 'easeOut' }}
                           whileTap={{ scale: 0.98 }}
-                          className="w-full group flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/60 transition-colors text-left"
+                          className="w-full group flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted/60 transition-colors text-left"
                           data-testid={`category-item-${cat.id}`}
                         >
                           <div
@@ -413,10 +413,10 @@ export default function Categories() {
                 className="space-y-4 mt-4 flex-1 overflow-y-auto pr-1"
               >
                 <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
+                  <label htmlFor="new-category-name" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
                     Name
                   </label>
-                  <input
+                  <input id="new-category-name"
                     data-testid="new-category-name"
                     value={newCatName}
                     onChange={e => setNewCatName(e.target.value)}
@@ -426,7 +426,7 @@ export default function Categories() {
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
                     Type
                   </label>
                   <div className="flex gap-1.5">
@@ -435,9 +435,9 @@ export default function Categories() {
                         key={t}
                         onClick={() => setNewCatType(t)}
                         className={cn(
-                          'flex-1 py-2.5 rounded-xl text-sm font-medium capitalize transition-colors',
+                          'tap-target flex-1 py-3 rounded-xl text-sm font-medium capitalize transition-colors',
                           newCatType === t
-                            ? 'bg-accent text-white'
+                            ? 'bg-accent text-accent-foreground'
                             : 'bg-muted text-muted-foreground hover:text-foreground',
                         )}
                         data-testid={`new-category-type-${t}`}
@@ -449,7 +449,7 @@ export default function Categories() {
                 </div>
                 {newCatType === 'commitment' && <CommitmentHint />}
                 <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
                     Color
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -457,20 +457,20 @@ export default function Categories() {
                       <button
                         key={c}
                         onClick={() => setNewCatColor(c)}
-                        className="w-9 h-9 rounded-full relative"
+                        className="tap-target w-9 h-9 rounded-full relative"
                         style={{ backgroundColor: c }}
                         aria-label={`Pick color ${c}`}
                       >
-                        {newCatColor === c && <Check size={16} className="absolute inset-0 m-auto text-white" strokeWidth={3} />}
+                        {newCatColor === c && <Check size={16} className="absolute inset-0 m-auto text-hero-foreground" strokeWidth={3} />}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
                     Icon
                   </label>
-                  <div className="grid grid-cols-7 gap-1.5 max-h-56 overflow-y-auto pr-1">
+                  <div data-dense-grid className="grid grid-cols-7 gap-2 max-h-56 overflow-y-auto pr-1">
                     {ICON_OPTIONS.map(ico => (
                       <button
                         key={ico}
@@ -478,7 +478,7 @@ export default function Categories() {
                         className={cn(
                           'aspect-square rounded-xl flex items-center justify-center transition-colors',
                           newCatIcon === ico
-                            ? 'bg-accent text-white'
+                            ? 'bg-accent text-accent-foreground'
                             : 'bg-muted text-muted-foreground hover:text-foreground',
                         )}
                         aria-label={`Pick icon ${ico}`}
@@ -497,7 +497,7 @@ export default function Categories() {
           <div className="flex gap-2 pt-4 border-t border-border">
             <button
               onClick={() => { setShowAddCat(false); resetNewCat(); }}
-              className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors"
+              className="flex-1 min-h-12 rounded-xl border border-border bg-card text-sm font-semibold text-foreground hover:bg-muted transition-colors"
             >
               Cancel
             </button>
@@ -505,7 +505,7 @@ export default function Categories() {
               data-testid="new-category-create"
               onClick={handleAddCategory}
               disabled={!newCatName.trim()}
-              className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+              className="flex-1 min-h-12 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground text-sm font-semibold transition-colors disabled:opacity-50"
             >
               Create
             </button>

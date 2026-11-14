@@ -159,6 +159,7 @@ export function PinSetupDialog({ open, mode, onOpenChange, verifyCurrent, onComp
             onChange={handleChange}
             disabled={busy}
             autoFocus
+            aria-label="PIN"
             inputMode="numeric"
             pattern="[0-9]*"
           >
@@ -167,14 +168,14 @@ export function PinSetupDialog({ open, mode, onOpenChange, verifyCurrent, onComp
                 <InputOTPSlot
                   key={i}
                   index={i}
-                  className="h-12 w-11 text-lg rounded-md border border-input first:rounded-l-md last:rounded-r-md"
+                  className="h-12 w-11 text-lg rounded-xl border border-input first:rounded-l-xl last:rounded-r-xl"
                 />
               ))}
             </InputOTPGroup>
           </InputOTP>
         </div>
         {error && (
-          <p className={cn('text-xs font-medium text-red-500 text-center')}>{error}</p>
+          <p className={cn('text-xs font-medium text-destructive text-center')}>{error}</p>
         )}
         <DialogFooter />
       </DialogContent>

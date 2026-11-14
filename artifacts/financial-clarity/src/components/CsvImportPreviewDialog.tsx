@@ -50,7 +50,7 @@ export function CsvImportPreviewDialog({ preview, busy, onCancel, onConfirm }: C
                 )}
               </ul>
               {invalidRows.length > 0 && (
-                <ul className="rounded-lg border border-border p-3 space-y-1 text-xs text-muted-foreground" data-testid="csv-preview-invalid">
+                <ul className="rounded-xl border border-border p-3 space-y-1 text-xs text-muted-foreground" data-testid="csv-preview-invalid">
                   {invalidRows.slice(0, MAX_LISTED_INVALID_ROWS).map(row => (
                     <li key={row.line}>Row {row.line}: {row.reason}</li>
                   ))}

@@ -44,7 +44,7 @@ original two-step version and remain accurate for Look back and Plan ahead.
    amount, and saves an expense with `paymentMethod: 'credit-card-payment'`,
    category `other`, note "Card bill payment", dated the month's last day
    (`FinanceContext.recordCardBillPayment`). It is not spending; it lowers
-   the Dashboard card amount. **Since 2026-11-14 (ADR-0009):** payments can
+   the Dashboard card amount. **Since 2026-11-14 (ADR-0010):** payments can
    also be recorded from the Dashboard card sheet on their own date. The step
    lists "Bill payments recorded after {month end}", explains that they are
    not part of this month's bank balance, and accepts at most

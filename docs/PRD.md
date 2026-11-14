@@ -376,7 +376,7 @@ Proposed acceptance checks:
 | D8 | **Approved in part 2026-11-12:** month-end spending excludes card bill payments; a Card bill step records bill payments; Reconcile adds the unpaid card amount and excludes separate savings from expected bank balance; confirmed savings differences update lifetime balance as described in FR-09; Plan ahead reports budget save failures. Other month-end changes remain pending review. |
 | D9 | **Decided 2026-11-12:** remove crash reporting (Firebase Crashlytics); the app sends no diagnostics. Privacy policy, Data safety form, and store disclosures still need to be completed before submission. |
 | D10 | Explained: Practical readiness checks; detailed thresholds remain unapproved. |
-| D11 | **Approved 2026-11-14:** "Paid with credit card" checkbox on expenses; tappable "On your card" chip with a card sheet that records bill payments on their date (amends D8's month-end-only rule); one shared budget summary on Budgets and Analysis; Trends replaces savings rate, weekday pattern, and budget pace with category changes and top-five category trend. See [ADR-0009](knowledge-base/decisions/0009-card-dues-budget-summary-trends.md). |
+| D11 | **Approved 2026-11-14:** "Paid with credit card" checkbox on expenses; tappable "On your card" chip with a card sheet that records bill payments on their date (amends D8's month-end-only rule); one shared budget summary on Budgets and Analysis; Trends replaces savings rate, weekday pattern, and budget pace with category changes and top-five category trend. See [ADR-0010](knowledge-base/decisions/0010-card-dues-budget-summary-trends.md). |
 | Execution | Approved now: PRD update only. No app implementation changes authorized in this step. |
 
 ## 16. Supporting References

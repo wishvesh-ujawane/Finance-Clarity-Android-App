@@ -44,7 +44,7 @@ export function AuthStep({ onSignedIn, onSkip }: AuthStepProps) {
   return (
     <div className="flex h-full w-full flex-col">
       <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-        <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-3xl bg-white/10 ring-1 ring-white/15">
+        <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-3xl bg-muted ring-1 ring-border">
           <GoogleDriveIcon className="h-12 w-12" />
         </div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -67,7 +67,7 @@ export function AuthStep({ onSignedIn, onSkip }: AuthStepProps) {
         {error && (
           <div
             role="alert"
-            className="mt-6 flex max-w-md items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-left text-xs text-destructive"
+            className="mt-6 flex max-w-md items-start gap-2 rounded-xl border border-danger/30 bg-danger-tint p-3 text-left text-xs text-danger"
           >
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>

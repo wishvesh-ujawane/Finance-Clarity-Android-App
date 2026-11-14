@@ -238,6 +238,7 @@ Follow ARCHITECTURE §14, API §4 and §12, and DESIGN §8.
 
 - **Run the smallest relevant check first,** then widen it:
   - `pnpm --filter @workspace/financial-clarity run test:run` (Vitest)
+  - `pnpm --filter @workspace/financial-clarity run lint` (ESLint; 0 errors required)
   - `pnpm run typecheck` (whole workspace; **required before any change is done**)
   - `pnpm run build` (before release-affecting changes)
 - **Add or update tests** for every behavior change and every bug fix. A bug fix includes a test that fails without the fix.

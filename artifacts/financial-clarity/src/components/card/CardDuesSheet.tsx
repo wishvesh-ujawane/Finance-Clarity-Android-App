@@ -10,6 +10,7 @@ import { formatAmount, formatAmountFull, formatDateLabel } from '@/lib/format';
 import { parseCurrencyInput } from '@/lib/currency-utils';
 import { isValidDateStr, localDateStr } from '@/lib/domain/periods';
 import { cardActivity, isCardBillPayment } from '@/lib/domain/finance-metrics';
+import type { Transaction } from '@/lib/types';
 
 const ACTIVITY_LIMIT = 50;
 const FULL_DATE: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
@@ -37,6 +38,8 @@ export function CardDuesSheet({ open, onOpenChange }: Props) {
   const [saveError, setSaveError] = useState('');
   const [recorded, setRecorded] = useState<{ amount: number; date: string } | null>(null);
   const submittingRef = useRef(false);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const pendingEditRef = useRef<Transaction | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -87,17 +90,33 @@ export function CardDuesSheet({ open, onOpenChange }: Props) {
   };
 
   const openEntry = (tx: (typeof activity)[number]) => {
+    pendingEditRef.current = tx;
     onOpenChange(false);
-    // Let the Radix sheet finish closing before the TransactionSheet opens
-    // (focus / pointer-events conflict on Android WebView).
-    setTimeout(() => openEditSheet(tx), 200);
   };
 
   const resetFeedback = () => { setSaveError(''); setRecorded(null); };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto rounded-t-2xl bg-card p-5" data-testid="card-dues-sheet">
+      <SheetContent
+        side="bottom"
+        className="max-h-[90vh] overflow-y-auto rounded-t-2xl bg-card p-5"
+        data-testid="card-dues-sheet"
+        onOpenAutoFocus={() => {
+          returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        }}
+        onCloseAutoFocus={event => {
+          const entry = pendingEditRef.current;
+          if (entry || returnFocusRef.current?.isConnected) {
+            event.preventDefault();
+            returnFocusRef.current?.focus();
+          }
+          if (entry) {
+            pendingEditRef.current = null;
+            openEditSheet(entry);
+          }
+        }}
+      >
         <SheetHeader className="text-left pr-8">
           <SheetTitle className="text-base" style={{ fontFamily: 'var(--font-display)' }}>On your card</SheetTitle>
           <SheetDescription>

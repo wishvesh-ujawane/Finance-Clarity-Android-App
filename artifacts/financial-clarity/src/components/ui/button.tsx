@@ -4,35 +4,26 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+// DESIGN §5.12. Primary is the single main action (accent fill); secondary
+// and outline are card surfaces with a border; destructive is for confirming
+// deletes/resets inside dialogs. Every size keeps a 48 px hit area (§12.3).
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0" +
-" hover-elevate active-elevate-2",
+  "tap-target inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold disabled:pointer-events-none disabled:bg-muted disabled:text-muted-foreground disabled:border-transparent [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default:
-           // No hover, and add primary border
-           "bg-primary text-primary-foreground border border-primary-border",
-        destructive:
-          "bg-destructive text-destructive-foreground shadow-sm border-destructive-border",
-        outline:
-          // Shows the background color of whatever card / sidebar / accent background it is inside of.
-          // Inherits the current text color. Uses shadow-xs. no shadow on active
-          // No hover state
-          " border [border-color:var(--button-outline)] shadow-xs active:shadow-none ",
-        secondary:
-          // Border, no hover, no shadow, secondary border.
-          "border bg-secondary text-secondary-foreground border border-secondary-border ",
-        // No hover, transparent border
-        ghost: "border border-transparent",
-        link: "text-primary underline-offset-4 hover:underline",
+        default: "bg-accent text-accent-foreground hover:bg-accent/90",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        outline: "border border-border bg-card text-foreground hover:bg-muted/60",
+        secondary: "border border-border bg-card text-foreground hover:bg-muted/60",
+        ghost: "text-accent hover:bg-accent/10 disabled:bg-transparent",
+        link: "text-accent underline-offset-4 hover:underline disabled:bg-transparent",
       },
       size: {
-        // Customized sizes
-        default: "min-h-9 px-4 py-2",
-        sm: "min-h-8 rounded-md px-3 text-xs",
-        lg: "min-h-10 rounded-md px-8",
-        icon: "h-9 w-9",
+        default: "min-h-12 px-5",
+        sm: "min-h-10 px-4",
+        lg: "min-h-12 px-8",
+        icon: "h-10 w-10",
       },
     },
     defaultVariants: {
@@ -41,7 +32,6 @@ const buttonVariants = cva(
     },
   }
 )
-
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {

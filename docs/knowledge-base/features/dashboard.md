@@ -36,7 +36,7 @@ Reads `transactions`, `categories`, `selectedMonth`, `getTotalIncome`,
 - **Donut chart** — Recharts PieChart per-category spend.
 - **Recent transactions list** — taps open the [Transactions](./transactions.md)
   screen or the per-transaction edit sheet.
-- **"On your card" chip** (since 2026-11-14, ADR-0009) — shown in the balance
+- **"On your card" chip** (since 2026-11-14, ADR-0010) — shown in the balance
   hero once any card purchase or bill payment exists. Tapping it opens
   [`CardDuesSheet`](../../../artifacts/financial-clarity/src/components/card/CardDuesSheet.tsx):
   "Still to pay" (`getOutstandingCardBalance`), a "Record a bill payment"

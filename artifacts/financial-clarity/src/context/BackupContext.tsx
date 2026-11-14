@@ -372,6 +372,7 @@ export function BackupProvider({ children }: { children: ReactNode }) {
           } catch (err) {
             throw new Error(
               `Couldn\u2019t save a copy of your Drive backup, so it was not replaced. ${humanizeError(err)}`,
+              { cause: err },
             );
           }
         }

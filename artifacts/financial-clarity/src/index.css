@@ -80,6 +80,30 @@
   --color-chart-4: hsl(var(--chart-4));
   --color-chart-5: hsl(var(--chart-5));
 
+  /* Money and status semantics (DESIGN §2.2–2.4). */
+  --color-hero: hsl(var(--hero));
+  --color-hero-foreground: hsl(var(--hero-foreground));
+  --color-income: hsl(var(--income));
+  --color-income-tint: hsl(var(--income-tint));
+  --color-income-on-hero: hsl(var(--income-on-hero));
+  --color-spending: hsl(var(--spending));
+  --color-spending-tint: hsl(var(--spending-tint));
+  --color-spending-on-hero: hsl(var(--spending-on-hero));
+  --color-savings: hsl(var(--savings));
+  --color-savings-tint: hsl(var(--savings-tint));
+  --color-savings-on-hero: hsl(var(--savings-on-hero));
+  --color-warning: hsl(var(--warning));
+  --color-warning-tint: hsl(var(--warning-tint));
+  --color-warning-fill: hsl(var(--warning-fill));
+  --color-danger: hsl(var(--danger));
+  --color-danger-tint: hsl(var(--danger-tint));
+  --color-success: hsl(var(--success));
+  --color-success-tint: hsl(var(--success-tint));
+  --color-success-fill: hsl(var(--success-fill));
+  --color-info: hsl(var(--info));
+  --color-info-tint: hsl(var(--info-tint));
+  --color-scrim: hsl(var(--scrim));
+
   --color-sidebar: hsl(var(--sidebar));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-border: hsl(var(--sidebar-border));
@@ -141,13 +165,39 @@
   --secondary-foreground: 222 65% 15%;
 
   --muted: 214 32% 91%;
-  --muted-foreground: 215 16% 47%;
+  /* Slate 600: 4.5:1 on white, the slate canvas, and every status tint. */
+  --muted-foreground: 215 19% 35%;
 
   --accent: 221 83% 53%; /* Electric Blue #2563EB */
   --accent-foreground: 0 0% 100%;
 
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
+
+  /* DESIGN §2.1 hero, §2.2 money, §2.3 status. Fills used behind white
+     text or as progress fills reach 3:1 on white (§12.1). */
+  --hero: 222 65% 13%;
+  --hero-foreground: 0 0% 100%;
+  --income: 163 94% 24%;           /* Emerald 700 #047857 */
+  --income-tint: 145 42% 93%;      /* #E6F4EC */
+  --income-on-hero: 158 64% 52%;   /* Emerald 400 #34D399 */
+  --spending: 0 72% 51%;           /* Red 600 #DC2626 */
+  --spending-tint: 0 70% 95%;      /* #FCEBEB */
+  --spending-on-hero: 0 91% 71%;   /* Red 400 #F87171 */
+  --savings: 201 96% 32%;          /* Sky 700 #0369A1 */
+  --savings-tint: 204 94% 94%;     /* #E0F2FE */
+  --savings-on-hero: 199 95% 74%;  /* Sky 300 #7DD3FC */
+  --warning: 33 85% 28%;           /* Amber 800 #854F0B */
+  --warning-tint: 38 81% 92%;      /* #FAEEDA */
+  --warning-fill: 32 95% 44%;      /* Amber 600 #D97706 */
+  --danger: 0 57% 41%;             /* Red 800 #A32D2D */
+  --danger-tint: 0 70% 95%;        /* #FCEBEB */
+  --success: 151 62% 30%;          /* Green 800 #1D7A4E */
+  --success-tint: 145 42% 93%;     /* #E6F4EC */
+  --success-fill: 161 94% 30%;     /* Emerald 600 #059669 */
+  --info: 224 64% 33%;             /* Blue 900 #1E3A8A */
+  --info-tint: 219 70% 95%;        /* #EAF0FB */
+  --scrim: 0 0% 0%;
 
   --input: 214 32% 91%;
   --ring: 221 83% 53%;
@@ -228,6 +278,31 @@
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
 
+  /* Dark theme is not user-selectable yet (DESIGN §2.7); values are the
+     on-dark money colors so components need no rework when it ships. */
+  --hero: 222 65% 8%;
+  --hero-foreground: 0 0% 100%;
+  --income: 158 64% 52%;
+  --income-tint: 160 84% 12%;
+  --income-on-hero: 158 64% 52%;
+  --spending: 0 91% 71%;
+  --spending-tint: 0 63% 16%;
+  --spending-on-hero: 0 91% 71%;
+  --savings: 199 95% 74%;
+  --savings-tint: 201 90% 15%;
+  --savings-on-hero: 199 95% 74%;
+  --warning: 43 96% 56%;
+  --warning-tint: 32 81% 14%;
+  --warning-fill: 38 92% 50%;
+  --danger: 0 91% 71%;
+  --danger-tint: 0 63% 16%;
+  --success: 158 64% 52%;
+  --success-tint: 160 84% 12%;
+  --success-fill: 160 84% 39%;
+  --info: 213 94% 78%;
+  --info-tint: 224 64% 18%;
+  --scrim: 0 0% 0%;
+
   --input: 222 65% 20%;
   --ring: 221 83% 53%;
   
@@ -257,6 +332,53 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
   }
+  /* DESIGN §5.17 / §12.3: form fields are at least 48 px tall. In the base
+     layer so a component's own height utility still wins. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]):not([type="file"]),
+  select {
+    min-height: 3rem;
+  }
+}
+
+@layer utilities {
+  /* DESIGN §12.3: expands the hit area of a small visual control to at
+     least 48 × 48 px without changing its look. Zero specificity so an
+     element's own absolute/fixed position utility still wins. */
+  :where(.tap-target) {
+    position: relative;
+  }
+  .tap-target::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 48px);
+    height: max(100%, 48px);
+    transform: translate(-50%, -50%);
+  }
+  /* DESIGN §3.1: amounts and numeric columns use tabular figures. */
+  .amount {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* DESIGN §12.5: one visible focus ring for every interactive element.
+   Unlayered so it wins over per-component `outline-none` utilities. */
+:where(a[href], button, input, select, textarea, summary, [role="button"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"], [role="option"], [role="menuitem"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* DESIGN §5.12 / §9.3: pressed feedback is a small scale-down. Uses the
+   standalone `scale` property so Tailwind `translate` positioning and
+   framer-motion inline transforms are unaffected. */
+:where(button, a[href], [role="button"], [role="tab"]):not(:disabled):not([aria-disabled="true"]) {
+  transition-property: color, background-color, border-color, opacity, box-shadow, scale;
+  transition-duration: 100ms;
+  transition-timing-function: ease-out;
+}
+:where(button, a[href], [role="button"], [role="tab"]):not(:disabled):not([aria-disabled="true"]):active {
+  scale: 0.97;
 }
 
 @layer utilities {

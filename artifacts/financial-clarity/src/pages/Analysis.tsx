@@ -1,16 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { animate, motion, useMotionValue, type PanInfo } from 'framer-motion';
-import { ChevronDown, Share2 } from 'lucide-react';
+import { Share2 } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { cn } from '@/lib/utils';
 import { formatMonthYear } from '@/lib/finance-utils';
-import { getMonthKey, shiftMonth } from '@/lib/analysis-utils';
 import OverviewPane from '@/components/analysis/OverviewPane';
 import PlanningPane from '@/components/analysis/PlanningPane';
 import TrendsPane from '@/components/analysis/TrendsPane';
 import { useAnalysisShared } from '@/components/analysis/useAnalysisShared';
+import { PeriodSelector } from '@/components/PeriodSelector';
 import { shareImage } from '@/lib/platform/share-image';
 import { toast } from '@/hooks/use-toast';
 
@@ -24,10 +22,9 @@ function showShareFailure() {
 }
 
 export default function Analysis() {
-  const { selectedMonth, setSelectedMonth } = useFinance();
+  const { selectedMonth } = useFinance();
   const shared = useAnalysisShared();
 
-  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const overviewRef = useRef<HTMLDivElement>(null);
 
@@ -36,18 +33,40 @@ export default function Analysis() {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const activeIndex = TABS.indexOf(activeTab);
   const sliderRef = useRef<HTMLDivElement>(null);
+  const paneRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [paneWidth, setPaneWidth] = useState(0);
+  const [paneHeight, setPaneHeight] = useState<number | undefined>(undefined);
   const x = useMotionValue(0);
   const isDraggingRef = useRef(false);
 
+  // Track the slider's own width (not only window resizes) so panes stay
+  // aligned with the visible area.
   useLayoutEffect(() => {
-    const update = () => {
-      if (sliderRef.current) setPaneWidth(sliderRef.current.clientWidth);
-    };
+    const el = sliderRef.current;
+    if (!el) return;
+    const update = () => setPaneWidth(el.clientWidth);
     update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', update);
+      return () => window.removeEventListener('resize', update);
+    }
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
+
+  // The slider is only as tall as the active pane. Otherwise the row takes the
+  // height of the longest pane and shorter tabs scroll into empty space.
+  useLayoutEffect(() => {
+    const el = paneRefs.current[activeIndex];
+    if (!el) return;
+    const update = () => setPaneHeight(el.offsetHeight);
+    update();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [activeIndex]);
 
   // Programmatic snap on tab change / width change (skipped while dragging).
   useEffect(() => {
@@ -86,15 +105,6 @@ export default function Analysis() {
     }
   };
 
-  const currentMonthKey = useMemo(() => getMonthKey(new Date()), []);
-  const monthPickerOptions = useMemo(() => {
-    const options: string[] = [];
-    for (let i = 0; i <= 12; i++) {
-      options.push(shiftMonth(currentMonthKey, -i));
-    }
-    return options;
-  }, [currentMonthKey]);
-
   const handleShare = async () => {
     if (!overviewRef.current || isExporting) return;
     setIsExporting(true);
@@ -117,48 +127,40 @@ export default function Analysis() {
 
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-8">
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Analytics</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Analytics</p>
           <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Analysis</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            data-testid="month-picker-trigger"
-            onClick={() => setMonthPickerOpen(true)}
-            className="px-3 py-1.5 rounded-xl border border-border bg-card text-foreground hover:bg-muted transition-colors flex items-center gap-1.5"
-            aria-label="Change month"
-          >
-            <div className="text-right">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider leading-none">Month</p>
-              <p className="text-sm font-bold text-foreground leading-tight">{formatMonthYear(selectedMonth)}</p>
-            </div>
-            <ChevronDown size={14} className="text-muted-foreground" />
-          </button>
+          <PeriodSelector />
           <button
             type="button"
             data-testid="analysis-share"
             onClick={handleShare}
             disabled={isExporting}
-            className="w-9 h-9 rounded-xl border border-border bg-card text-foreground hover:bg-muted transition-colors flex items-center justify-center disabled:opacity-40"
+            className="tap-target flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-foreground hover:bg-muted/60 disabled:opacity-40"
             aria-label="Share Overview as image"
           >
-            <Share2 size={15} />
+            <Share2 size={16} aria-hidden="true" />
           </button>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabKey)} className="space-y-4">
-        <TabsList className="w-full grid grid-cols-3 h-10">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="planning">Planning</TabsTrigger>
           <TabsTrigger value="trends">Trends</TabsTrigger>
         </TabsList>
 
-        <div ref={sliderRef} className="overflow-hidden touch-pan-y">
+        <div
+          ref={sliderRef}
+          className="overflow-hidden touch-pan-y transition-[height] duration-200 ease-out"
+          style={{ height: paneHeight }}
+        >
           <motion.div
-            className="flex"
+            className="flex items-start"
             style={{ x, width: paneWidth ? paneWidth * TABS.length : undefined }}
             drag={paneWidth > 0 ? 'x' : false}
             dragDirectionLock
@@ -169,7 +171,8 @@ export default function Analysis() {
             onDragEnd={onPaneDragEnd}
           >
             <div
-              className="space-y-4 align-top flex-shrink-0"
+              ref={el => { paneRefs.current[0] = el; }}
+              className="space-y-4 flex-shrink-0"
               style={{ width: paneWidth || undefined }}
               role="tabpanel"
               aria-hidden={activeTab !== 'overview'}
@@ -178,7 +181,8 @@ export default function Analysis() {
             </div>
 
             <div
-              className="space-y-4 align-top flex-shrink-0"
+              ref={el => { paneRefs.current[1] = el; }}
+              className="space-y-4 flex-shrink-0"
               style={{ width: paneWidth || undefined }}
               role="tabpanel"
               aria-hidden={activeTab !== 'planning'}
@@ -187,7 +191,8 @@ export default function Analysis() {
             </div>
 
             <div
-              className="space-y-4 align-top flex-shrink-0"
+              ref={el => { paneRefs.current[2] = el; }}
+              className="space-y-4 flex-shrink-0"
               style={{ width: paneWidth || undefined }}
               role="tabpanel"
               aria-hidden={activeTab !== 'trends'}
@@ -198,40 +203,6 @@ export default function Analysis() {
         </div>
       </Tabs>
 
-      {/* ─── Month picker bottom sheet ─── */}
-      <Sheet open={monthPickerOpen} onOpenChange={setMonthPickerOpen}>
-        <SheetContent side="bottom" className="rounded-t-2xl p-5 max-h-[60vh] overflow-y-auto">
-          <SheetHeader className="text-left mb-3 pr-8">
-            <SheetTitle className="text-base" style={{ fontFamily: 'var(--font-display)' }}>Select month</SheetTitle>
-            <SheetDescription>Choose any of the last 13 months.</SheetDescription>
-          </SheetHeader>
-          <div className="space-y-1">
-            {monthPickerOptions.map(m => {
-              const isActive = m === selectedMonth;
-              const isCurrent = m === currentMonthKey;
-              return (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => { setSelectedMonth(m); setMonthPickerOpen(false); }}
-                  className={cn(
-                    'w-full flex items-center justify-between px-4 py-3 rounded-xl text-left transition-colors',
-                    isActive ? 'bg-accent/10 border border-accent/40' : 'border border-transparent hover:bg-muted'
-                  )}
-                  data-testid={`month-option-${m}`}
-                >
-                  <span className={cn('text-sm font-semibold', isActive ? 'text-accent' : 'text-foreground')}>
-                    {formatMonthYear(m)}
-                  </span>
-                  {isCurrent && (
-                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Current</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

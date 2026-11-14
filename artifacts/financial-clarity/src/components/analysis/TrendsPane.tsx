@@ -15,7 +15,7 @@ interface Props {
   shared: AnalysisShared;
 }
 
-const AXIS_TICK = { fontSize: 11, fill: 'hsl(215, 16%, 47%)' };
+const AXIS_TICK = { fontSize: 11, fill: 'hsl(var(--muted-foreground))' };
 const CHANGE_ROWS = 3;
 
 function dayOfMonthLabel(date: string): string {
@@ -161,11 +161,11 @@ export default function TrendsPane({ shared }: Props) {
         <div className="grid grid-cols-7 gap-1 mb-2 text-[11px] font-semibold text-muted-foreground text-center">
           {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(l => <div key={l}>{l}</div>)}
         </div>
-        <div className="grid grid-cols-7 gap-1">
+        <div data-dense-grid className="grid grid-cols-7 gap-1">
           {calendarCells.map((c, i) => {
             if (c.kind === 'blank') return <div key={`b${i}`} className="aspect-square" />;
             const bg = c.total > 0
-              ? `rgba(239, 68, 68, ${0.15 + 0.65 * c.intensity})`
+              ? `hsl(var(--spending) / ${0.15 + 0.65 * c.intensity})`
               : 'transparent';
             return (
               <button
@@ -175,7 +175,7 @@ export default function TrendsPane({ shared }: Props) {
                 disabled={c.total === 0}
                 className={cn(
                   'aspect-square rounded-lg flex flex-col items-center justify-center text-[11px] font-semibold transition-all border',
-                  c.total > 0 ? 'border-red-500/20 hover:scale-105 cursor-pointer text-foreground' : 'border-border/40 text-muted-foreground/60'
+                  c.total > 0 ? 'border-spending/20 hover:scale-105 cursor-pointer text-foreground' : 'border-border/40 text-muted-foreground/60'
                 )}
                 style={{ backgroundColor: bg }}
                 data-testid={`cal-day-${c.day}`}
@@ -207,20 +207,20 @@ export default function TrendsPane({ shared }: Props) {
             )}
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={spendingTrendData} barSize={18} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-                <XAxis dataKey="month" axisLine={false} tickLine={false} interval={0} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} />
-                <YAxis axisLine={false} tickLine={false} domain={[0, barChartYMax]} tickFormatter={formatShortINR} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} width={44} />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} interval={0} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis axisLine={false} tickLine={false} domain={[0, barChartYMax]} tickFormatter={formatShortINR} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={44} />
                 <Tooltip formatter={(value: number, name: string) => [formatAmount(value), name === 'spent' ? 'Spent' : 'Income']} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: '12px' }} />
-                <Bar dataKey="spent" fill="#EF4444" radius={[4, 4, 0, 0]} minPointSize={4} />
-                <Bar dataKey="income" fill="#10B981" radius={[4, 4, 0, 0]} minPointSize={4} />
+                <Bar dataKey="spent" fill="hsl(var(--spending))" radius={[4, 4, 0, 0]} minPointSize={4} />
+                <Bar dataKey="income" fill="hsl(var(--income))" radius={[4, 4, 0, 0]} minPointSize={4} />
               </BarChart>
             </ResponsiveContainer>
             <div className="flex items-center justify-center gap-4 mt-3 text-xs">
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-red-500" />
+                <span className="w-2.5 h-2.5 rounded-sm bg-spending" />
                 <span className="text-muted-foreground">Spent</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+                <span className="w-2.5 h-2.5 rounded-sm bg-income" />
                 <span className="text-muted-foreground">Income</span>
               </div>
             </div>
@@ -323,10 +323,10 @@ export default function TrendsPane({ shared }: Props) {
                 const cat = getCategoryById(id);
                 const avg = categoryTrend.totals[id] / Math.max(1, categoryTrend.monthCount);
                 return (
-                  <div key={id} className="flex items-center gap-2 text-xs">
-                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat?.color || '#6366F1' }} aria-hidden="true" />
-                    <span className="flex-1 min-w-0 truncate font-semibold text-foreground">{cat?.name || 'Unknown category'}</span>
-                    <span className="text-muted-foreground flex-shrink-0">
+                  <div key={id} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat?.color || '#6366F1' }} aria-hidden="true" />
+                    <span className="min-w-0 truncate font-semibold text-foreground">{cat?.name || 'Unknown category'}</span>
+                    <span className="col-start-2 text-muted-foreground amount">
                       {formatAmount(categoryTrend.selectedValues[id] ?? 0)} this month · avg {formatAmount(avg)}/month
                     </span>
                   </div>
@@ -371,7 +371,7 @@ export default function TrendsPane({ shared }: Props) {
                     className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
                     data-testid={`day-txn-${t.id}`}
                   >
-                    <div className="min-w-0 flex items-center gap-2.5">
+                    <div className="min-w-0 flex items-center gap-3">
                       <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${cat?.color || '#94A3B8'}22` }}>
                         <CategoryIcon icon={cat?.icon || 'circle'} color={cat?.color || '#94A3B8'} size={16} />
                       </div>
@@ -380,7 +380,7 @@ export default function TrendsPane({ shared }: Props) {
                         <p className="text-[11px] text-muted-foreground">{cat?.name || 'Uncategorized'}</p>
                       </div>
                     </div>
-                    <span className="text-sm font-bold text-red-500 flex-shrink-0">{formatAmount(t.amount)}</span>
+                    <span className="text-sm font-bold text-spending amount flex-shrink-0 whitespace-nowrap">{formatAmount(t.amount)}</span>
                   </button>
                 );
               })}

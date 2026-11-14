@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
-import { Transaction, Category, Budget, RecurringExpense, SavingsGoal, SAVINGS_CATEGORY_IDS, SYSTEM_ADJUSTMENT_CATEGORY_IDS, MonthReconciliation } from '@/lib/types';
-import { addMonths, currentMonth, isValidDateStr, lastDateOfMonth, localDateStr } from '@/lib/domain/periods';
+import { Transaction, Category, Budget, RecurringExpense, SavingsGoal, SAVINGS_CATEGORY_IDS, MonthReconciliation } from '@/lib/types';
+import { currentMonth, isValidDateStr, lastDateOfMonth, localDateStr } from '@/lib/domain/periods';
 import {
   balanceThroughEndOf,
   cardBillPaymentLimit,
@@ -41,7 +41,6 @@ import { getLastDueMonthBeforeDate, planRecurringGeneration } from '@/lib/domain
 import { applyBudgetCopy, budgetCopyCount, budgetSummary, planBudgetCopy, type BudgetSummary } from '@/lib/domain/budgets';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
-const SYSTEM_ADJUSTMENT_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
 
 /** Result of a finance write: state changes only when the save succeeded. */
 export type FinanceWriteResult = { ok: true } | { ok: false; message: string };
@@ -83,7 +82,7 @@ const OTHER_DEFAULTS: Category[] = [
  * Hidden system categories used by the Month-End Review reconciliation
  * step. Filtered out of every user-facing category picker (budgets page,
  * transaction sheet grid, analysis chip rows) via
- * `SYSTEM_ADJUSTMENT_CATEGORY_ID_SET`.
+ * `SYSTEM_ADJUSTMENT_CATEGORY_IDS`.
  */
 const ADJUSTMENT_DEFAULTS: Category[] = [
   { id: '_adjustment-missed-spend', name: 'Missed Spend', icon: 'HelpCircle', color: '#64748B', type: 'expense' },
