@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'wouter';
-import { ChevronRight, Cloud, Heart, MessageCircle, PiggyBank, Repeat, Shapes, ShieldCheck, Sparkles } from 'lucide-react';
+import { ChevronRight, Cloud, Heart, MessageCircle, PiggyBank, Repeat, Shapes, Sparkles } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
-import { useSecurity } from '@/context/SecurityContext';
+import { useBackup } from '@/context/BackupContext';
 import { formatAmount } from '@/lib/finance-utils';
 import { FeedbackSheet } from '@/components/FeedbackSheet';
+import { ProfileAvatar } from '@/components/ProfileAvatar';
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -16,7 +17,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export default function Settings() {
   const { recurringExpenses, savingsGoal } = useFinance();
-  const { isAppLockEnabled, settings: securitySettings } = useSecurity();
+  const { user } = useBackup();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const activeRecurringCount = recurringExpenses.filter(r => r.active).length;
@@ -25,9 +26,19 @@ export default function Settings() {
 
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-8 flex flex-col min-h-screen">
-      <div className="mb-6">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Preferences</p>
-        <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Settings</h1>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Preferences</p>
+          <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Settings</h1>
+        </div>
+        <Link
+          href="/settings/profile"
+          data-testid="settings-profile-link"
+          aria-label={user ? `Profile and security, signed in as ${user.name || user.email}` : 'Profile and security, not signed in'}
+          className="tap-target w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 border border-border bg-card hover:bg-muted transition-colors"
+        >
+          <ProfileAvatar user={user} />
+        </Link>
       </div>
 
       {/* Finances */}
@@ -94,27 +105,6 @@ export default function Settings() {
       {/* Privacy & Data */}
       <SectionLabel>Privacy & Data</SectionLabel>
       <div className="bg-card border border-border rounded-2xl overflow-hidden mb-6">
-        <Link
-          href="/settings/security"
-          data-testid="settings-security-link"
-          className="w-full min-h-14 flex items-center gap-3 px-5 py-3 text-left hover:bg-muted/40 transition-colors"
-        >
-          <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center flex-shrink-0">
-            <ShieldCheck size={18} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground">Security</p>
-            <p className="text-xs text-muted-foreground">
-              {isAppLockEnabled
-                ? `App lock is on${securitySettings?.biometricEnabled ? ' \u2022 biometrics enabled' : ''}`
-                : 'Set a PIN to lock the app. Biometrics are offered on supported devices.'}
-            </p>
-          </div>
-          <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" />
-        </Link>
-
-        <div className="border-t border-border" />
-
         <Link
           href="/settings/backup"
           data-testid="settings-backup-link"

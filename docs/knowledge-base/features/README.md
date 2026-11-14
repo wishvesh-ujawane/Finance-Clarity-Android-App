@@ -14,6 +14,7 @@ Use [`../_templates/feature.md`](../_templates/feature.md) for new entries.
 - [categories.md](./categories.md) — category management, active/inactive status, deletion rules.
 - [recurring-expenses.md](./recurring-expenses.md) — monthly auto-added transactions.
 - [savings-goals.md](./savings-goals.md) — savings targets.
+- [profile.md](./profile.md) — Google account (name, email, photo; sign in, refresh, disconnect) and link to Security.
 - [security.md](./security.md) — PIN + biometric lock.
 - [settings.md](./settings.md) — settings landing page.
 - [backup-restore.md](./backup-restore.md) — Google Drive backup / restore, CSV import / export.

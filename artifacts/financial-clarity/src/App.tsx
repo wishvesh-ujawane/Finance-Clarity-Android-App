@@ -27,6 +27,7 @@ import Analysis from '@/pages/Analysis';
 import Transactions from '@/pages/Transactions';
 import Settings from '@/pages/Settings';
 import Security from '@/pages/Security';
+import Profile from '@/pages/Profile';
 import RecurringExpenses from '@/pages/RecurringExpenses';
 import Categories from '@/pages/Categories';
 import BackupRestore from '@/pages/BackupRestore';
@@ -88,6 +89,7 @@ function AppLayout({ quarantined }: { quarantined: QuarantineReport[] }) {
           <Route path="/transactions" component={Transactions} />
           <Route path="/budgets" component={Budgets} />
           <Route path="/analysis" component={Analysis} />
+          <Route path="/settings/profile" component={Profile} />
           <Route path="/settings/security" component={Security} />
           <Route path="/settings/recurring" component={RecurringExpenses} />
           <Route path="/settings/categories" component={Categories} />

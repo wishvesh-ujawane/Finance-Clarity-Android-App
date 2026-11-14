@@ -153,7 +153,7 @@ test.describe('input-driven journey', () => {
     }, { cur: monthKey(0), prev: monthKey(-1) });
 
     const routes = ['/', '/transactions', '/budgets', '/analysis', '/settings', '/settings/recurring',
-      '/settings/categories', '/settings/savings', '/settings/security', '/settings/backup', '/settings/changelog'];
+      '/settings/categories', '/settings/savings', '/settings/profile', '/settings/security', '/settings/backup', '/settings/changelog'];
     const hrefs = new Set<string>();
     const blocked: string[] = [];
 

@@ -437,6 +437,13 @@ Inline inside the card or list it replaces. No illustration.
 - When data is insufficient, replace the chart with an empty state explaining how much history is needed. Never draw a flat or zero chart that looks like real data.
 - No 3D, no gradients, no animated count-up of totals.
 
+### 5.21 Profile avatar
+
+- **Added 2026-11-14** (`components/ProfileAvatar.tsx`). Rationale: the Google profile picture appears on Settings, Profile, and the Backup card, and each needs the same fallbacks. One component replaces the inline avatar the Backup card used to draw.
+- Full radius (§4.3). Sizes: 36 px (header button, Backup card) and 80 px (Profile page).
+- Shows the Google photo. If the photo fails to load, it shows the first letter of the name (or email) on an accent tint. When no Google account is connected, it shows a generic person icon on `muted`.
+- Decorative only (`aria-hidden`). The surrounding button or link carries the accessible name. No new tokens.
+
 ---
 
 ## 6. Navigation
@@ -449,7 +456,7 @@ Five top-level destinations, in this fixed order:
 2. **Transactions**: history and entry
 3. **Budgets**: monthly limits
 4. **Analysis**: Overview / Planning / Trends
-5. **Settings**: management hub → Categories, Recurring expenses, Savings, Security, Backup & Restore, Send feedback
+5. **Settings**: management hub → Profile (avatar button: Google account, Security), Categories, Recurring expenses, Savings, Backup & Restore, Send feedback, What's New
 
 SMS destinations are removed from navigation and settings (PRD FR-10).
 
@@ -466,7 +473,7 @@ Same five items, same order and icons, 48 px rows, active = accent fill with whi
 
 ### 6.4 Hierarchy and back behavior
 
-- Settings sub-pages are one level deep with a header back button.
+- Settings sub-pages are one level deep with a header back button. **Exception (owner request, 2026-11-14):** Security sits under Profile (`/settings` → `/settings/profile` → `/settings/security`), and its back button returns to Profile.
 - **Android back** closes the topmost layer first, in order: FAB menu → dialog → sheet → sub-page → top-level tab returns to Dashboard → exit app.
 - Cross-links (Dashboard alert chip → Budgets with that category highlighted; Budget row → filtered Transactions; Dashboard bucket row → Analysis) land with the target item scrolled into view and briefly highlighted (accent tint, fades over 1.5 s).
 
@@ -732,7 +739,9 @@ Share exports the Overview pane as an image. Failures surface as a visible error
 
 ### 13.8 Settings
 
-Grouped list cards with section labels: **Manage** (Categories, Recurring expenses, Savings), **Privacy & Data** (Security, Backup & Restore), **Support** (Send feedback, What's New). The app version and a single-line footer go at the bottom. Each row shows live status (§5.8).
+Grouped list cards with section labels: **Manage** (Categories, Recurring expenses, Savings), **Privacy & Data** (Backup & Restore), **Support** (Send feedback, What's New). The app version and a single-line footer go at the bottom. Each row shows live status (§5.8).
+
+The page header's right control is a round **profile button** (§5.21, 44 px target) that opens Profile (§13.17). Its accessible name says whether Google is connected ("Profile and security, signed in as {name}" or "…, not signed in"). Security moved from the Privacy & Data card into Profile (owner request, 2026-11-14).
 
 ### 13.9 Categories
 
@@ -754,12 +763,14 @@ Two cards, **Goal savings** and **Emergency fund**. Each has monthly and annual 
 
 ### 13.12 Security
 
+Reached from Profile (§13.17); the back button returns to Profile.
+
 - App lock switch → PIN setup/change (requires current PIN) → biometrics switch (with unavailable-reason caption when unsupported) → lock-on-background switch.
 - A persistent info note: "App lock hides your data on screen. It doesn't encrypt stored data."
 
 ### 13.13 Backup and restore
 
-1. Google connection card: status, account, connect/disconnect. Disconnecting states that local and Drive data are kept.
+1. Google connection: when signed out, a "Connect Google Drive" button. When signed in, a "Connected as {email}" row that links to Profile (§13.17), where the account is refreshed or disconnected (moved 2026-11-14).
 2. Drive backup card: last backup time and result, "Back up now", auto-backup preference, "Restore from backup" (preview, then high-severity confirmation).
 3. CSV card: Import and Export, with a caption that CSV is not a complete backup.
 4. "What's not included in backups" disclosure list (PRD FR-11).
@@ -777,6 +788,16 @@ Standard page: title "Page not found", one sentence, primary button "Go to Dashb
 ### 13.16 What's New
 
 Settings sub-page (`/settings/changelog`) listing release notes bundled with the app, newest first. Each release is a card with the date and version, then 1 to 4 short lines, each with a text badge **New** (accent tint) or **Fixed** (secondary). Badges carry text, so meaning does not rely on color (§12.2). If there are no notes, it shows an empty state card ("No updates yet"). Notes are static, so there is no loading or error state. Built from the existing card, settings-row, and page-header patterns; no new components or tokens. Entry rules are in AGENTS.md §13.1.
+
+### 13.17 Profile
+
+Settings sub-page (`/settings/profile`), opened from the profile button on Settings (owner request, 2026-11-14). Built from the page header, card, button, and settings-row patterns plus the profile avatar (§5.21).
+
+1. **Google account** card.
+   - **Signed in:** 80 px avatar, name, and email, all read from Google. A caption explains that name and photo are changed in the Google account. **Refresh from Google** runs Google sign-in again to fetch the current profile, and the user may pick another account. **Disconnect Google** (destructive outline) has a caption saying local data and Drive backups are kept.
+   - **Signed out:** person-icon avatar, "You're not signed in", one sentence saying sign-in shows name and photo and enables Drive backup and that the app works fully without it, and a primary **Sign in with Google** button. The page never opens Google sign-in by itself.
+   - **States:** the pressed button shows "Signing in…", "Refreshing…", or "Disconnecting…", and all account buttons are disabled while it runs or while a backup, restore, or Drive check is running. Success shows a status line ("Signed in as…", "Profile updated from Google.", "Switched to…", "Google disconnected…"). Errors show an inline alert that says the data on the phone is safe. Offline is detected before starting. Cancelling the Google prompt shows nothing. Raw Google error codes are never shown.
+2. **Security** section: one settings row ("App Lock & Security", live lock and biometric status) to `/settings/security` (§13.12). It is always available, because app lock never needs Google (API.md §3.1).
 
 ---
 

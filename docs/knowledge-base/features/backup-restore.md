@@ -27,7 +27,10 @@ source-of-truth-files:
 Lets the user back up and restore their local data (transactions, categories,
 budgets, recurring expenses, savings, settings) as a single file. A "Connect
 Drive" banner promotes cloud backup on supported platforms. A restore preview
-dialog shows what will change before committing.
+dialog shows what will change before committing. When Google is connected, the
+Drive backup card shows "Connected as {email}" and links to
+[Profile](./profile.md); refreshing or disconnecting the account happens there
+(moved from this card on 2026-11-14).
 
 ## Entry points
 - Route: `/backup-restore` (linked from Settings).

@@ -19,6 +19,10 @@ vi.mock('@/context/SecurityContext', () => ({
   useSecurity: () => ({ isAppLockEnabled: false, settings: {} }),
 }));
 
+vi.mock('@/context/BackupContext', () => ({
+  useBackup: () => ({ user: null }),
+}));
+
 const legacyTransaction = {
   id: 'legacy-sms-transaction',
   type: 'expense',
