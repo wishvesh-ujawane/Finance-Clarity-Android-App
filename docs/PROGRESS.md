@@ -14,11 +14,11 @@ the core document wins.
 |---|---|
 | Product | "Fiscal Focus" — offline, single-user, INR-only Android finance tracker (Vite + React + Capacitor) in `artifacts/financial-clarity/` |
 | App version | `1.0.0` (`artifacts/financial-clarity/package.json`) |
-| `main` | `c703dc4` — contains Phases 1–10, the owner-decisions follow-up, the UI polish (PR #28), and card dues / budget summary / Trends (PR #29) |
+| `main` | `1545dac` — contains Phases 1–10, the owner-decisions follow-up, the UI polish (PR #28), card dues / budget summary / Trends (PR #29), and the Profile page (PR #32) |
 | Open branches | None with unmerged work. Start new work from an up-to-date `main` |
 | Storage version | `storage-version` 3 (local migrations 1–3 in `lib/storage/local-migrations.ts`) |
 | Backup schema | v6 (`BACKUP_VERSION` in `lib/backup.ts`); restores v1–v5, refuses newer |
-| Last full check (2026-11-14) | Typecheck, lint, 320 unit tests, and build passed. Playwright: 92 passed, 31 skipped on purpose, 1 onboarding timeout that passed on rerun |
+| Last full check (2026-11-14, PR #32) | Typecheck and 338 unit tests passed; lint clean on changed files. Playwright: navigation 10/10, layout/journey/accessibility 23 passed and 23 skipped by config. Build and the full e2e suite were not rerun |
 | Uncommitted | `docs/Screenshots/` (owner's device screenshots, untracked) |
 
 ---
@@ -33,8 +33,9 @@ the core document wins.
 | `/transactions` | Transactions | Entry sheet with calculator and live Indian comma grouping, "Paid with credit card" checkbox, consumption-based "Spending" tile and day totals, double-submit guard, delete confirmation that names the entry |
 | `/budgets` | Budgets | Monthly limits per category, accordion layout, shared budget summary, "Copy to {month}" with a confirmation that lists every overwrite |
 | `/analysis` | Analysis | Overview (same budget summary as Budgets), safe-to-spend, projections with "Insufficient history", Trends (category changes and top-5 category trend), drilldowns, image share |
-| `/settings` | Settings hub | Links to the pages below |
-| `/settings/security` | Security | PIN (salted hash) and biometric lock, escalating cooldown, `FLAG_SECURE` while the lock is on |
+| `/settings` | Settings hub | Round profile button (top right) and links to the pages below |
+| `/settings/profile` | Profile | Google name, email, and photo (read-only; Refresh from Google), sign in and Disconnect, link to Security. Works signed out |
+| `/settings/security` | Security | Reached from Profile. PIN (salted hash) and biometric lock, escalating cooldown, `FLAG_SECURE` while the lock is on |
 | `/settings/recurring` | Recurring expenses | Rules with pause/resume; generation runs after unlock and on resume |
 | `/settings/categories` | Categories | Active/inactive status; used or reserved categories cannot be deleted; a category with an active recurring rule cannot be made inactive |
 | `/settings/backup` | Backup & restore | Google Drive backup (`drive.file` scope), restore with preview, CSV import/export |
@@ -83,6 +84,7 @@ packages, `date-fns`, `zod`, `react-hook-form`.
 | 2026-11-12 | Phases 3–10 (metrics, categories, recurring scheduler, journeys, Analysis, backup/share, design/a11y, CI); owner decisions D6–D9; savings reconciliation; What's New screen | ADR-0006–0008; [audits/2026-11-12-phases-implementation-review.md](./audits/2026-11-12-phases-implementation-review.md) |
 | 2026-11-13 | UI polish: semantic tokens, 48 px targets, shared `PeriodSelector`, ESLint, axe checks (PR #28) | ADR-0009 |
 | 2026-11-14 | Card dues ("Paid with credit card", card sheet), one budget summary, new Trends (PR #29, merged into `main`) | ADR-0010, PRD D11 |
+| 2026-11-14 | Profile page behind a Settings avatar button; Security and Google account moved there; account switch clears the Drive folder cache (PR #32) | DESIGN §5.21, §13.17; [features/profile.md](./knowledge-base/features/profile.md) |
 
 Full line-by-line history: [knowledge-base/CHANGELOG.md](./knowledge-base/CHANGELOG.md).
 
@@ -90,10 +92,13 @@ Full line-by-line history: [knowledge-base/CHANGELOG.md](./knowledge-base/CHANGE
 
 ## 4. Open items
 
-### 4.1 Follow-ups from the last merge (PR #29)
+### 4.1 Follow-ups from recent merges
 
-- Add a What's New entry for the card dues, budget summary, and Trends changes with the next deployment (AGENTS §13.1, ADR-0010).
-- Device check of the card chip, card sheet, and checkbox at 130% font size.
+- PR #29: add a What's New entry for the card dues, budget summary, and Trends changes with the next deployment (AGENTS §13.1, ADR-0010).
+- PR #29: device check of the card chip, card sheet, and checkbox at 130% font size.
+- PR #32: add a What's New entry for the Profile page with the next deployment.
+- PR #32: device check of Profile — sign in, Refresh from Google (same and different account), Disconnect, Security back button ([BUILD_ON_HOME_PC.md](./BUILD_ON_HOME_PC.md) §9).
+- PR #32: Google profile photos load from Google's image host, which is not listed in API.md §1.1 (pre-existing; owner decision needed).
 
 ### 4.2 Manual device checks (need a phone, release build, Android SDK)
 

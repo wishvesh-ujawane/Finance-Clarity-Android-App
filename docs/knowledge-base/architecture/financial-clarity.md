@@ -83,12 +83,13 @@ Dependencies point downward only (AGENTS §3.2, ARCHITECTURE §4.1).
 
 ## Screen layout
 Screens live under [src/pages/](../../../artifacts/financial-clarity/src/pages/):
-Dashboard, Transactions, Budgets, Analysis, Settings, Categories,
+Dashboard, Transactions, Budgets, Analysis, Settings, Profile, Categories,
 RecurringExpenses, SavingsGoals, Security, BackupRestore, Changelog
 (What's New), and not-found. One feature entry per screen exists in
 [features/](../features/).
 
 ## Reusable components of note
+- [ProfileAvatar.tsx](../../../artifacts/financial-clarity/src/components/ProfileAvatar.tsx) — round Google profile picture with initial and icon fallbacks; used on Settings, Profile, and the Backup card (DESIGN §5.21).
 - [FAB.tsx](../../../artifacts/financial-clarity/src/components/FAB.tsx) — floating action button; a single action or a speed-dial menu.
 - [TransactionSheet.tsx](../../../artifacts/financial-clarity/src/components/TransactionSheet.tsx) — entry sheet with calculator, Indian comma grouping, and the "Paid with credit card" checkbox.
 - [BudgetSummaryCard.tsx](../../../artifacts/financial-clarity/src/components/BudgetSummaryCard.tsx) — the one budget summary shared by Budgets and Analysis Overview (ADR-0010).

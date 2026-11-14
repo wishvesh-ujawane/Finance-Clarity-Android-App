@@ -232,7 +232,7 @@ The key exists only while a PIN is enabled.
 | Table | Columns | Notes |
 |---|---|---|
 | `google_profile_cache` | `id`, `email`, `name`, `imageUrl?` | Display-only cache. **OAuth tokens are never stored** (the plugin manages them). Cleared when Google is disconnected |
-| `drive_folder_cache` | Drive folder ID string | Avoids looking up the backup folder again. It is a cache and can be safely dropped |
+| `drive_folder_cache` | Drive folder ID string | Avoids looking up the backup folder again. It is a cache and can be safely dropped. Cleared on disconnect and when a different Google account signs in |
 | `app_flags.onboarding-complete` | `"<reason>:<epoch_ms>"` or `"migrated:<reason>"` | Present means onboarding is complete |
 | `app_flags.first-run-done` | Legacy string | Read once to migrate older users, then ignored |
 | `app_flags.connect-drive-banner-dismissed` | `epoch_ms` string | Dashboard nudge has been dismissed |
@@ -441,7 +441,7 @@ Every write follows the **persist-first** flow (ARCHITECTURE §6.2): validate �
 | Unlocked, Google connected | Above, plus remote backups | Above, plus backup uploads and confirmed restores |
 | Change or disable PIN | — | Requires a matching current PIN hash |
 | Forgotten-PIN reset | — | After an explicit warning, deletes **every** `financial-clarity:` key. Remote backups are untouched |
-| Disconnect Google | — | Clears `google_profile_cache` and the Drive session. **Does not** delete finance tables or remote backups (PRD FR-11) |
+| Disconnect Google | — | Clears `google_profile_cache`, `drive_folder_cache`, and the Drive session, even if Google does not confirm the sign-out. **Does not** delete finance tables or remote backups (PRD FR-11) |
 
 Pages and components never access storage directly. **Only the storage layer reads or writes keys**, and **only `FinanceContext` writes finance entities** (ARCHITECTURE §4.1–4.2). This is the authorization boundary inside the app.
 
@@ -588,7 +588,7 @@ After a restore, local `reconciliations` may refer to `adjustmentTxnId` values t
 |---|---|---|
 | Restore | Replaces the covered tables | Preview, explicit confirmation, rollback on failure |
 | Forgotten-PIN reset | Deletes every `financial-clarity:` key, including quarantine | Explicit warning that local data will be deleted. Remote backups are untouched |
-| Disconnect Google | Clears profile cache and session only | Local data and remote backups stay |
+| Disconnect Google | Clears profile cache, Drive folder cache, and session only | Local data and remote backups stay |
 | Delete any record | Removes one row | Confirmation dialog. Reference rules in §5.2 apply |
 
 ### 12.5 Release verification
