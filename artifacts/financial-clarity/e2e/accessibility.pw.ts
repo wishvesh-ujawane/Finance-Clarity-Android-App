@@ -21,7 +21,7 @@ function seed() {
       { id: 'a11y-sal-p', type: 'income', amount: 60000, categoryId: 'salary', note: '', date: `${prev}-01` },
       { id: 'a11y-gro-p', type: 'expense', amount: 4200, categoryId: 'groceries', note: 'Market', date: `${prev}-03` },
       { id: 'a11y-sal', type: 'income', amount: 60000, categoryId: 'salary', note: '', date: `${cur}-01` },
-      { id: 'a11y-gro', type: 'expense', amount: 3100, categoryId: 'groceries', note: 'Market', date: `${cur}-01` },
+      { id: 'a11y-gro', type: 'expense', amount: 3100, categoryId: 'groceries', note: 'Market', date: `${cur}-01`, paymentMethod: 'credit-card' },
     ],
     'financial-clarity:budgets': [{ id: 'a11y-b1', categoryId: 'groceries', limit: 5000, month: cur }],
   };
@@ -87,6 +87,31 @@ test.describe('accessibility', () => {
     await page.goto('/');
     await expect(page.getByTestId('month-end-review-modal')).toBeVisible();
     await scan(page, info, 'month-end review');
+  });
+
+  test('[A11Y-008] card details and purchase editing preserve accessible dialogs and keyboard focus', async ({ page }, info) => {
+    await prepare(page);
+    await page.goto('/');
+    const chip = page.getByTestId('card-debt-chip');
+    await chip.focus();
+    await page.keyboard.press('Enter');
+    const sheet = page.getByRole('dialog', { name: 'On your card', exact: true });
+    await expect(sheet).toBeVisible();
+    await expect.poll(() => sheet.evaluate(el => el.contains(document.activeElement))).toBe(true);
+    await scan(page, info, 'card details', '[data-testid="card-dues-sheet"]');
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+    await expect(chip).toBeFocused();
+
+    await page.keyboard.press('Enter');
+    await sheet.getByTestId('card-entry-a11y-gro').click();
+    const edit = page.getByRole('dialog', { name: 'Edit Transaction' });
+    await expect(edit).toBeVisible();
+    await expect(edit.getByTestId('paid-with-card-checkbox')).toBeChecked();
+    await expect.poll(() => edit.evaluate(el => el.contains(document.activeElement))).toBe(true);
+    await scan(page, info, 'card purchase edit', '[data-testid="transaction-sheet"]');
+    await page.keyboard.press('Escape');
+    await expect(edit).toBeHidden();
   });
 
   test('[A11Y-005] lock screen has no axe violations', async ({ page }, info) => {

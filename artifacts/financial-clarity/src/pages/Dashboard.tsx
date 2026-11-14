@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import {
-  ArrowUp, ArrowDown, ArrowUpDown, ArrowRightLeft, CreditCard,
+  ArrowUp, ArrowDown, ArrowUpDown, ArrowRightLeft, CreditCard, ChevronRight,
   AlertOctagon, AlertTriangle, CheckCircle2, CircleDashed,
 } from 'lucide-react';
 import { useFinance } from '@/context/FinanceContext';
@@ -10,13 +10,15 @@ import { useDefaultFabMenu } from '@/hooks/useDefaultFabMenu';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { ConnectDriveBanner } from '@/components/ConnectDriveBanner';
 import { MonthEndReviewBanner } from '@/components/MonthEndReviewBanner';
+import { CardDuesSheet } from '@/components/card/CardDuesSheet';
+import { CardPurchaseBadge } from '@/components/card/CardPurchaseBadge';
 import { PeriodSelector } from '@/components/PeriodSelector';
 import { cn } from '@/lib/utils';
 import {
   addMonths, formatAmount, formatDateLabel, formatMonthLabel, localDateStr,
 } from '@/lib/finance-utils';
 import { SAVINGS_CATEGORY_IDS } from '@/lib/types';
-import { consumptionBetween } from '@/lib/domain/finance-metrics';
+import { consumptionBetween, isCardBillPayment, isCardPurchase } from '@/lib/domain/finance-metrics';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 
@@ -41,9 +43,14 @@ export default function Dashboard() {
 
   // Pocket cash through today — month-agnostic, identical on every month tab.
   const netBalance = getNetBalanceToDate();
-  // Outstanding credit-card balance — never month-scoped. Shown as a chip
-  // only when > 0. Scope: as accurate as manually tagged data.
+  // Outstanding credit-card balance — never month-scoped. The chip shows
+  // once any card entry exists, so the details stay reachable at ₹0.
   const cardDebt = getOutstandingCardBalance();
+  const hasCardActivity = useMemo(
+    () => transactions.some(t => isCardPurchase(t) || isCardBillPayment(t)),
+    [transactions]
+  );
+  const [cardSheetOpen, setCardSheetOpen] = useState(false);
   // Per-month figures (these DO change with the month picker).
   const balance = getBalance(selectedMonth);
   const income = getTotalIncome(selectedMonth);
@@ -188,16 +195,20 @@ export default function Dashboard() {
             {formatAmount(netBalance)}
           </p>
 
-          {cardDebt > 0 && (
-            <div
-              className="inline-flex items-center gap-1 bg-hero-foreground/10 rounded-full px-3 py-1 mb-2"
+          {(cardDebt > 0 || hasCardActivity) && (
+            <button
+              type="button"
+              onClick={() => setCardSheetOpen(true)}
+              className="tap-target inline-flex items-center gap-1.5 bg-hero-foreground/10 hover:bg-hero-foreground/15 rounded-full px-3 py-1 mb-2 transition-colors"
               data-testid="card-debt-chip"
+              aria-label={`${formatAmount(cardDebt)} on your card. Open card details to record a bill payment.`}
             >
-              <CreditCard size={11} className="text-hero-foreground/70" />
+              <CreditCard size={11} className="text-hero-foreground/70" aria-hidden="true" />
               <span className="amount text-[11px] font-semibold text-hero-foreground/90">
                 {formatAmount(cardDebt)} on your card
               </span>
-            </div>
+              <ChevronRight size={11} className="text-hero-foreground/70" aria-hidden="true" />
+            </button>
           )}
 
           {/* Today's spend + avg/day */}
@@ -386,18 +397,24 @@ export default function Dashboard() {
                               <CategoryIcon icon={cat?.icon || 'DollarSign'} color={cat?.color || '#6366F1'} size={16} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-foreground truncate">{cat?.name || 'Unknown'}</p>
+                              <p className="text-sm font-medium text-foreground truncate">
+                                {isCardBillPayment(t) ? 'Card payment' : cat?.name || 'Unknown'}
+                                <CardPurchaseBadge tx={t} />
+                              </p>
                               {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               {(() => {
                                 const isSavings = t.type === 'expense' && SAVINGS_CATEGORY_ID_SET.has(t.categoryId);
+                                const isPayment = isCardBillPayment(t);
                                 const colorClass = t.type === 'income'
                                   ? 'text-income'
                                   : isSavings
                                     ? 'text-savings'
-                                    : 'text-spending';
-                                const prefix = t.type === 'income' ? '+' : isSavings ? '↗' : '−';
+                                    : isPayment
+                                      ? 'text-foreground'
+                                      : 'text-spending';
+                                const prefix = t.type === 'income' ? '+' : isSavings ? '↗' : isPayment ? '' : '−';
                                 return (
                                   <span className={cn('amount text-sm font-bold whitespace-nowrap', colorClass)}>
                                     {prefix}{formatAmount(t.amount)}
@@ -426,6 +443,7 @@ export default function Dashboard() {
           )}
         </motion.div>
       </motion.div>
+      <CardDuesSheet open={cardSheetOpen} onOpenChange={setCardSheetOpen} />
     </div>
   );
 }

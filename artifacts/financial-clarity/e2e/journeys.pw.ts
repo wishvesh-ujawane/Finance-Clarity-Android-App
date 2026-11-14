@@ -85,3 +85,77 @@ test('[BUD-002] copying budget limits lists every overwrite and changes limits o
   const transactions = await page.evaluate(() => localStorage.getItem('financial-clarity:transactions'));
   expect(JSON.parse(transactions ?? '[]')).toEqual([]);
 });
+
+test('[CARD-001] a card expense shows on the card chip, and a bill payment from the chip lowers it', async ({ page }) => {
+  await prepare(page, () => undefined);
+
+  await page.goto('/');
+  await page.getByTestId('fab-add').click();
+  await page.getByTestId('fab-menu-expense').click();
+  await page.getByTestId('amount-input').fill('1200');
+  await page.getByTestId('category-groceries').click();
+  await page.getByTestId('paid-with-card-checkbox').check();
+  await page.getByTestId('submit-transaction').click();
+  await expect(page.getByTestId('transaction-sheet')).toHaveCount(0);
+
+  const chip = page.getByTestId('card-debt-chip');
+  await expect(chip).toContainText('₹1,200 on your card');
+  await chip.click();
+  const sheet = page.getByTestId('card-dues-sheet');
+  await expect(sheet.getByTestId('card-dues-owed')).toHaveText('₹1,200');
+  await sheet.getByTestId('card-dues-full').click();
+  await sheet.getByTestId('card-dues-record').click();
+  await expect(sheet.getByTestId('card-dues-recorded')).toContainText('₹1,200 card bill payment');
+  await expect(sheet.getByTestId('card-dues-owed')).toHaveText('₹0');
+  await page.keyboard.press('Escape');
+  await expect(chip).toContainText('₹0 on your card');
+
+  await page.goto('/transactions');
+  await expect(page.getByText('Card payment')).toBeVisible();
+  await expect(page.getByTestId('transactions-spending-total')).toHaveText('₹1,200');
+});
+
+test('[BUD-003] Budgets and Analysis show the same budget summary', async ({ page }) => {
+  await prepare(page, ({ thisMonth }) => {
+    localStorage.setItem('financial-clarity:budgets', JSON.stringify([
+      { id: 'b-groceries', categoryId: 'groceries', limit: 5000, month: thisMonth },
+    ]));
+    localStorage.setItem('financial-clarity:transactions', JSON.stringify([
+      { id: 'e2e-groceries', type: 'expense', amount: 6000, categoryId: 'groceries', note: '', date: `${thisMonth}-01` },
+      { id: 'e2e-dining', type: 'expense', amount: 800, categoryId: 'dining', note: '', date: `${thisMonth}-01` },
+    ]));
+  });
+
+  await page.goto('/budgets');
+  await expect(page.getByTestId('budget-summary-dayToDay-status')).toHaveText('₹1,000 over');
+  await expect(page.getByTestId('budget-summary-dayToDay-unbudgeted')).toContainText('₹800');
+  await expect(page.getByTestId('budget-summary-total')).toHaveText('₹6,800');
+
+  await page.goto('/analysis');
+  const health = page.getByTestId('monthly-budget-health');
+  await expect(health.getByTestId('budget-summary-dayToDay-status')).toHaveText('₹1,000 over');
+  await expect(health.getByTestId('budget-summary-dayToDay-unbudgeted')).toContainText('₹800');
+  await expect(health.getByTestId('budget-summary-total')).toHaveText('₹6,800');
+});
+
+test('[TRD-001] Trends shows category changes and top categories instead of the removed charts', async ({ page }) => {
+  await prepare(page, ({ thisMonth }) => {
+    const [y, m] = thisMonth.split('-').map(Number);
+    const prev = new Date(y, m - 2, 1);
+    const lastMonth = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+    localStorage.setItem('financial-clarity:transactions', JSON.stringify([
+      { id: 'e2e-prev', type: 'expense', amount: 1000, categoryId: 'groceries', note: '', date: `${lastMonth}-01` },
+      { id: 'e2e-now', type: 'expense', amount: 1500, categoryId: 'groceries', note: '', date: `${thisMonth}-01` },
+    ]));
+    localStorage.setItem(`financial-clarity:month-end-review:${lastMonth}`, `dismissed:${Date.now()}`);
+  });
+
+  await page.goto('/analysis');
+  await page.getByRole('tab', { name: 'Trends' }).click();
+  await expect(page.getByTestId('category-changes')).toBeVisible();
+  await expect(page.getByTestId('category-changes-up')).toContainText('Groceries');
+  await expect(page.getByTestId('top-category-trend-list')).toContainText('Groceries');
+  await expect(page.getByText('Monthly savings rate')).toHaveCount(0);
+  await expect(page.getByText('When do you spend most?')).toHaveCount(0);
+  await expect(page.getByText('Budget usage this month')).toHaveCount(0);
+});

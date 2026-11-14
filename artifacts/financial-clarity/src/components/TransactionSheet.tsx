@@ -11,7 +11,7 @@ import { CategoryIcon, ICON_OPTIONS } from '@/components/CategoryIcon';
 import { cn } from '@/lib/utils';
 import { localDateStr, formatAmountExpression } from '@/lib/finance-utils';
 import { formatAmountFull, formatDateLabel } from '@/lib/format';
-import { SAVINGS_CATEGORY_IDS, SYSTEM_ADJUSTMENT_CATEGORY_IDS } from '@/lib/types';
+import { SAVINGS_CATEGORY_IDS, SYSTEM_ADJUSTMENT_CATEGORY_IDS, type PaymentMethod } from '@/lib/types';
 import { isCategoryActive, selectableCategories } from '@/lib/category-rules';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
@@ -115,7 +115,7 @@ export function TransactionSheet() {
   const [categoryId, setCategoryId] = useState('');
   const [note, setNote] = useState('');
   const [date, setDate] = useState(localDateStr(new Date()));
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank' | 'credit-card' | undefined>(undefined);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | undefined>(undefined);
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('DollarSign');
@@ -178,7 +178,7 @@ export function TransactionSheet() {
         setCategoryId(editingTransaction.categoryId);
         setNote(editingTransaction.note);
         setDate(editingTransaction.date);
-        setPaymentMethod(editingTransaction.paymentMethod as 'cash' | 'bank' | 'credit-card' | undefined);
+        setPaymentMethod(editingTransaction.paymentMethod);
       } else {
         setMode(sheetInitialMode ?? 'expense');
         setAmount('');
@@ -207,6 +207,10 @@ export function TransactionSheet() {
 
   const calculatedAmount = evaluateAmountExpression(amount);
 
+  const isBillPayment = editingTransaction?.paymentMethod === 'credit-card-payment';
+  const paidWithCard = paymentMethod === 'credit-card';
+  const nonCardPaymentMethod = editingTransaction?.paymentMethod === 'credit-card' ? undefined : editingTransaction?.paymentMethod;
+
   const handleSubmit = useCallback(() => {
     const parsed = evaluateAmountExpression(amount);
     if (!parsed || parsed <= 0 || !categoryId || submittingRef.current) return;
@@ -214,13 +218,15 @@ export function TransactionSheet() {
 
     // 'save' is a UI mode; underlying transaction is an expense whose category is a savings one.
     const storedType: 'expense' | 'income' = mode === 'income' ? 'income' : 'expense';
+    // Only ordinary expenses can be card purchases.
+    const storedPaymentMethod = paymentMethod === 'credit-card' && mode !== 'expense' ? nonCardPaymentMethod : paymentMethod;
     const payload = {
       type: storedType, 
       amount: parsed, 
       categoryId, 
       note, 
       date,
-      paymentMethod: paymentMethod || undefined,
+      paymentMethod: storedPaymentMethod || undefined,
       merchant: isEditing ? editingTransaction?.merchant : undefined,
       sourceSmsFingerprint: isEditing ? editingTransaction?.sourceSmsFingerprint : undefined,
     };
@@ -236,7 +242,7 @@ export function TransactionSheet() {
       return;
     }
     closeSheet();
-  }, [amount, categoryId, mode, note, date, paymentMethod, isEditing, editingTransaction, addTransaction, updateTransaction, closeSheet]);
+  }, [amount, categoryId, mode, note, date, paymentMethod, nonCardPaymentMethod, isEditing, editingTransaction, addTransaction, updateTransaction, closeSheet]);
 
   const handleCalculatorKey = useCallback((key: typeof CALCULATOR_KEYS[number]) => {
     if (key === '=') {
@@ -492,37 +498,6 @@ export function TransactionSheet() {
                 </div>
               </div>
 
-              {/* Payment method remains hidden from manual entry; existing
-                  values are preserved when an entry is edited and saved. */}
-              {/* eslint-disable-next-line no-constant-binary-expression -- intentionally hidden, see above */}
-              {false && (
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
-                  Payment Method (Optional)
-                </label>
-                <div className="flex gap-2">
-                  {(['cash', 'bank', 'credit-card'] as const).map((method) => {
-                    const label = method === 'cash' ? 'Cash' : method === 'bank' ? 'Bank' : 'Credit Card (due)';
-                    return (
-                      <button
-                        key={method}
-                        type="button"
-                        onClick={() => setPaymentMethod(paymentMethod === method ? undefined : method)}
-                        className={cn(
-                          'flex-1 py-3 rounded-xl text-sm font-semibold transition-all',
-                          paymentMethod === method
-                            ? 'bg-accent text-accent-foreground shadow-md'
-                            : 'bg-muted text-muted-foreground hover:text-foreground'
-                        )}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              )}
-
               {/* Category */}
               <div>
                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
@@ -694,6 +669,34 @@ export function TransactionSheet() {
                   className="w-full px-4 py-3 text-sm bg-muted rounded-xl border-0 outline-none focus:ring-2 focus:ring-accent text-foreground placeholder:text-muted-foreground/50"
                 />
               </div>
+
+              {/* Paid with credit card: expense entries only. Unticking restores
+                  any earlier cash/bank value so edits never lose it. */}
+              {mode === 'expense' && !isBillPayment && (
+                <label
+                  className="flex items-start gap-3 rounded-xl bg-muted px-4 py-3 cursor-pointer min-h-12"
+                  data-testid="paid-with-card"
+                >
+                  <input
+                    type="checkbox"
+                    data-testid="paid-with-card-checkbox"
+                    checked={paidWithCard}
+                    onChange={e => setPaymentMethod(e.target.checked ? 'credit-card' : nonCardPaymentMethod)}
+                    className="mt-0.5 h-5 w-5 accent-accent flex-shrink-0"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-foreground">Paid with credit card</span>
+                    <span className="block text-xs text-muted-foreground">
+                      Counts as spending now and adds to &ldquo;On your card&rdquo; until you record the bill payment.
+                    </span>
+                  </span>
+                </label>
+              )}
+              {isBillPayment && (
+                <p className="rounded-xl bg-muted px-4 py-3 text-xs text-muted-foreground" data-testid="bill-payment-note">
+                  This is a card bill payment. It lowers what is on your card and is not counted as spending.
+                </p>
+              )}
 
               {/* Submit */}
               {saveError && (

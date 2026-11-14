@@ -188,7 +188,7 @@ Arbitrary named goals, withdrawals, independent balances, and target dates are *
 
 The actual savings balance is not stored separately. A confirmed difference is stored as a dated `_adjustment-savings` transaction. An increase raises tracked savings and lifetime balance; spent or lost reduces both; a transfer to bank reduces savings and raises expected bank cash without changing lifetime balance. These entries are backed up as transactions, are not attributed to either savings bucket, and are not edited as ordinary transactions. They can be removed from Transactions after an explicit warning; existing reconciliation snapshots and bank adjustments remain unchanged. If the bank gap is not confirmed, it remains unresolved.
 
-A month-end **card bill payment** is an ordinary `transactions` row: `type = expense`, `paymentMethod = credit-card-payment`, `categoryId = other`, note "Card bill payment", dated the reviewed month's last day. No new field, key, or schema version is needed; it is excluded from consumption (PRD §6) and lowers the outstanding card amount.
+A month-end **card bill payment** is an ordinary `transactions` row: `type = expense`, `paymentMethod = credit-card-payment`, `categoryId = other`, note "Card bill payment", dated the reviewed month's last day. No new field, key, or schema version is needed; it is excluded from consumption (PRD §6) and lowers the outstanding card amount. Since 2026-11-14 (D11) the same row can be created from the Dashboard card sheet with the date the bill was paid (not in the future). The "Paid with credit card" checkbox writes the existing `paymentMethod = credit-card` value on expenses. Neither change adds a field, key, or schema version.
 
 ### 4.7 `month_reviews` — per-month review state
 

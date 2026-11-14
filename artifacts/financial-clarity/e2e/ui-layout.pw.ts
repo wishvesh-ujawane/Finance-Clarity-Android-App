@@ -47,6 +47,7 @@ const SCREENS: Screen[] = [
 
 /** Sheets opened from a list row or button, filled data only. */
 const ROW_OVERLAYS: { name: string; route: string; testId: string }[] = [
+  { name: 'card details', route: '/', testId: 'card-debt-chip' },
   { name: 'transaction edit sheet', route: '/transactions', testId: 'txn-e2e-long-2' },
   { name: 'budget detail', route: '/budgets', testId: 'budget-e2e-b1' },
   { name: 'recurring edit sheet', route: '/settings/recurring', testId: 'recurring-edit-e2e-r2' },
@@ -70,7 +71,7 @@ function filledData() {
     { id: `e2e-din-${i}`, type: 'expense', amount: 3250, categoryId: 'dining', note: '', date: `${m}-${day(3)}` },
     { id: `e2e-tra-${i}`, type: 'expense', amount: 1890, categoryId: 'transport', note: '', date: `${m}-${day(4)}` },
     { id: `e2e-lei-${i}`, type: 'expense', amount: 12345, categoryId: 'leisure', note: '', date: `${m}-${day(5)}` },
-    { id: `e2e-long-${i}`, type: 'expense', amount: 123456, categoryId: 'e2e-long', note: 'Refrigerator replacement', date: `${m}-${day(6)}` },
+    { id: `e2e-long-${i}`, type: 'expense', amount: 123456, categoryId: 'e2e-long', note: 'Refrigerator replacement', date: `${m}-${day(6)}`, paymentMethod: 'credit-card' },
   ]);
   const current = monthKey(0);
   const rule = (id: string, description: string, amount: number, dayOfMonth: number) => ({
@@ -416,8 +417,10 @@ for (const config of CONFIGS) {
         if (await review.isVisible({ timeout: 5000 }).catch(() => false)) {
           await record(page, info, 'month-end review');
           await page.getByTestId('month-end-continue').click();
+          await record(page, info, 'month-end card bill');
+          await page.getByTestId('card-bill-continue').click();
           await record(page, info, 'month-end reconcile');
-          await page.getByTestId('reconcile-skip').click().catch(() => undefined);
+          await page.getByTestId('reconcile-skip').click();
           await record(page, info, 'month-end next step');
           await closeOverlay(page);
         }

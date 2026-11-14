@@ -2,7 +2,7 @@
 id: feature-budgets
 title: Budgets screen
 date: 2026-06-28
-updated: 2026-11-12
+updated: 2026-11-14
 status: current
 scope: [financial-clarity]
 related:
@@ -21,11 +21,21 @@ source-of-truth-files:
 
 ## User-visible behavior
 Monthly budgets and savings targets. Header shows "Monthly · Budgets" and a
-"Copy to {next month}" button. The
-**Surplus bar** (dark blue `bg-[hsl(222,65%,13%)]`) summarises remaining
-allocation as `Surplus · ₹X of ₹Y` plus a percentage and an animated progress
-bar coloured red / amber / emerald by threshold. Two summary cards
-(total budget / spent on budgeted) sit in a grid below.
+"Copy to {next month}" button.
+
+**Budget summary** (since 2026-11-14, ADR-0010): `BudgetSummaryCard` shows
+"Budgets for {Month}" with one row each for Day-to-day, Commitments, and
+Savings ("₹X spent/paid/saved of ₹Y" with a status line), a "+ ₹N … in
+categories without a budget" line where it applies, and "All spending this
+month" (equals Dashboard Expenses). It reads `getBudgetBreakdown(month)`
+(`budgetSummary` in `lib/domain/budgets.ts`), the same data Analysis
+Overview shows. It replaced the "{Month} Month Budget" and "Spent on
+budgeted" tiles.
+
+The **allocation strip** (dark blue `bg-[hsl(222,65%,13%)]`) shows
+`Not yet budgeted · ₹X of ₹Y` (or "Budgeted ₹X more than you have"), "N%
+budgeted", and a caption: available = carry-forward + the month's income;
+limits include savings.
 
 The **budget list** renders one card per budget with category icon, name,
 progress bar (red if over, amber 75–100%, category colour otherwise), edit
@@ -53,7 +63,7 @@ Reads / writes via [FinanceContext](../../../artifacts/financial-clarity/src/con
   `planBudgetCopy` in `lib/domain/budgets.ts`, lists each new budget, each
   replaced limit (old → new), how many other next-month budgets stay as they
   are, and inactive categories that are not copied.
-- **Surplus bar** (lines 104–113) — purely informational.
+- **Allocation strip** — purely informational.
 - **Add Budget sheet** — opened by FAB. Registered via
   `useFabAction(openAddBudget, 'Add budget', 'fab-add-budget')`. Contains
   category select + limit input + Cancel/Save.
@@ -67,8 +77,8 @@ Reads / writes via [FinanceContext](../../../artifacts/financial-clarity/src/con
 
 ## Edge cases & empty states
 - Empty state: plus-icon tile + "No budgets set".
-- Over-allocated month: surplus bar flips to red and shows "over-allocated"
-  status instead of "Surplus".
+- Over-allocated month: the allocation strip turns red and reads "Budgeted
+  ₹X more than you have (₹Y)".
 
 ## Cross-feature dependencies
 - [categories.md](./categories.md) — budgets are keyed by `categoryId`.
@@ -76,5 +86,5 @@ Reads / writes via [FinanceContext](../../../artifacts/financial-clarity/src/con
   managed via its own context entries.
 
 ## Known gotchas
-- Surplus bar uses a **hardcoded** dark blue `hsl(222,65%,13%)` instead of a
+- Allocation strip uses a **hardcoded** dark blue `hsl(222,65%,13%)` instead of a
   Tailwind theme token; any palette change must touch this directly.

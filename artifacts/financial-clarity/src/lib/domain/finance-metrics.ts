@@ -166,6 +166,11 @@ export function outstandingCardAmountThroughEndOf(transactions: readonly MetricT
   return cardOutstanding(transactions, tx => monthOf(tx.date) <= month);
 }
 
+/** Outstanding card amount counting only entries dated on or before `date` (`YYYY-MM-DD`). */
+export function outstandingCardAmountThrough(transactions: readonly MetricTransaction[], date: string): number {
+  return cardOutstanding(transactions, tx => tx.date <= date);
+}
+
 function cardOutstanding(
   transactions: readonly MetricTransaction[],
   include: (tx: MetricTransaction) => boolean,
@@ -173,11 +178,16 @@ function cardOutstanding(
   let purchases = 0;
   let payments = 0;
   for (const tx of transactions) {
-    if (tx.type !== 'expense' || !include(tx)) continue;
-    if (tx.paymentMethod === 'credit-card') purchases += tx.amount;
-    else if (tx.paymentMethod === 'credit-card-payment') payments += tx.amount;
+    if (!include(tx)) continue;
+    if (isCardPurchase(tx)) purchases += tx.amount;
+    else if (isCardBillPayment(tx)) payments += tx.amount;
   }
   return Math.max(0, purchases - payments);
+}
+
+/** An expense paid with the credit card. It is consumption when made; the bank pays later. */
+export function isCardPurchase(tx: Pick<MetricTransaction, 'type' | 'paymentMethod'>): boolean {
+  return tx.type === 'expense' && tx.paymentMethod === 'credit-card';
 }
 
 export function isCardBillPayment(tx: Pick<MetricTransaction, 'type' | 'paymentMethod'>): boolean {
@@ -187,6 +197,27 @@ export function isCardBillPayment(tx: Pick<MetricTransaction, 'type' | 'paymentM
 /** Card bill payments dated in `month`. */
 export function cardBillPaymentsIn(transactions: readonly MetricTransaction[], month: string): number {
   return sumWhere(transactions, tx => isCardBillPayment(tx) && isInMonth(tx.date, month));
+}
+
+/** Card bill payments dated after `date` (`YYYY-MM-DD`). */
+export function cardBillPaymentsAfter(transactions: readonly MetricTransaction[], date: string): number {
+  return sumWhere(transactions, tx => isCardBillPayment(tx) && tx.date > date);
+}
+
+/**
+ * Largest bill payment that can be recorded on `date`: what was unpaid on
+ * that date, but never more than is unpaid overall. The second cap stops a
+ * month-end payment from repeating one already recorded on a later date.
+ */
+export function cardBillPaymentLimit(transactions: readonly MetricTransaction[], date: string): number {
+  return Math.min(outstandingCardAmountThrough(transactions, date), outstandingCardAmount(transactions));
+}
+
+/** Card purchases and bill payments, newest first. */
+export function cardActivity<T extends MetricTransaction>(transactions: readonly T[]): T[] {
+  return transactions
+    .filter(tx => isCardPurchase(tx) || isCardBillPayment(tx))
+    .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 /**

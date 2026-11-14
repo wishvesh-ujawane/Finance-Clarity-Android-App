@@ -3,6 +3,8 @@
  * Analysis tabs agree with the Dashboard, Budgets, and Transactions screens.
  */
 import {
+  consumptionByCategory,
+  consumptionByCategoryBetween,
   isConsumptionExpense,
   isIncome,
   isSavingsContribution,
@@ -36,23 +38,6 @@ export function futureOutflow(transactions: readonly MetricTransaction[], month:
   return total;
 }
 
-/** Consumption per weekday in `month`, Monday first, with per-category totals. */
-export function consumptionByWeekday<T extends MetricTransaction>(
-  transactions: readonly T[],
-  month: string,
-): { totals: number[]; byCategory: Array<Record<string, number>> } {
-  const totals = [0, 0, 0, 0, 0, 0, 0];
-  const byCategory: Array<Record<string, number>> = totals.map(() => ({}));
-  for (const tx of transactions) {
-    if (!isInMonth(tx.date, month) || !isConsumptionExpense(tx)) continue;
-    const jsDay = new Date(`${tx.date}T00:00:00`).getDay();
-    const idx = jsDay === 0 ? 6 : jsDay - 1;
-    totals[idx] += tx.amount;
-    byCategory[idx][tx.categoryId] = (byCategory[idx][tx.categoryId] ?? 0) + tx.amount;
-  }
-  return { totals, byCategory };
-}
-
 /** Consumption entries in `month` grouped by day of month. */
 export function consumptionByDay<T extends MetricTransaction>(
   transactions: readonly T[],
@@ -69,24 +54,77 @@ export function consumptionByDay<T extends MetricTransaction>(
   return days;
 }
 
+/** Inclusive `YYYY-MM-DD` date range. */
+export interface DateRange {
+  start: string;
+  end: string;
+}
+
+export interface CategorySpendChange {
+  categoryId: string;
+  current: number;
+  previous: number;
+  /** current − previous. Positive means more was spent. */
+  change: number;
+  /** Change as a percentage of `previous`; null when `previous` is 0. */
+  changePct: number | null;
+}
+
 /**
- * Day-to-day consumption per day of `month` for the budget pace chart:
- * consumption outside commitment categories, leaving out entries generated
- * by recurring rules (fixed bills, identified by their stored rule ID).
+ * Consumption per category in `current` compared with `previous`, sorted by
+ * change (largest increase first). Categories with no change are left out.
  */
-export function dayToDayPaceByDay(
-  transactions: ReadonlyArray<MetricTransaction & { recurringRuleId?: string }>,
-  commitmentIds: ReadonlySet<string>,
-  month: string,
-): Record<number, number> {
-  const days: Record<number, number> = {};
-  for (const tx of transactions) {
-    if (!isInMonth(tx.date, month) || !isConsumptionExpense(tx)) continue;
-    if (commitmentIds.has(tx.categoryId) || tx.recurringRuleId) continue;
-    const day = Number(tx.date.slice(8, 10));
-    days[day] = (days[day] ?? 0) + tx.amount;
+export function categorySpendChanges(
+  transactions: readonly MetricTransaction[],
+  current: DateRange,
+  previous: DateRange,
+): CategorySpendChange[] {
+  const now = consumptionByCategoryBetween(transactions, current.start, current.end);
+  const before = consumptionByCategoryBetween(transactions, previous.start, previous.end);
+  const ids = new Set([...Object.keys(now), ...Object.keys(before)]);
+  const rows: CategorySpendChange[] = [];
+  for (const categoryId of ids) {
+    const cur = now[categoryId] ?? 0;
+    const prev = before[categoryId] ?? 0;
+    const change = cur - prev;
+    if (change === 0) continue;
+    rows.push({ categoryId, current: cur, previous: prev, change, changePct: prev > 0 ? (change / prev) * 100 : null });
   }
-  return days;
+  return rows.sort((a, b) => b.change - a.change);
+}
+
+export interface CategoryTrend {
+  /** Top categories by total consumption across `months`, largest first. */
+  categoryIds: string[];
+  /** One row per month: consumption for each top category (0 when none). */
+  points: Array<{ month: string; values: Record<string, number> }>;
+  /** Total per top category across `months`. */
+  totals: Record<string, number>;
+}
+
+/** Monthly consumption for the `limit` largest categories across `months`. */
+export function topCategoryTrend(
+  transactions: readonly MetricTransaction[],
+  months: readonly string[],
+  limit = 5,
+): CategoryTrend {
+  const perMonth = months.map(month => ({ month, byCategory: consumptionByCategory(transactions, month) }));
+  const totals: Record<string, number> = {};
+  for (const { byCategory } of perMonth) {
+    for (const [id, amount] of Object.entries(byCategory)) totals[id] = (totals[id] ?? 0) + amount;
+  }
+  const categoryIds = Object.entries(totals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([id]) => id);
+  return {
+    categoryIds,
+    points: perMonth.map(({ month, byCategory }) => ({
+      month,
+      values: Object.fromEntries(categoryIds.map(id => [id, byCategory[id] ?? 0])),
+    })),
+    totals: Object.fromEntries(categoryIds.map(id => [id, totals[id]])),
+  };
 }
 
 /**

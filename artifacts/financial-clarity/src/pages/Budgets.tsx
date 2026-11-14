@@ -11,6 +11,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { useFinance } from '@/context/FinanceContext';
 import { useDefaultFabMenu } from '@/hooks/useDefaultFabMenu';
 import { CategoryIcon } from '@/components/CategoryIcon';
+import { BudgetSummaryCard } from '@/components/BudgetSummaryCard';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { addMonths, formatDateLabel, formatAmount, formatMonthLabel } from '@/lib/finance-utils';
@@ -22,7 +23,7 @@ export default function Budgets() {
   const {
     budgets, categories, transactions,
     updateBudget, deleteBudget, transferBudgetsToMonth,
-    getSpentForCategory, getCarryForward, getTotalIncome, selectedMonth,
+    getSpentForCategory, getCarryForward, getTotalIncome, getBudgetBreakdown, selectedMonth,
     openEditSheet, openBudgetSheet,
   } = useFinance();
 
@@ -121,10 +122,7 @@ export default function Budgets() {
     setIsTxnSheetOpen(true);
   };
 
-  const totalBudget = budgetsWithData.reduce((s, b) => s + b.limit, 0);
-  const totalSpent = budgetsWithData.reduce((s, b) => s + b.spent, 0);
-  const totalSavingsBudget = savingsBudgetsWithData.reduce((s, b) => s + b.limit, 0);
-  const totalCombinedBudget = totalBudget + totalSavingsBudget;
+  const budgetSummary = useMemo(() => getBudgetBreakdown(selectedMonth), [getBudgetBreakdown, selectedMonth]);
 
   const surplusInfo = useMemo(() => {
     const carryForward = getCarryForward(selectedMonth);
@@ -343,44 +341,23 @@ export default function Budgets() {
       )}
       {operationError && <p className="mb-4 text-sm text-destructive" role="alert" data-testid="budget-operation-error">{operationError}</p>}
 
-      {/* Summary */}
-      {budgetsWithData.length > 0 && (
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="bg-card border border-border rounded-2xl p-5">
-            <p className="text-xs text-muted-foreground mb-1">{formatMonthLabel(selectedMonth).split(' ')[0]} Month Budget</p>
-            <p className="text-xl font-bold text-foreground amount" style={{ fontFamily: 'var(--font-display)' }}>{formatAmount(totalCombinedBudget)}</p>
-            {totalSavingsBudget > 0 ? (
-              <p className="text-[11px] text-muted-foreground mt-1 font-medium amount" data-testid="savings-budget-sub">
-                {formatAmount(totalBudget)} + {formatAmount(totalSavingsBudget)} (savings)
-              </p>
-            ) : (
-              <p className="text-[11px] text-muted-foreground mt-1 font-medium amount">{formatAmount(totalBudget)}</p>
-            )}
-          </div>
-          <div className="bg-card border border-border rounded-2xl p-5">
-            <p className="text-xs text-muted-foreground mb-1">Spent on budgeted</p>
-            <p className={cn('text-xl font-bold amount', totalSpent > totalBudget ? 'text-danger' : 'text-foreground')} style={{ fontFamily: 'var(--font-display)' }}>
-              {formatAmount(totalSpent)}
-            </p>
-            <p className={cn('text-xs mt-1 font-medium amount', totalSpent > totalBudget ? 'text-danger' : 'text-success')}>
-              {totalSpent > totalBudget ? `${formatAmount(totalSpent - totalBudget)} over` : `${formatAmount(totalBudget - totalSpent)} remaining`}
-            </p>
-          </div>
-        </div>
+      {/* Summary — same numbers as Analysis Overview (shared domain summary) */}
+      {allBudgetsWithData.length > 0 && (
+        <BudgetSummaryCard summary={budgetSummary} monthLabel={formatMonthLabel(selectedMonth)} className="mb-3" />
       )}
 
-      {/* Surplus strip (mirrors Dashboard hero-budget-bar) */}
+      {/* Allocation strip: how much of the available money has a budget. */}
       <div
         className="rounded-2xl bg-hero text-hero-foreground px-5 py-4 mb-4"
         data-testid="budget-surplus-bar"
       >
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <span className={cn('text-[11px] amount', isOverAllocated ? 'text-spending-on-hero' : 'text-hero-foreground/60')}>
             {isOverAllocated
-              ? `Surplus · −${formatAmount(Math.abs(surplusInfo.surplus))} (over-allocated)`
-              : `Surplus · ${formatAmount(surplusInfo.surplus)} of ${formatAmount(surplusInfo.available)}`}
+              ? `Budgeted ${formatAmount(Math.abs(surplusInfo.surplus))} more than you have (${formatAmount(surplusInfo.available)})`
+              : `Not yet budgeted · ${formatAmount(surplusInfo.surplus)} of ${formatAmount(surplusInfo.available)}`}
           </span>
-          <span className="text-[11px] font-semibold text-hero-foreground/80 amount">{Math.round(surplusInfo.allocatedPct)}%</span>
+          <span className="text-[11px] font-semibold text-hero-foreground/80 amount">{Math.round(surplusInfo.allocatedPct)}% budgeted</span>
         </div>
         <div className="h-1.5 rounded-full bg-hero-foreground/10 overflow-hidden">
           <div
@@ -388,6 +365,9 @@ export default function Budgets() {
             style={{ width: `${Math.min(surplusInfo.allocatedPct, 100)}%` }}
           />
         </div>
+        <p className="mt-1.5 text-[11px] text-hero-foreground/60">
+          Available = carry-forward + {formatMonthLabel(selectedMonth).split(' ')[0]} income. Limits include savings.
+        </p>
       </div>
 
       {/* Add Budget sheet is mounted globally (see <BudgetSheet /> in App.tsx). */}

@@ -2,7 +2,7 @@
 id: feature-dashboard
 title: Dashboard screen
 date: 2026-06-28
-updated: 2026-06-28
+updated: 2026-11-14
 status: current
 scope: [financial-clarity]
 related:
@@ -36,6 +36,14 @@ Reads `transactions`, `categories`, `selectedMonth`, `getTotalIncome`,
 - **Donut chart** — Recharts PieChart per-category spend.
 - **Recent transactions list** — taps open the [Transactions](./transactions.md)
   screen or the per-transaction edit sheet.
+- **"On your card" chip** (since 2026-11-14, ADR-0010) — shown in the balance
+  hero once any card purchase or bill payment exists. Tapping it opens
+  [`CardDuesSheet`](../../../artifacts/financial-clarity/src/components/card/CardDuesSheet.tsx):
+  "Still to pay" (`getOutstandingCardBalance`), a "Record a bill payment"
+  form (`recordCardBillPaymentOn(date, amount)`; amount up to
+  `getCardBillPaymentLimit(date)`, date not in the future, busy guard, inline
+  and save errors keep the entered values), and the newest 50 card entries
+  (tap to edit). Empty state when there are no card entries.
 - **FAB** — registered via `useFabAction` to open the
   [TransactionSheet](../../../artifacts/financial-clarity/src/components/TransactionSheet.tsx).
   See [fab.md](./fab.md).

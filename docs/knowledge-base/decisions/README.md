@@ -19,3 +19,5 @@ Rules:
 - [0006-category-status-and-backup-v5.md](./0006-category-status-and-backup-v5.md) — Active/inactive categories, local migrations 1–2, backup schema v5.
 - [0007-owner-decisions-d6-d9.md](./0007-owner-decisions-d6-d9.md) — Active recurring rules block category inactivation; month-end card bill payments and card-aware reconcile; crash reporting removed.
 - [0008-savings-reconciliation.md](./0008-savings-reconciliation.md) — Separate savings from bank reconciliation and record confirmed corrections; backup schema v6.
+- [0009-ui-lint-and-accessibility-tooling.md](./0009-ui-lint-and-accessibility-tooling.md) — ESLint and axe accessibility checks for the mobile UI.
+- [0010-card-dues-budget-summary-trends.md](./0010-card-dues-budget-summary-trends.md) — "Paid with credit card" checkbox; tappable card chip that records bill payments on their date; one shared budget summary; new Trends cards.

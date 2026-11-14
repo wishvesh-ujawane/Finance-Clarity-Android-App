@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { Budget } from '@/lib/types';
-import { applyBudgetCopy, budgetCopyCount, planBudgetCopy } from '../budgets';
-import { sumConsumption, sumIncome } from '../finance-metrics';
-import { FIXTURE_TRANSACTIONS } from './fixtures';
+import { applyBudgetCopy, budgetCopyCount, budgetSummary, planBudgetCopy } from '../budgets';
+import {
+  sumConsumption,
+  sumIncome,
+  totalCommitments,
+  totalConsumption,
+  totalDayToDay,
+  totalSavingsContributions,
+  type MetricTransaction,
+} from '../finance-metrics';
+import { FIXTURE_BUDGETS, FIXTURE_CATEGORIES, FIXTURE_TRANSACTIONS, NOV } from './fixtures';
 
 const budgets: Budget[] = [
   { id: 'oct-groceries', categoryId: 'groceries', limit: 5000, month: '2026-10' },
@@ -49,5 +57,44 @@ describe('list totals', () => {
     const october = FIXTURE_TRANSACTIONS.filter(t => t.date.startsWith('2026-10'));
     expect(sumIncome(october)).toBe(50000);
     expect(sumConsumption(october)).toBe(15000 + 2000);
+  });
+});
+
+describe('monthly budget summary (Budgets screen and Analysis)', () => {
+  it('groups limits and spending by day-to-day, commitments, and savings', () => {
+    expect(budgetSummary(FIXTURE_TRANSACTIONS, FIXTURE_CATEGORIES, FIXTURE_BUDGETS, NOV)).toEqual({
+      dayToDay: { limit: 6000, spent: 4500, unbudgeted: 0, count: 1 },
+      commitments: { limit: 15000, spent: 15000, unbudgeted: 0, count: 1 },
+      savings: { limit: 5000, spent: 4000, unbudgeted: 0, count: 1 },
+    });
+  });
+
+  it('reports spending in categories without a budget so each type adds up to its month total', () => {
+    const categories = [...FIXTURE_CATEGORIES, { id: 'emi', type: 'commitment' as const }];
+    const extra: MetricTransaction[] = [
+      ...FIXTURE_TRANSACTIONS,
+      { type: 'expense', amount: 800, categoryId: 'dining', date: '2026-11-04' },
+      { type: 'expense', amount: 2000, categoryId: 'emi', date: '2026-11-05' },
+      { type: 'expense', amount: 1200, categoryId: 'savings-goal', date: '2026-11-06' },
+      { type: 'expense', amount: 999, categoryId: 'dining', date: '2026-10-04' },
+    ];
+    const summary = budgetSummary(extra, categories, FIXTURE_BUDGETS, NOV);
+    expect(summary.dayToDay).toMatchObject({ spent: 4500, unbudgeted: 800 });
+    expect(summary.commitments).toMatchObject({ spent: 15000, unbudgeted: 2000 });
+    expect(summary.savings).toMatchObject({ spent: 4000, unbudgeted: 1200 });
+
+    expect(summary.dayToDay.spent + summary.dayToDay.unbudgeted).toBe(totalDayToDay(extra, categories, NOV));
+    expect(summary.commitments.spent + summary.commitments.unbudgeted).toBe(totalCommitments(extra, categories, NOV));
+    expect(summary.savings.spent + summary.savings.unbudgeted).toBe(totalSavingsContributions(extra, NOV));
+    expect(
+      summary.dayToDay.spent + summary.dayToDay.unbudgeted + summary.commitments.spent + summary.commitments.unbudgeted,
+    ).toBe(totalConsumption(extra, NOV));
+  });
+
+  it('is empty for a month without budgets or entries', () => {
+    const empty = { limit: 0, spent: 0, unbudgeted: 0, count: 0 };
+    expect(budgetSummary(FIXTURE_TRANSACTIONS, FIXTURE_CATEGORIES, FIXTURE_BUDGETS, '2026-01')).toEqual({
+      dayToDay: empty, commitments: empty, savings: empty,
+    });
   });
 });

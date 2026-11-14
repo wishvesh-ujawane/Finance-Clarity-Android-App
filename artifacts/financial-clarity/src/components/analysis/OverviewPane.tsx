@@ -3,6 +3,7 @@ import { Link } from 'wouter';
 import { AlertCircle, ArrowDownRight, ArrowRight, ArrowUpRight, ChevronRight, Sparkles } from 'lucide-react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { CategoryIcon } from '@/components/CategoryIcon';
+import { BudgetSummaryCard } from '@/components/BudgetSummaryCard';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { formatAmount, formatMonthYear, getMonthOverMonthChange, formatDateLabel, isConsumptionExpense, addMonths, localDateStr, type MoMChange } from '@/lib/finance-utils';
@@ -34,14 +35,12 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
     previousExpenses,
     prevSummary,
     isCurrentMonthInProgress,
-    monthlyBudgetTotal,
-    monthlyDayToDayBudgetTotal,
+    budgetBreakdown,
     monthlyCommitments,
     monthlyDayToDay,
     monthlySavings,
     monthlyExpensesToDate,
     monthlyCommitmentsToDate,
-    monthlyDayToDayToDate,
     daysLeftInMonth,
     elapsedDays,
     allCategorySpending,
@@ -66,12 +65,13 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
   const spentChange: MoMChange = getMonthOverMonthChange(monthlyExpenses, previousExpenses, momOpts);
   const savingsChange: MoMChange = getMonthOverMonthChange(monthlySavings, previousSavings, momOpts);
 
-  // Spendable (day-to-day) budget only — commitments and savings are tracked
-  // separately so a maxed-out savings bucket no longer poisons this ratio.
-  const remainingBudget = monthlyDayToDayBudgetTotal - monthlyDayToDayToDate;
-  const spentPct = monthlyDayToDayBudgetTotal > 0 ? (monthlyDayToDayToDate / monthlyDayToDayBudgetTotal) * 100 : 0;
+  // Same day-to-day budget numbers as the Budgets screen (shared summary):
+  // spending in budgeted day-to-day categories against their limits.
+  const dayToDayBudget = budgetBreakdown.dayToDay;
+  const dayToDayOverBy = dayToDayBudget.spent - dayToDayBudget.limit;
+  const spentPct = dayToDayBudget.limit > 0 ? (dayToDayBudget.spent / dayToDayBudget.limit) * 100 : 0;
   const budgetPill = getBudgetPill(spentPct);
-  const isBudgetExceeded = monthlyDayToDayBudgetTotal > 0 && monthlyDayToDayToDate > monthlyDayToDayBudgetTotal;
+  const isBudgetExceeded = dayToDayBudget.limit > 0 && dayToDayOverBy > 0;
 
   const avgSpendPerDay = monthlyExpensesToDate / Math.max(1, elapsedDays);
   const top5Categories = allCategorySpending.slice(0, 5);
@@ -256,11 +256,11 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
     if (isBudgetExceeded) {
       items.push({
         id: 'budget-exceeded',
-        text: `You have exceeded your day-to-day budget by ${formatAmount(monthlyDayToDayToDate - monthlyBudgetTotal)}.`,
+        text: `Your day-to-day budgets are over by ${formatAmount(dayToDayOverBy)}.`,
         severity: 'danger',
         href: '/budgets',
       });
-    } else if (monthlyBudgetTotal > 0 && spentPct >= 80) {
+    } else if (dayToDayBudget.limit > 0 && spentPct >= 80) {
       items.push({
         id: 'budget-watch',
         text: `You've used ${spentPct.toFixed(0)}% of your day-to-day budget — pace your remaining spend.`,
@@ -307,8 +307,8 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
     return items;
   }, [
     isBudgetExceeded,
-    monthlyDayToDayToDate,
-    monthlyBudgetTotal,
+    dayToDayOverBy,
+    dayToDayBudget.limit,
     spentPct,
     previousExpenses,
     spentChange,
@@ -336,7 +336,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-danger uppercase tracking-wider">Budget exceeded</p>
                 <h2 className="text-base font-bold text-foreground mt-0.5" style={{ fontFamily: 'var(--font-display)' }}>
-                  Day-to-day spend is over by {formatAmount(monthlyDayToDayToDate - monthlyBudgetTotal)}
+                  Day-to-day budgets are over by {formatAmount(dayToDayOverBy)}
                 </h2>
                 <p className="text-xs text-muted-foreground mt-1">
                   Review category budgets and trim where possible. <span className="text-danger font-semibold inline-flex items-center gap-0.5">Manage <ArrowRight size={11} /></span>
@@ -349,35 +349,24 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
         {/* Zone 1 — How am I doing this month? */}
         <p className="text-base font-bold text-foreground px-1 pt-1" style={{ fontFamily: 'var(--font-display)' }} data-testid="zone-label-1">How am I doing this month?</p>
         <div className="bg-card border border-border rounded-2xl p-5" data-testid="monthly-budget-health">
-          <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-            <div>
-              <h2 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Budget Health</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              {monthlyBudgetTotal > 0 && (
-                <span className={cn('text-[11px] font-semibold px-2 py-1 rounded-full', budgetPill.className)}>
-                  {budgetPill.label}
-                </span>
-              )}
-              <span className={cn('text-sm font-semibold', monthlyBudgetTotal > 0 ? 'text-foreground' : 'text-muted-foreground')}>
-                {monthlyBudgetTotal > 0 ? `${Math.min(spentPct, 999).toFixed(1)}% spent` : 'No budget configured'}
-              </span>
-            </div>
-          </div>
+          <BudgetSummaryCard
+            embedded
+            summary={budgetBreakdown}
+            monthLabel={formatMonthYear(selectedMonth)}
+            action={
+              <Link href="/budgets" className="tap-target flex items-center gap-2" data-testid="tile-budget" aria-label="Open Budgets screen">
+                {dayToDayBudget.limit > 0 && (
+                  <span className={cn('text-[11px] font-semibold px-2 py-1 rounded-full whitespace-nowrap', budgetPill.className)}>
+                    {budgetPill.label}
+                  </span>
+                )}
+                <ChevronRight size={14} className="text-muted-foreground" aria-hidden="true" />
+              </Link>
+            }
+          />
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-            <Link
-              href="/budgets"
-              data-testid="tile-budget"
-              aria-label="Open Budgets screen"
-              className="rounded-xl bg-muted/50 px-3 py-2 text-left hover:bg-muted/70 active:bg-muted transition-colors flex items-start justify-between gap-1"
-            >
-              <div className="min-w-0">
-                <p className="text-[11px] text-muted-foreground">Spendable Budget</p>
-                <p className="text-sm font-bold text-foreground amount">{formatAmount(monthlyDayToDayBudgetTotal)}</p>
-              </div>
-              <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
-            </Link>
+          <p className="mt-5 mb-2 text-xs font-semibold text-muted-foreground">All entries this month · tap to see them</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <button
               type="button"
               data-testid="tile-expenses-this-month"
@@ -387,7 +376,7 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
             >
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Day-to-day</p>
-                <p className={cn('text-sm font-bold amount', isBudgetExceeded ? 'text-danger' : 'text-foreground')}>{formatAmount(monthlyDayToDay)}</p>
+                <p className="text-sm font-bold text-foreground amount">{formatAmount(monthlyDayToDay)}</p>
               </div>
               <ChevronRight size={12} className="text-muted-foreground mt-0.5 flex-shrink-0" />
             </button>
@@ -421,45 +410,6 @@ const OverviewPane = forwardRef<HTMLDivElement, Props>(({ shared }, ref) => {
               <p className="text-[11px] text-muted-foreground">Days Left</p>
               <p className="text-sm font-bold text-foreground">{daysLeftInMonth} day{daysLeftInMonth === 1 ? '' : 's'}</p>
             </div>
-          </div>
-
-          <div className="h-2 rounded-full overflow-hidden bg-muted mb-3 flex">
-            <div
-              className={cn('h-full', spentPct <= 80 ? 'bg-success-fill' : spentPct <= 100 ? 'bg-warning-fill' : 'bg-spending')}
-              style={{ width: `${Math.min(Math.max(spentPct, 0), 100)}%` }}
-              aria-hidden
-            />
-            <div
-              className="h-full bg-success-fill/25"
-              style={{ width: `${Math.max(0, 100 - Math.min(spentPct, 100))}%` }}
-              aria-hidden
-            />
-          </div>
-
-          <div
-            className={cn(
-              'flex items-center justify-between rounded-xl px-3 py-2 text-sm',
-              remainingBudget >= 0
-                ? 'bg-success-tint border border-success/30'
-                : 'bg-danger-tint border border-danger/30'
-            )}
-            data-testid="remaining-budget"
-          >
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  'inline-block w-2 h-2 rounded-full',
-                  remainingBudget >= 0 ? 'bg-success-fill' : 'bg-spending'
-                )}
-                aria-hidden
-              />
-              <p className="font-semibold text-foreground">
-                {remainingBudget >= 0 ? 'Remaining budget' : 'Over budget'}
-              </p>
-            </div>
-            <p className={cn('text-base font-bold amount', remainingBudget >= 0 ? 'text-success' : 'text-danger')}>
-              {formatAmount(Math.abs(remainingBudget))}
-            </p>
           </div>
         </div>
 
