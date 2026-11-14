@@ -326,7 +326,7 @@ android {
 
 ### 3. Build Release APK
 
-Before building, add the release notes for this version to the What's New screen (`src/lib/changelog.ts`, see AGENTS.md §13.1) and run the tests.
+Before building, check that every app change since the last release has its line on the What's New screen (`src/lib/changelog.ts`; lines are added with each change, see AGENTS.md §13.1) and run the tests.
 
 ```powershell
 # Build web assets for production

@@ -32,4 +32,4 @@ No valid entries → "No updates yet" empty card. No loading or error state beca
 None. Rendered only while unlocked, like every page.
 
 ## Related changes
-Owner request 2026-11-12. Process rule in AGENTS.md §13.1: every deployment adds an entry.
+Owner request 2026-11-12. Process rule in AGENTS.md §13.1, widened by the owner on 2026-11-14: every user-visible app change adds a line in the same change, without separate approval and without waiting for a deployment. A date with more than four lines gets a second entry with the same date; the list keys each card by position, so same-date entries do not clash.

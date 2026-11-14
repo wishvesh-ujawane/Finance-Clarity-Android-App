@@ -293,14 +293,15 @@ Follow ARCHITECTURE §14, API §4 and §12, and DESIGN §8.
 - **Before you finish:** typecheck and tests pass, docs are updated, and no debug code, secrets, or unrelated changes are left.
 - **Your final summary** lists the files changed, what each change does, the checks you ran and their results, and any gaps or follow-ups you found but did not fix.
 
-### 13.1 Release notes on every deployment
+### 13.1 What's New for every app change
 
-Every deployment (any APK or AAB given to users or uploaded to Google Play) must add an entry to the in-app **What's New** screen, in the same change as the release:
+**Standing owner instruction (2026-11-14):** every change to the app that a user can notice (a new feature, a bug fix, or a changed screen or behavior) adds a line to the in-app **What's New** screen, in the same change and on the same branch. Do this **without asking the owner for approval** of the entry; the owner has pre-approved it. It does not wait for a deployment. Changes that are invisible in the app (documents only, tests, build tooling) do not need a line.
 
-- Add the entry at the **top** of `CHANGELOG_ENTRIES` in `artifacts/financial-clarity/src/lib/changelog.ts`.
-- Include the **release date** (`YYYY-MM-DD`) and the **app version** from `package.json`.
-- Write **1 to 4 short lines** in simple language. Mark each line `new` (something added) or `fixed` (a bug fixed). Keep each line under 140 characters.
+- Add lines at the **top** of `CHANGELOG_ENTRIES` in `artifacts/financial-clarity/src/lib/changelog.ts`.
+- Use the **date the change is made** (`YYYY-MM-DD`) and the **app version** from `package.json`.
+- Group by date: one entry holds up to **4 short lines**. If that date's entry is full, add another entry with the same date directly below it. Mark each line `new` (something added) or `fixed` (a bug fixed). Keep each line under 140 characters, in simple language.
 - Describe what the user notices, not code details. Never include financial data, emails, or secrets.
+- Before a deployment (any APK or AAB given to users or uploaded to Google Play), check that every app change since the last release has its line.
 - `src/lib/__tests__/changelog.test.ts` checks these rules. Do not weaken it to make an entry pass.
 
 ---
@@ -316,5 +317,5 @@ A change is done only when **all** of the following are true:
 - [ ] `pnpm run typecheck` passes, and relevant tests are added or updated and pass.
 - [ ] No secrets or sensitive data appear in code, logs, fixtures, or commits.
 - [ ] Related documentation and knowledge-base entries are updated.
-- [ ] For a deployment, a What's New entry was added (§13.1).
+- [ ] Every user-visible app change has a What's New line (§13.1); no separate approval is needed.
 - [ ] The diff contains no unrelated changes.

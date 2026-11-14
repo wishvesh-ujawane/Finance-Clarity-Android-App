@@ -40,7 +40,7 @@ the core document wins.
 | `/settings/categories` | Categories | Active/inactive status; used or reserved categories cannot be deleted; a category with an active recurring rule cannot be made inactive |
 | `/settings/backup` | Backup & restore | Google Drive backup (`drive.file` scope), restore with preview, CSV import/export |
 | `/settings/savings` | Savings goals | Savings targets and contributions |
-| `/settings/changelog` | What's New | Bundled release notes; every deployment adds a dated entry |
+| `/settings/changelog` | What's New | Bundled release notes; every user-visible app change adds a dated line without separate approval (AGENTS §13.1) |
 
 Also: onboarding flow, Month-End Review (snapshot, Card bill step, card-aware
 Reconcile that keeps savings separate from the bank balance, Plan ahead budgets,
@@ -94,7 +94,7 @@ Full line-by-line history: [knowledge-base/CHANGELOG.md](./knowledge-base/CHANGE
 
 ### 4.1 Follow-ups from recent merges
 
-- PR #29: add a What's New entry for the card dues, budget summary, and Trends changes with the next deployment (AGENTS §13.1, ADR-0010).
+- PR #29 What's New entry added (2026-11-14, second card for that date).
 - PR #29: device check of the card chip, card sheet, and checkbox at 130% font size.
 - PR #32: device check of Profile — sign in, Refresh from Google (same and different account), Disconnect, Security back button ([BUILD_ON_HOME_PC.md](./BUILD_ON_HOME_PC.md) §9).
 - PR #32 What's New entry added (2026-11-14). Google's profile-photo host is now an allowed destination ([ADR-0011](./knowledge-base/decisions/0011-google-profile-photo-host.md)); list it with Google sign-in on the Play Data safety form.
