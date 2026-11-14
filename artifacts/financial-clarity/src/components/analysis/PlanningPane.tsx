@@ -31,8 +31,7 @@ export default function PlanningPane({ shared }: Props) {
     monthlyExpenses,
     monthlyExpensesToDate,
     monthlyIncomeToDate,
-    monthlyBudgetTotal,
-    monthlyDayToDay,
+    budgetBreakdown,
     currentSummary,
     allCategorySpending,
   } = shared;
@@ -41,7 +40,7 @@ export default function PlanningPane({ shared }: Props) {
   const [suggestionError, setSuggestionError] = useState('');
   const [confirmSuggestions, setConfirmSuggestions] = useState(false);
 
-  const isBudgetExceeded = monthlyBudgetTotal > 0 && monthlyDayToDay > monthlyBudgetTotal;
+  const isBudgetExceeded = budgetBreakdown.dayToDay.limit > 0 && budgetBreakdown.dayToDay.spent > budgetBreakdown.dayToDay.limit;
 
   // Spendable money through today (PRD §6 classification): income minus
   // consumption minus savings set aside. Card bill payments are not counted.
@@ -219,11 +218,13 @@ export default function PlanningPane({ shared }: Props) {
               <p className={cn('text-sm font-bold', currentSummary.netFlow >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>{formatAmount(currentSummary.netFlow)}</p>
             </div>
           </div>
-          {monthlyBudgetTotal > 0 && (
+          {budgetBreakdown.dayToDay.limit > 0 && (
             <p className="text-xs text-muted-foreground mt-3">
-              Budget outcome:{' '}
+              Day-to-day budgets:{' '}
               <span className={cn('font-semibold', isBudgetExceeded ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400')}>
-                {isBudgetExceeded ? `Over by ${formatAmount(monthlyDayToDay - monthlyBudgetTotal)}` : `Under by ${formatAmount(monthlyBudgetTotal - monthlyDayToDay)}`}
+                {isBudgetExceeded
+                  ? `Over by ${formatAmount(budgetBreakdown.dayToDay.spent - budgetBreakdown.dayToDay.limit)}`
+                  : `Under by ${formatAmount(budgetBreakdown.dayToDay.limit - budgetBreakdown.dayToDay.spent)}`}
               </span>
             </p>
           )}

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   balanceThroughEndOf,
+  cardActivity,
+  cardBillPaymentLimit,
+  cardBillPaymentsAfter,
   cardBillPaymentsIn,
   carryForward,
   categorySpent,
@@ -8,12 +11,15 @@ import {
   consumptionByCategory,
   consumptionByCategoryBetween,
   expectedBankBalanceAtEndOf,
+  isCardBillPayment,
+  isCardPurchase,
   isConsumptionExpense,
   isSavingsContribution,
   lifetimeBalance,
   monthlyNet,
   monthSummary,
   outstandingCardAmount,
+  outstandingCardAmountThrough,
   outstandingCardAmountThroughEndOf,
   savingsBalanceThroughEndOf,
   totalCommitments,
@@ -108,6 +114,37 @@ describe('outstanding card amount', () => {
     expect(cardBillPaymentsIn(tx, '2026-10')).toBe(1500);
     expect(cardBillPaymentsIn(tx, NOV)).toBe(1000);
     expect(cardBillPaymentsIn(tx, '2026-12')).toBe(0);
+  });
+
+  it('can be measured on a given date', () => {
+    expect(outstandingCardAmountThrough(tx, '2026-10-09')).toBe(0);
+    expect(outstandingCardAmountThrough(tx, '2026-10-24')).toBe(2000);
+    expect(outstandingCardAmountThrough(tx, '2026-10-25')).toBe(500);
+    expect(outstandingCardAmountThrough(tx, '2026-11-15')).toBe(500);
+  });
+
+  it('sums bill payments dated after a date', () => {
+    expect(cardBillPaymentsAfter(tx, '2026-10-31')).toBe(1000);
+    expect(cardBillPaymentsAfter(tx, '2026-11-15')).toBe(0);
+  });
+
+  it('limits a bill payment to what was unpaid on its date and what is unpaid now', () => {
+    expect(cardBillPaymentLimit(tx, '2026-10-24')).toBe(500);
+    expect(cardBillPaymentLimit(tx, '2026-10-09')).toBe(0);
+    // A later payment already covers October: the month-end entry cannot repeat it.
+    const paidInNovember: MetricTransaction[] = [
+      { type: 'expense', amount: 8000, categoryId: 'groceries', date: '2026-10-10', paymentMethod: 'credit-card' },
+      { type: 'expense', amount: 8000, categoryId: 'other', date: '2026-11-03', paymentMethod: 'credit-card-payment' },
+    ];
+    expect(outstandingCardAmountThroughEndOf(paidInNovember, '2026-10')).toBe(8000);
+    expect(cardBillPaymentLimit(paidInNovember, '2026-10-31')).toBe(0);
+  });
+
+  it('lists card purchases and bill payments newest first', () => {
+    const activity = cardActivity(tx);
+    expect(activity.map(t => t.id)).toEqual(['nov-card-buy', 'nov-card-bill', 'oct-card-bill', 'oct-card-buy']);
+    expect(activity.every(t => isCardPurchase(t) || isCardBillPayment(t))).toBe(true);
+    expect(isCardPurchase({ type: 'income', paymentMethod: 'credit-card' })).toBe(false);
   });
 });
 

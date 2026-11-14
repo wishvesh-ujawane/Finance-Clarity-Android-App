@@ -51,19 +51,12 @@ export function useAnalysisShared() {
   const currentSummary = useMemo(() => getMonthSummary(selectedMonth), [getMonthSummary, selectedMonth]);
   const prevSummary = useMemo(() => getMonthSummary(previousMonth), [getMonthSummary, previousMonth]);
 
-  // Three-bucket budget totals (day-to-day / commitments / savings), driven by
-  // category type. Replaces the former single `monthlyBudgetTotal` that lumped
-  // all three together and double-counted savings into the Analysis "Budget"
-  // and "Remaining budget" numbers.
+  // One budget summary shared with the Budgets screen (day-to-day /
+  // commitments / savings, plus spending in categories without a budget).
   const budgetBreakdown = useMemo(
     () => finance.getBudgetBreakdown(selectedMonth),
     [finance, selectedMonth]
   );
-  const monthlyDayToDayBudgetTotal = budgetBreakdown.dayToDay.limit;
-  const monthlyCommitmentBudgetTotal = budgetBreakdown.commitments.limit;
-  const monthlySavingsBudgetTotal = budgetBreakdown.savings.limit;
-  // Back-compat alias — now explicitly the day-to-day (spendable) budget only.
-  const monthlyBudgetTotal = monthlyDayToDayBudgetTotal;
 
   // Shared PRD §6 totals; "to-date" variants exclude future-dated entries in
   // the selected month (for example pre-materialized recurring expenses).
@@ -138,10 +131,6 @@ export function useAnalysisShared() {
     previousExpenses,
     currentSummary,
     prevSummary,
-    monthlyBudgetTotal,
-    monthlyDayToDayBudgetTotal,
-    monthlyCommitmentBudgetTotal,
-    monthlySavingsBudgetTotal,
     budgetBreakdown,
     commitmentCategoryIds,
     monthlyCommitments,

@@ -2,7 +2,7 @@
 id: feature-transactions
 title: Transactions screen + entry sheet
 date: 2026-06-28
-updated: 2026-11-12
+updated: 2026-11-14
 status: current
 scope: [financial-clarity]
 related:
@@ -51,6 +51,13 @@ writes via the context's add / update / delete actions.
   (bug 20261112-transaction-double-submit).
 - **Inactive categories** — new entries offer active categories only; an
   edited entry keeps its own category, shown with an "Inactive" badge.
+- **Paid with credit card** (since 2026-11-14, ADR-0009) — checkbox below the
+  note, Expense only. Ticked saves `paymentMethod: 'credit-card'` (adds to
+  "On your card"); unticking on edit restores an earlier cash/bank value.
+  Editing a card bill payment shows a note instead of the checkbox. The old
+  disabled payment-method picker (`{false && …}`, audit F-16) was removed.
+- **Card rows** — card purchases show a "Card" badge; card bill payments show
+  "Card payment" with a neutral amount (also on the Dashboard recent list).
 
 ## Edge cases & empty states
 - Empty month: empty-state placeholder and a hint to add a transaction.

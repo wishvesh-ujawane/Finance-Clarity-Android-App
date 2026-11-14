@@ -88,6 +88,7 @@ Drive backup is recovery, not live synchronization. Analysis is based on recorde
 
 - Create and edit income, expense, and savings entries.
 - Capture positive amount, category, date, optional note, and optional payment method.
+- **Approved change (owner, 2026-11-14, D11):** The expense form has a **Paid with credit card** checkbox. A ticked expense is saved as a card purchase: it counts as consumption when made and adds to the outstanding card amount. It is offered for expenses only; unticking it on edit restores any earlier cash or bank value.
 - Preserve calculator-style amount entry and Indian currency formatting.
 - Store savings contributions using the reserved savings categories.
 - Search by category, note, or amount; filter by type and date range.
@@ -111,6 +112,7 @@ Drive backup is recovery, not live synchronization. Analysis is based on recorde
 - Display lifetime balance, selected-month income and expenses, carry-forward, savings, commitments, and recent activity.
 - Preserve budget alerts and navigation to supporting records.
 - Describe aggregate card information without implying separate card-account accounting.
+- **Approved change (owner, 2026-11-14, D11):** The "On your card" chip is tappable. It opens a card sheet with the outstanding card amount, a form to record a card bill payment (amount up to what was unpaid on the payment date and what is unpaid now; date not in the future, default today), and the card purchases and payments behind the amount. Tapping an entry opens it for editing. Bill payments are listed as "Card payment"; ordinary bills (for example recharges) remain normal spending.
 - Equivalent metrics for the same period must use the approved definitions in Section 6.
 
 ### FR-05: Monthly Budgets
@@ -121,6 +123,7 @@ Drive backup is recovery, not live synchronization. Analysis is based on recorde
 - Open supporting category transactions from a budget.
 - Copy limits to the next month, overwriting matching target categories while preserving unrelated target budgets.
 - Confirm overwrite consequences. Copying is not a money transfer or unused-allowance rollover.
+- **Approved change (owner, 2026-11-14, D11):** The Budgets screen and Analysis Overview show one shared budget summary: Day-to-day, Commitments, and Savings, each as "spent of limit", plus the amount spent in categories without a budget. Each type's spent plus unbudgeted amount equals that type's month total, so the summary adds up to the Dashboard expenses. The allocation strip is labelled "Not yet budgeted" and states that available money is carry-forward plus the month's income.
 
 ### FR-06: Savings
 
@@ -146,7 +149,7 @@ Drive backup is recovery, not live synchronization. Analysis is based on recorde
 
 - Overview: summaries, category breakdowns, budget comparisons, weekly comparisons, and rule-based alerts.
 - Planning: upcoming recurring items, safe-to-spend estimates, projected ending balance, savings pace, and next-month suggestions.
-- Trends: daily activity, historical income/spending, savings rate, weekday patterns, and budget pace.
+- Trends: daily activity, historical income/spending, category changes versus the previous month (a month in progress is compared with the same days of the previous month), and the top five categories over the last six months. **Approved change (owner, 2026-11-14, D11):** the savings rate, weekday pattern, and budget pace charts were removed.
 - Preserve Overview image export through native sharing; expose export errors visibly.
 - Explain forecast assumptions and show insufficient history instead of misleading estimates.
 - Confirm before suggestions overwrite existing budget limits.
@@ -157,6 +160,7 @@ Drive backup is recovery, not live synchronization. Analysis is based on recorde
 - **Approved change (owner, 2026-11-12, D8):**
   - Month-end spending figures (spent, top categories, impulse rows, month-over-month change, budget suggestions) exclude card bill payments, per Section 6.
   - A **Card bill** step, shown when the card had an unpaid amount or a bill payment that month, lets the user record how much of the outstanding card amount was paid. It is saved as a card bill payment entry dated the month's last day; it lowers the outstanding card amount and is not spending. Amounts above the unpaid amount are refused.
+  - **Approved change (owner, 2026-11-14, D11):** Bill payments can also be recorded from the Dashboard card sheet on the date they were paid. A payment dated after the reviewed month is not part of that month's bank balance; the Card bill step lists it and refuses to record it again (it accepts no more than what is still unpaid overall).
   - Reconcile includes the card amount still unpaid in expected bank balance, because card purchases leave the bank only when the bill is paid.
   - **Owner-approved savings reconciliation:** exclude cumulative savings held in separate accounts from expected bank balance. Ask for the actual combined savings and emergency-fund balance, and record only the confirmed difference. A decrease is classified by the user as spent or lost, or transferred back to the bank. A bank discrepancy is adjusted only with explicit confirmation; prior reconciliation records and transactions are not silently changed.
   - Plan Ahead reports a failed budget save and keeps the entered value.
@@ -372,6 +376,7 @@ Proposed acceptance checks:
 | D8 | **Approved in part 2026-11-12:** month-end spending excludes card bill payments; a Card bill step records bill payments; Reconcile adds the unpaid card amount and excludes separate savings from expected bank balance; confirmed savings differences update lifetime balance as described in FR-09; Plan ahead reports budget save failures. Other month-end changes remain pending review. |
 | D9 | **Decided 2026-11-12:** remove crash reporting (Firebase Crashlytics); the app sends no diagnostics. Privacy policy, Data safety form, and store disclosures still need to be completed before submission. |
 | D10 | Explained: Practical readiness checks; detailed thresholds remain unapproved. |
+| D11 | **Approved 2026-11-14:** "Paid with credit card" checkbox on expenses; tappable "On your card" chip with a card sheet that records bill payments on their date (amends D8's month-end-only rule); one shared budget summary on Budgets and Analysis; Trends replaces savings rate, weekday pattern, and budget pace with category changes and top-five category trend. See [ADR-0009](knowledge-base/decisions/0009-card-dues-budget-summary-trends.md). |
 | Execution | Approved now: PRD update only. No app implementation changes authorized in this step. |
 
 ## 16. Supporting References

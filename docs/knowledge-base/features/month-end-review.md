@@ -2,7 +2,7 @@
 id: feature-month-end-review
 title: Month-End Review flow (analysis + guided budget setup)
 date: 2026-07-05
-updated: 2026-11-12
+updated: 2026-11-14
 status: current
 scope: [financial-clarity]
 related:
@@ -44,7 +44,14 @@ original two-step version and remain accurate for Look back and Plan ahead.
    amount, and saves an expense with `paymentMethod: 'credit-card-payment'`,
    category `other`, note "Card bill payment", dated the month's last day
    (`FinanceContext.recordCardBillPayment`). It is not spending; it lowers
-   the Dashboard card amount.
+   the Dashboard card amount. **Since 2026-11-14 (ADR-0009):** payments can
+   also be recorded from the Dashboard card sheet on their own date. The step
+   lists "Bill payments recorded after {month end}", explains that they are
+   not part of this month's bank balance, and accepts at most
+   `getCardBillPaymentLimit(month end)` (the smaller of what was unpaid at
+   month end and what is unpaid now), so a later payment is never recorded
+   twice. When later payments cover the whole amount it says so and shows no
+   entry field.
 3. **Reconcile** — compares bank cash with the balance through the month
    minus tracked savings plus the unpaid card amount. The user enters the
    actual combined savings and emergency-fund balance; only the confirmed

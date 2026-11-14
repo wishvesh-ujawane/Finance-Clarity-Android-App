@@ -20,10 +20,18 @@ interface Props {
  * unpaid card amount without counting that spending again (PRD §6, D8).
  */
 export function MonthEndCardBillCard({ reviewMonth, onContinue, onBack }: Props) {
-  const { getOutstandingCardBalanceAtEndOf, getCardBillPaymentsIn, recordCardBillPayment } = useFinance();
+  const {
+    getOutstandingCardBalanceAtEndOf, getCardBillPaymentsIn, getCardBillPaymentsAfter, getCardBillPaymentLimit,
+    recordCardBillPayment,
+  } = useFinance();
 
+  const monthEnd = lastDateOfMonth(reviewMonth);
   const owed = getOutstandingCardBalanceAtEndOf(reviewMonth);
   const paidThisMonth = getCardBillPaymentsIn(reviewMonth);
+  // Payments recorded later (for example from the Dashboard) already cover
+  // part of this month's bill; the limit stops them being entered twice.
+  const paidLater = getCardBillPaymentsAfter(monthEnd);
+  const limit = getCardBillPaymentLimit(monthEnd);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -31,9 +39,9 @@ export function MonthEndCardBillCard({ reviewMonth, onContinue, onBack }: Props)
 
   const monthLabel = formatMonthLabel(reviewMonth);
   const dayLabel = useMemo(() => {
-    const [, , day] = lastDateOfMonth(reviewMonth).split('-');
+    const [, , day] = monthEnd.split('-');
     return `${monthLabel.split(' ')[0]} ${Number(day)}`;
-  }, [reviewMonth, monthLabel]);
+  }, [monthEnd, monthLabel]);
 
   const hasInput = input.trim().length > 0;
   const parsed = parseCurrencyInput(input);
@@ -41,8 +49,10 @@ export function MonthEndCardBillCard({ reviewMonth, onContinue, onBack }: Props)
     ? ''
     : parsed <= 0
       ? 'Enter an amount greater than zero.'
-      : parsed > owed
-        ? `That is more than the unpaid amount (${formatAmountFull(owed)}). Add any missing card purchases first, or enter up to ${formatAmountFull(owed)}.`
+      : parsed > limit
+        ? limit < owed
+          ? `Payments recorded after ${dayLabel} already cover part of this. Enter up to ${formatAmountFull(limit)}, or continue without recording.`
+          : `That is more than the unpaid amount (${formatAmountFull(owed)}). Add any missing card purchases first, or enter up to ${formatAmountFull(owed)}.`
         : '';
   const canRecord = hasInput && inputError === '' && !busy;
 
@@ -71,7 +81,7 @@ export function MonthEndCardBillCard({ reviewMonth, onContinue, onBack }: Props)
             Did you pay your card bill?
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Purchases marked &ldquo;Credit Card&rdquo; already count as spending. Record what you paid
+            Purchases marked &ldquo;Paid with credit card&rdquo; already count as spending. Record what you paid
             toward the card by {dayLabel} so the app knows how much you still owe. A bill
             payment is not counted as spending again.
           </p>
@@ -95,9 +105,23 @@ export function MonthEndCardBillCard({ reviewMonth, onContinue, onBack }: Props)
               </span>
             </div>
           )}
+          {paidLater > 0 && (
+            <div className="flex items-center justify-between py-1.5 text-sm">
+              <span className="text-muted-foreground">Bill payments recorded after {dayLabel}</span>
+              <span className="font-semibold text-foreground" data-testid="card-bill-paid-later">
+                {formatAmountFull(paidLater)}
+              </span>
+            </div>
+          )}
         </div>
+        {paidLater > 0 && owed > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground" data-testid="card-bill-paid-later-note">
+            A payment made after {dayLabel} left your bank after the month ended, so it is not part of this
+            month&rsquo;s bank balance. Do not record it again here.
+          </p>
+        )}
 
-        {owed > 0 ? (
+        {owed > 0 && limit > 0 ? (
           <div className="mt-5">
             <label htmlFor="card-bill-amount" className="mb-1 block text-xs font-semibold text-muted-foreground">
               Amount you paid toward the card
@@ -118,7 +142,7 @@ export function MonthEndCardBillCard({ reviewMonth, onContinue, onBack }: Props)
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => { setInput(String(owed)); setSaveError(''); setRecorded(null); }}
+                onClick={() => { setInput(String(limit)); setSaveError(''); setRecorded(null); }}
                 data-testid="card-bill-full"
               >
                 Paid in full
@@ -130,6 +154,10 @@ export function MonthEndCardBillCard({ reviewMonth, onContinue, onBack }: Props)
               </p>
             )}
           </div>
+        ) : owed > 0 ? (
+          <p className="mt-5 text-sm text-muted-foreground" data-testid="card-bill-paid-later-clear">
+            Bill payments you recorded after {dayLabel} already cover this amount. Nothing more to record here.
+          </p>
         ) : (
           <p className="mt-5 text-sm text-muted-foreground" data-testid="card-bill-clear">
             Nothing is unpaid on your card for {monthLabel}.
@@ -158,7 +186,7 @@ export function MonthEndCardBillCard({ reviewMonth, onContinue, onBack }: Props)
           ← Back
         </Button>
         <div className="flex items-center gap-2">
-          {owed > 0 && (
+          {owed > 0 && limit > 0 && (
             <Button size="sm" variant="secondary" onClick={handleRecord} disabled={!canRecord} data-testid="card-bill-record">
               <Check className="mr-1 h-4 w-4" />
               Record payment

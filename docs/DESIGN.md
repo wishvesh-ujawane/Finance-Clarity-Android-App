@@ -298,6 +298,8 @@ One component, used everywhere a screen is scoped to a month (Dashboard, Transac
 
 Order, top to bottom: eyebrow "Lifetime balance" → hero amount → optional "On your card" chip → one-line daily context ("Spent ₹X today · avg ₹Y/day") → divider → 2×2 stat tiles (Income, Expenses, Carry-forward, {Month} balance).
 
+- The "On your card" chip (approved 2026-11-14, D11) appears once any card purchase or bill payment exists, including at ₹0. It is a button with a trailing chevron and a 48 px hit area; it opens the **card sheet** (§5.14 bottom sheet): "Still to pay" amount, a "Record a bill payment" form (amount with a "Paid in full" shortcut, date paid defaulting to today and not in the future, inline errors, busy state, status line after saving), and a "Card entries" list (newest 50; tap to edit). Empty state: "No card purchases yet…". Built from Sheet, Input, Button, and list rows; no new tokens.
+
 - Stat tiles: micro label with a direction icon, then amount in the amount style using on-dark money colors.
 - A negative {Month} balance gets a subtle red-tint tile background in addition to its color and minus sign.
 - Text on navy uses at least 60% white opacity. 40–50% is too faint.
@@ -313,6 +315,7 @@ Label (micro or caption, muted) above the value (amount style). Optional directi
 - Whole row is the tap target (opens the edit sheet). Minimum height 48 px.
 - Rows are grouped under date headers (caption style, muted, 600 weight).
 - Inactive categories in history show their name normally plus an "Inactive" micro badge.
+- Card purchases show a "Card" badge after the category name. Card bill payments show the label "Card payment" and the amount in `foreground` without a sign (§2.2).
 
 ### 5.8 Settings row
 
@@ -699,15 +702,16 @@ FAB: menu mode (Expense, Income, Save). Export labels state the exact range expo
 
 ### 13.5 Transaction sheet (entry)
 
-Title → type toggle → amount + calculator → category grid → date → note → typed submit. Editing adds the delete icon in the header. All rules from §5.14 and §7 apply.
+Title → type toggle → amount + calculator → category grid → date → note → **Paid with credit card** checkbox (Expense only; label plus one-line explanation; whole row is the 48 px tap target) → typed submit. Editing a card bill payment shows a short note instead of the checkbox. Editing adds the delete icon in the header. All rules from §5.14 and §7 apply.
 
 ### 13.6 Budgets
 
 1. Header with period selector.
-2. Allocation summary card: income vs total budgeted, allocation progress bar, unallocated amount.
-3. **Spending budgets** section: rows with category tile, name, spent/limit, progress bar, remaining or over amount.
-4. **Savings budgets** section, visually separated with its own section label (PRD FR-05).
-5. "Copy to {next month}" secondary action, which opens a confirmation listing overwrites.
+2. **Budget summary card** (`BudgetSummaryCard`, approved 2026-11-14, D11): "Budgets for {Month}", then one progress row (§5.9) each for Day-to-day, Commitments, and Savings ("₹X spent/paid/saved of ₹Y", then "₹Z left", "₹Z over", "₹Z to go", "Fully paid", or "Target met"), a "+ ₹N … in categories without a budget" line where it applies, and "All spending this month" at the bottom (equals Dashboard Expenses). Rationale: the old "Month Budget" and "Spent on budgeted" tiles and the Analysis "Spendable Budget" tile measured different things; one component from one domain summary keeps both screens identical. Bars use `accent`, or `destructive` when day-to-day is over; status is always in text.
+3. Allocation strip: "Not yet budgeted · ₹X of ₹Y" (or "Budgeted ₹X more than you have"), "N% budgeted", and a caption explaining that available money is carry-forward plus the month's income and that limits include savings.
+4. **Spending budgets** section: rows with category tile, name, spent/limit, progress bar, remaining or over amount.
+5. **Savings budgets** section, visually separated with its own section label (PRD FR-05).
+6. "Copy to {next month}" secondary action, which opens a confirmation listing overwrites.
 
 Tapping a row opens that category's transactions. Editing a limit uses the budget sheet. Inline edit is acceptable only for the limit amount. FAB: "Add budget".
 
@@ -717,9 +721,9 @@ Tapping a row opens that category's transactions. Editing a limit uses the budge
 2. Segmented tabs: Overview / Planning / Trends (swipeable panes).
 3. Each pane is a stack of standard cards. Each card has a title, a headline fact sentence, then the chart or table.
 
-- **Overview:** category breakdown, budget vs actual, week comparison, rule-based alerts.
+- **Overview:** budget summary (the same `BudgetSummaryCard` as Budgets, embedded in the "How am I doing this month?" card, followed by drill-down tiles for all day-to-day, commitment, and savings entries), category breakdown, budget vs actual, week comparison, rule-based alerts.
 - **Planning:** upcoming recurring items, safe-to-spend estimate, projected month-end balance, savings pace, next-month suggestions (apply requires overwrite confirmation).
-- **Trends:** daily activity, income/spending history, savings rate, weekday pattern, budget pace.
+- **Trends:** daily activity, income/spending history, "What changed vs last month" (up to three increases and three decreases with ₹ and % change, "new" when there was nothing before; "Not enough history" when the previous period has no spending), and "Top 5 categories" (category-colored lines over the last six months plus a list with this month and the monthly average; the line appears once two months have entries). Savings rate, weekday pattern, and budget pace were removed on 2026-11-14 (D11).
 
 Share exports the Overview pane as an image. Failures surface as a visible error (PRD FR-08).
 
@@ -759,7 +763,7 @@ Two cards, **Goal savings** and **Emergency fund**. Each has monthly and annual 
 
 ### 13.14 Month-end review
 
-Existing flow (Look back → Card bill → Reconcile → Plan ahead) in a full-height sheet with a step indicator. The **Card bill** step (approved 2026-11-12, D8) appears only when the card had an unpaid amount or a bill payment that month: it shows the unpaid amount, an amount field with a "Paid in full" shortcut, an inline error for more than the unpaid amount, and a status line after saving. Reconcile shows a caption when its expected balance includes unpaid card purchases. Any further redesign is still pending (PRD FR-09); apply the tokens, type, and accessibility rules only.
+Existing flow (Look back → Card bill → Reconcile → Plan ahead) in a full-height sheet with a step indicator. The **Card bill** step (approved 2026-11-12, D8) appears only when the card had an unpaid amount or a bill payment that month: it shows the unpaid amount, an amount field with a "Paid in full" shortcut, an inline error for more than the unpaid amount, and a status line after saving. When bill payments were recorded after the month ended (for example from the Dashboard card sheet, D11), it lists them, explains they are not part of this month's bank balance, and limits the entry so they are not recorded twice. Reconcile shows a caption when its expected balance includes unpaid card purchases. Any further redesign is still pending (PRD FR-09); apply the tokens, type, and accessibility rules only.
 
 Reconcile also asks for the combined actual savings and emergency-fund balance at month end, explains the tracked balance and the difference, and excludes separate savings from the expected bank figure. If savings are lower, the user selects spent or lost, or transferred back to bank. Saving records only the difference; a separate bank-gap adjustment requires its own explicit button. The user can save without a bank adjustment. Failed writes leave the inputs in place. A savings correction can be removed from Transactions after a confirmation that explains its effects.
 

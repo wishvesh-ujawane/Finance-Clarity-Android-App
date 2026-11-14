@@ -80,6 +80,15 @@ describe('cross-screen consistency', () => {
     expect(breakdown.savings.spent).toBe(4000);
   });
 
+  it('Budgets and Analysis read the same budget summary, which adds up to Dashboard totals', () => {
+    const { finance, analysis } = render();
+    const breakdown = finance.getBudgetBreakdown(NOV);
+    expect(analysis.budgetBreakdown).toEqual(breakdown);
+    expect(breakdown.dayToDay.spent + breakdown.dayToDay.unbudgeted).toBe(finance.getTotalDayToDay(NOV));
+    expect(breakdown.commitments.spent + breakdown.commitments.unbudgeted).toBe(finance.getTotalCommitments(NOV));
+    expect(breakdown.savings.spent + breakdown.savings.unbudgeted).toBe(finance.getTotalSavings(NOV));
+  });
+
   it('balances agree with the PRD §6 definitions', () => {
     const { finance } = render();
     expect(finance.getCarryForward(NOV)).toBe(33000);

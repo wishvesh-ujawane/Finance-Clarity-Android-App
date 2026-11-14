@@ -1,8 +1,75 @@
 /**
- * Budget limit copying (PRD FR-05, §6 "Budget copying"). Copying sets limits
- * in the target month; it never moves money and never touches spending.
+ * Budget rules (PRD FR-05). The monthly summary groups budgets by type.
+ * Copying sets limits in the target month (PRD §6 "Budget copying"); it never
+ * moves money and never touches spending.
  */
 import type { Budget, Category } from '@/lib/types';
+import {
+  categorySpent,
+  isConsumptionExpense,
+  isSavingsContribution,
+  type MetricTransaction,
+} from './finance-metrics';
+import { isInMonth } from './periods';
+
+export type BudgetBucketKey = 'dayToDay' | 'commitments' | 'savings';
+
+export interface BudgetBucket {
+  /** Sum of the limits set in this bucket for the month. */
+  limit: number;
+  /** Amount counted against those limits (same rule as each budget card). */
+  spent: number;
+  /** Amount in this bucket's categories that have no budget this month. */
+  unbudgeted: number;
+  /** Number of budgets in this bucket. */
+  count: number;
+}
+
+export type BudgetSummary = Record<BudgetBucketKey, BudgetBucket>;
+
+function bucketFor(category: Pick<Category, 'type'> | undefined): BudgetBucketKey {
+  if (category?.type === 'commitment') return 'commitments';
+  if (category?.type === 'savings') return 'savings';
+  return 'dayToDay';
+}
+
+/**
+ * One month's budgets split into day-to-day, commitments, and savings. The
+ * Budgets screen and Analysis both read this, so they always show the same
+ * numbers. For each bucket, `spent + unbudgeted` equals that bucket's total
+ * for the month (day-to-day, commitments, or savings contributions).
+ */
+export function budgetSummary(
+  transactions: readonly MetricTransaction[],
+  categories: ReadonlyArray<Pick<Category, 'id' | 'type'>>,
+  budgets: readonly Budget[],
+  month: string,
+): BudgetSummary {
+  const empty = (): BudgetBucket => ({ limit: 0, spent: 0, unbudgeted: 0, count: 0 });
+  const summary: BudgetSummary = { dayToDay: empty(), commitments: empty(), savings: empty() };
+  const categoryById = new Map(categories.map(c => [c.id, c] as const));
+  const budgeted = new Set<string>();
+
+  for (const b of budgets) {
+    if (b.month !== month) continue;
+    const bucket = summary[bucketFor(categoryById.get(b.categoryId))];
+    bucket.limit += b.limit;
+    bucket.count += 1;
+    if (budgeted.has(b.categoryId)) continue;
+    budgeted.add(b.categoryId);
+    bucket.spent += categorySpent(transactions, b.categoryId, month);
+  }
+
+  for (const tx of transactions) {
+    if (!isInMonth(tx.date, month) || budgeted.has(tx.categoryId)) continue;
+    if (isSavingsContribution(tx)) summary.savings.unbudgeted += tx.amount;
+    else if (isConsumptionExpense(tx)) {
+      const key = bucketFor(categoryById.get(tx.categoryId));
+      summary[key === 'savings' ? 'dayToDay' : key].unbudgeted += tx.amount;
+    }
+  }
+  return summary;
+}
 
 export interface BudgetCopyPlan {
   /** Source limits that create a new budget in the target month. */

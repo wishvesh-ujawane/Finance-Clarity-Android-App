@@ -8,9 +8,10 @@ import { cn } from '@/lib/utils';
 import { formatDateLabel, formatAmount, localDateStr } from '@/lib/finance-utils';
 import { buildTransactionsCsv, exportCsvFile } from '@/lib/csv';
 import { isCategoryActive } from '@/lib/category-rules';
-import { sumConsumption, sumIncome } from '@/lib/domain/finance-metrics';
+import { isCardBillPayment, sumConsumption, sumIncome } from '@/lib/domain/finance-metrics';
 import type { Transaction } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { CardPurchaseBadge } from '@/components/card/CardPurchaseBadge';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 type RangePreset = 'current' | 'last1' | 'last3' | 'custom';
@@ -366,16 +367,17 @@ export default function Transactions() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground">
-                            {cat?.name || 'Unknown'}
-                            {cat && !isCategoryActive(cat) && (
+                            {isCardBillPayment(t) ? 'Card payment' : cat?.name || 'Unknown'}
+                            {cat && !isCardBillPayment(t) && !isCategoryActive(cat) && (
                               <span className="ml-1.5 rounded-lg bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground align-middle">Inactive</span>
                             )}
+                            <CardPurchaseBadge tx={t} />
                           </p>
                           {t.note && <p className="text-xs text-muted-foreground truncate">{t.note}</p>}
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <span className={cn('text-sm font-bold', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
-                            {t.type === 'income' ? '+' : '-'}{formatAmount(t.amount)}
+                          <span className={cn('text-sm font-bold', t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : isCardBillPayment(t) ? 'text-foreground' : 'text-red-500')}>
+                            {t.type === 'income' ? '+' : isCardBillPayment(t) ? '' : '-'}{formatAmount(t.amount)}
                           </span>
                           {t.savingsCorrection && (
                             <Button variant="ghost" size="sm" onClick={() => { setDeleteError(''); setCorrectionToDelete(t); }}

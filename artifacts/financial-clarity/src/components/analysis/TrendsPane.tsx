@@ -1,30 +1,37 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'wouter';
-import { Bar, BarChart, Cell, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
+import { Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { formatAmount, formatMonthYear, formatShortINR } from '@/lib/finance-utils';
 import { getLastNMonths, monthLabel } from '@/lib/analysis-utils';
-import { consumptionByDay, consumptionByWeekday, dayToDayPaceByDay } from '@/lib/domain/analysis';
+import { categorySpendChanges, consumptionByDay, topCategoryTrend, type DateRange } from '@/lib/domain/analysis';
+import { consumptionBetween } from '@/lib/domain/finance-metrics';
+import { lastDateOfMonth } from '@/lib/domain/periods';
 import type { AnalysisShared } from './useAnalysisShared';
 
 interface Props {
   shared: AnalysisShared;
 }
 
+const AXIS_TICK = { fontSize: 11, fill: 'hsl(215, 16%, 47%)' };
+const CHANGE_ROWS = 3;
+
+function dayOfMonthLabel(date: string): string {
+  return new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
 export default function TrendsPane({ shared }: Props) {
   const {
-    finance: { categories, selectedMonth, getMonthSummary, openEditSheet },
-    today,
-    currentMonthKey,
+    finance: { transactions, categories, selectedMonth, getMonthSummary, openEditSheet },
+    todayStr,
+    monthStatus,
+    previousMonth,
     daysInSelectedMonth,
     monthlyTransactions,
-    commitmentCategoryIds,
-    monthlyDayToDayBudgetTotal,
   } = shared;
 
-  const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<number | null>(null);
 
   const last6Months = useMemo(() => getLastNMonths(selectedMonth, 6), [selectedMonth]);
@@ -54,39 +61,54 @@ export default function TrendsPane({ shared }: Props) {
     return Math.ceil((max * 1.15) / magnitude) * magnitude;
   }, [spendingTrendData]);
 
-  const savingsRateSeries = useMemo(() => {
-    return last6Months.map(month => {
-      const summary = getMonthSummary(month);
-      if (!summary.hasData || summary.totalIncome <= 0) {
-        return { month: monthLabel(month), raw: month, rate: null as number | null };
-      }
-      // Same definition as the Overview tab: savings contributions / income.
-      const rate = Math.max(0, Math.min(100, summary.savingsRate));
-      return { month: monthLabel(month), raw: month, rate: Number(rate.toFixed(1)) };
-    });
-  }, [last6Months, getMonthSummary]);
-
-  const weekdayHeatmap = useMemo(() => {
-    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const { totals, byCategory: topByCategory } = consumptionByWeekday(monthlyTransactions, selectedMonth);
-    const max = Math.max(...totals, 0);
-    return labels.map((label, idx) => {
-      let topCat: { name: string; amount: number } | null = null;
-      const cats = topByCategory[idx];
-      if (Object.keys(cats).length > 0) {
-        const [catId, amt] = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
-        const c = categories.find(cc => cc.id === catId);
-        topCat = { name: c?.name || 'Unknown', amount: amt };
-      }
+  // Category changes: a month in progress is compared with the same days of
+  // the previous month, so a half-finished month is not compared to a full one.
+  const changeRanges = useMemo((): { current: DateRange; previous: DateRange } | null => {
+    if (monthStatus === 'future') return null;
+    if (monthStatus === 'current') {
+      const day = Number(todayStr.slice(8, 10));
+      const prevLast = lastDateOfMonth(previousMonth);
+      const prevEndDay = Math.min(day, Number(prevLast.slice(8, 10)));
       return {
-        idx,
-        label,
-        total: totals[idx],
-        intensity: max > 0 ? totals[idx] / max : 0,
-        topCategory: topCat,
+        current: { start: `${selectedMonth}-01`, end: todayStr },
+        previous: { start: `${previousMonth}-01`, end: `${previousMonth}-${String(prevEndDay).padStart(2, '0')}` },
       };
-    });
-  }, [monthlyTransactions, categories, selectedMonth]);
+    }
+    return {
+      current: { start: `${selectedMonth}-01`, end: lastDateOfMonth(selectedMonth) },
+      previous: { start: `${previousMonth}-01`, end: lastDateOfMonth(previousMonth) },
+    };
+  }, [monthStatus, todayStr, selectedMonth, previousMonth]);
+
+  const categoryChanges = useMemo(() => {
+    if (!changeRanges) return null;
+    const previousTotal = consumptionBetween(transactions, changeRanges.previous.start, changeRanges.previous.end);
+    const rows = categorySpendChanges(transactions, changeRanges.current, changeRanges.previous);
+    return {
+      previousTotal,
+      increases: rows.filter(r => r.change > 0).slice(0, CHANGE_ROWS),
+      decreases: rows.filter(r => r.change < 0).reverse().slice(0, CHANGE_ROWS),
+    };
+  }, [transactions, changeRanges]);
+
+  const changePeriodLabel = changeRanges
+    ? monthStatus === 'current'
+      ? `${dayOfMonthLabel(changeRanges.current.start)}–${dayOfMonthLabel(changeRanges.current.end)} vs ${dayOfMonthLabel(changeRanges.previous.start)}–${dayOfMonthLabel(changeRanges.previous.end)}`
+      : `${formatMonthYear(selectedMonth)} vs ${formatMonthYear(previousMonth)}`
+    : '';
+
+  // Top categories over the months that have any entries (same window as the
+  // Income vs Spend chart).
+  const categoryTrend = useMemo(() => {
+    const months = spendingTrendData.map(d => d.raw);
+    const trend = topCategoryTrend(transactions, months);
+    return {
+      ...trend,
+      monthCount: months.length,
+      chartData: trend.points.map(p => ({ month: monthLabel(p.month), ...p.values })),
+      selectedValues: trend.points.find(p => p.month === selectedMonth)?.values ?? {},
+    };
+  }, [transactions, spendingTrendData, selectedMonth]);
 
   const dailySpend = useMemo(
     () => consumptionByDay(monthlyTransactions, selectedMonth),
@@ -127,39 +149,6 @@ export default function TrendsPane({ shared }: Props) {
   }, [selectedCalendarDay, selectedMonth]);
 
   const getCategoryById = (id: string) => categories.find(c => c.id === id);
-
-  const burndownData = useMemo(() => {
-    // Day-to-day budget only (no commitment or savings budgets), paced
-    // against day-to-day consumption without recurring bills.
-    const dayToDayBudget = monthlyDayToDayBudgetTotal;
-
-    if (dayToDayBudget <= 0) return { points: [], dayToDayBudget: 0, crossoverDay: null as number | null };
-
-    const dayToDayTxByDay = dayToDayPaceByDay(monthlyTransactions, commitmentCategoryIds, selectedMonth);
-
-    const maxDay = selectedMonth === currentMonthKey ? today.getDate() : daysInSelectedMonth;
-    let cumulative = 0;
-    let crossoverDay: number | null = null;
-    const points: { day: number; actual: number; ideal: number; overActual: number | null }[] = [];
-
-    for (let day = 1; day <= daysInSelectedMonth; day++) {
-      const ideal = (dayToDayBudget / daysInSelectedMonth) * day;
-      if (day <= maxDay) {
-        cumulative += dayToDayTxByDay[day] || 0;
-        const isOver = cumulative > ideal;
-        if (isOver && crossoverDay === null) crossoverDay = day;
-        points.push({
-          day,
-          actual: Number(cumulative.toFixed(2)),
-          ideal: Number(ideal.toFixed(2)),
-          overActual: isOver ? Number(cumulative.toFixed(2)) : null,
-        });
-      } else {
-        points.push({ day, actual: null as unknown as number, ideal: Number(ideal.toFixed(2)), overActual: null });
-      }
-    }
-    return { points, dayToDayBudget, crossoverDay };
-  }, [monthlyDayToDayBudgetTotal, selectedMonth, monthlyTransactions, commitmentCategoryIds, currentMonthKey, today, daysInSelectedMonth]);
 
   return (
     <>
@@ -239,124 +228,111 @@ export default function TrendsPane({ shared }: Props) {
         )}
       </div>
 
-      {/* ─── Chart B: Monthly savings rate ─── */}
-      <div className="bg-card border border-border rounded-2xl p-5" data-testid="savings-rate-trend">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Monthly savings rate</h2>
-          <span className="text-xs text-muted-foreground">Last 6 months</span>
+      {/* Category changes vs the previous month */}
+      <div className="bg-card border border-border rounded-2xl p-5" data-testid="category-changes">
+        <div className="mb-3">
+          <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>What changed vs last month</h2>
+          {changePeriodLabel && <p className="text-xs text-muted-foreground mt-0.5">{changePeriodLabel}</p>}
         </div>
-        {savingsRateSeries.every(d => d.rate === null) ? (
-          <div className="h-44 flex items-center justify-center text-sm text-muted-foreground">No income data for the selected window</div>
+        {!categoryChanges ? (
+          <p className="py-6 text-center text-sm text-muted-foreground" data-testid="category-changes-empty">
+            Nothing to compare yet for {formatMonthYear(selectedMonth)}.
+          </p>
+        ) : categoryChanges.previousTotal === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground" data-testid="category-changes-insufficient">
+            Not enough history. Add spending for {formatMonthYear(previousMonth)} to see what changed.
+          </p>
+        ) : categoryChanges.increases.length === 0 && categoryChanges.decreases.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">Spending per category is the same as last month.</p>
         ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={savingsRateSeries} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-              <XAxis dataKey="month" axisLine={false} tickLine={false} interval={0} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} />
-              <YAxis axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} width={44} />
-              <Tooltip formatter={(value) => [value == null ? 'No transactions recorded' : `${value}%`, 'Savings rate']} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: '12px' }} />
-              <ReferenceLine y={20} stroke="#94A3B8" strokeDasharray="4 4" label={{ value: 'Recommended 20%', fontSize: 11, fill: '#94A3B8', position: 'insideTopRight' }} />
-              <Line type="monotone" dataKey="rate" stroke="#14B8A6" strokeWidth={2.5} dot={{ r: 4, fill: '#14B8A6' }} activeDot={{ r: 6 }} connectNulls={false} />
-            </LineChart>
-          </ResponsiveContainer>
+          <div className="space-y-4">
+            {([
+              { key: 'up', title: 'Spending more', rows: categoryChanges.increases },
+              { key: 'down', title: 'Spending less', rows: categoryChanges.decreases },
+            ] as const).filter(group => group.rows.length > 0).map(group => (
+              <div key={group.key} data-testid={`category-changes-${group.key}`}>
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5">{group.title}</p>
+                <div className="divide-y divide-border rounded-xl border border-border overflow-hidden">
+                  {group.rows.map(row => {
+                    const cat = getCategoryById(row.categoryId);
+                    const isUp = row.change > 0;
+                    return (
+                      <div key={row.categoryId} className="flex items-center gap-3 px-3 py-2.5 min-h-12">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-muted">
+                          <CategoryIcon icon={cat?.icon || 'DollarSign'} color={cat?.color || '#6366F1'} size={14} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">{cat?.name || 'Unknown category'}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {formatAmount(row.previous)} → {formatAmount(row.current)}
+                          </p>
+                        </div>
+                        <div className={cn('flex items-center gap-0.5 text-sm font-bold flex-shrink-0', isUp ? 'text-destructive' : 'text-foreground')}>
+                          {isUp ? <ArrowUpRight size={14} aria-hidden="true" /> : <ArrowDownRight size={14} aria-hidden="true" />}
+                          <span>
+                            {isUp ? '+' : '−'}{formatAmount(Math.abs(row.change))}
+                            <span className="ml-1 text-[11px] font-semibold text-muted-foreground">
+                              {row.changePct === null ? 'new' : `${isUp ? '+' : '−'}${Math.abs(row.changePct).toFixed(0)}%`}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
-      {/* ─── Chart C: Weekday heatmap ─── */}
-      <div className="bg-card border border-border rounded-2xl p-5" data-testid="weekday-heatmap">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>When do you spend most?</h2>
-          <span className="text-xs text-muted-foreground">{formatMonthYear(selectedMonth)}</span>
+      {/* Top 5 categories over the last 6 months */}
+      <div className="bg-card border border-border rounded-2xl p-5" data-testid="top-category-trend">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Top 5 categories</h2>
+          <span className="text-xs text-muted-foreground">Last 6 months</span>
         </div>
-        {weekdayHeatmap.every(d => d.total === 0) ? (
-          <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">No spend recorded this month</div>
+        {categoryTrend.categoryIds.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground" data-testid="top-category-trend-empty">
+            No spending in the last 6 months.
+          </p>
         ) : (
           <>
-            <div className="grid grid-cols-7 gap-2">
-              {weekdayHeatmap.map(d => {
-                const active = selectedWeekday === d.idx;
-                const bgOpacity = 0.15 + 0.65 * d.intensity;
+            {categoryTrend.monthCount < 2 ? (
+              <p className="mb-3 text-xs text-muted-foreground" data-testid="top-category-trend-insufficient">
+                Only one month of entries so far. The trend line appears once you have two months.
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={categoryTrend.chartData} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} interval={0} tick={AXIS_TICK} />
+                  <YAxis axisLine={false} tickLine={false} tickFormatter={formatShortINR} tick={AXIS_TICK} width={44} />
+                  <Tooltip
+                    formatter={(value: number, id: string) => [formatAmount(value), getCategoryById(id)?.name ?? 'Unknown category']}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: '12px' }}
+                  />
+                  {categoryTrend.categoryIds.map(id => {
+                    const color = getCategoryById(id)?.color || '#6366F1';
+                    return <Line key={id} type="monotone" dataKey={id} stroke={color} strokeWidth={2.5} dot={{ r: 3, fill: color }} />;
+                  })}
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+            <div className="mt-3 space-y-2" data-testid="top-category-trend-list">
+              {categoryTrend.categoryIds.map(id => {
+                const cat = getCategoryById(id);
+                const avg = categoryTrend.totals[id] / Math.max(1, categoryTrend.monthCount);
                 return (
-                  <button
-                    key={d.idx}
-                    type="button"
-                    onClick={() => setSelectedWeekday(prev => prev === d.idx ? null : d.idx)}
-                    className={cn(
-                      'aspect-square rounded-xl flex flex-col items-center justify-center text-[11px] font-semibold transition-all',
-                      active ? 'ring-2 ring-accent text-foreground' : 'text-foreground'
-                    )}
-                    style={{ backgroundColor: `rgba(99, 102, 241, ${bgOpacity})` }}
-                    data-testid={`heatmap-${d.label}`}
-                  >
-                    <span>{d.label}</span>
-                    <span className="text-[11px] mt-0.5 opacity-80">{d.total > 0 ? formatShortINR(d.total) : '—'}</span>
-                  </button>
+                  <div key={id} className="flex items-center gap-2 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat?.color || '#6366F1' }} aria-hidden="true" />
+                    <span className="flex-1 min-w-0 truncate font-semibold text-foreground">{cat?.name || 'Unknown category'}</span>
+                    <span className="text-muted-foreground flex-shrink-0">
+                      {formatAmount(categoryTrend.selectedValues[id] ?? 0)} this month · avg {formatAmount(avg)}/month
+                    </span>
+                  </div>
                 );
               })}
             </div>
-            {selectedWeekday !== null && (() => {
-              const d = weekdayHeatmap[selectedWeekday];
-              return (
-                <div className="mt-4 p-3 rounded-xl bg-muted/40 border border-border">
-                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">{d.label}s in {formatMonthYear(selectedMonth)}</p>
-                  <p className="text-sm font-bold text-foreground mt-0.5">Total spend: {formatAmount(d.total)}</p>
-                  {d.topCategory && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Top category: <span className="font-semibold text-foreground">{d.topCategory.name}</span> ({formatAmount(d.topCategory.amount)})
-                    </p>
-                  )}
-                </div>
-              );
-            })()}
-          </>
-        )}
-      </div>
-
-      {/* ─── Chart D: Budget burn-down ─── */}
-      <div className="bg-card border border-border rounded-2xl p-5" data-testid="budget-burndown">
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Budget usage this month</h2>
-          <span className="text-xs text-muted-foreground">Day-to-day only</span>
-        </div>
-        <p className="text-[11px] text-muted-foreground mb-3">Discretionary spend only — commitments excluded</p>
-        {burndownData.dayToDayBudget === 0 ? (
-          <div className="h-32 flex items-center justify-center text-sm text-muted-foreground text-center px-4">
-            No day-to-day budget set for {formatMonthYear(selectedMonth)}.{' '}
-            <Link href="/budgets" className="text-accent font-semibold hover:underline ml-1">Set budgets</Link>
-          </div>
-        ) : (
-          <>
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={burndownData.points} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} interval={Math.ceil(burndownData.points.length / 8)} />
-                <YAxis axisLine={false} tickLine={false} tickFormatter={formatShortINR} tick={{ fontSize: 11, fill: 'hsl(215, 16%, 47%)' }} width={44} />
-                <Tooltip
-                  formatter={(value: number, name: string) => [value == null ? '—' : formatAmount(value), name === 'actual' ? 'Actual' : name === 'ideal' ? 'Ideal pace' : 'Over budget']}
-                  labelFormatter={(day: number) => `Day ${day}`}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: '12px' }}
-                />
-                <Line type="monotone" dataKey="ideal" stroke="#94A3B8" strokeWidth={2} strokeDasharray="4 4" dot={false} />
-                <Line type="monotone" dataKey="actual" stroke="#10B981" strokeWidth={2.5} dot={false} connectNulls={false} />
-                <Line type="monotone" dataKey="overActual" stroke="#EF4444" strokeWidth={2.5} dot={false} connectNulls={false} />
-              </LineChart>
-            </ResponsiveContainer>
-            <div className="flex items-center justify-center gap-4 mt-3 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
-                <span className="text-muted-foreground">On pace</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-red-500" />
-                <span className="text-muted-foreground">Over budget</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-1 bg-slate-400" />
-                <span className="text-muted-foreground">Ideal</span>
-              </div>
-            </div>
-            {burndownData.crossoverDay !== null && (
-              <p className="text-xs text-red-600 dark:text-red-400 font-semibold text-center mt-2">
-                You crossed the ideal pace on day {burndownData.crossoverDay}.
-              </p>
-            )}
           </>
         )}
       </div>

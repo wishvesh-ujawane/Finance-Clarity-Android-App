@@ -1,8 +1,10 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { Transaction, Category, Budget, RecurringExpense, SavingsGoal, SAVINGS_CATEGORY_IDS, SYSTEM_ADJUSTMENT_CATEGORY_IDS, MonthReconciliation } from '@/lib/types';
-import { addMonths, currentMonth, lastDateOfMonth, localDateStr } from '@/lib/domain/periods';
+import { addMonths, currentMonth, isValidDateStr, lastDateOfMonth, localDateStr } from '@/lib/domain/periods';
 import {
   balanceThroughEndOf,
+  cardBillPaymentLimit,
+  cardBillPaymentsAfter,
   cardBillPaymentsIn,
   carryForward,
   categorySpent,
@@ -36,7 +38,7 @@ import { writeFinanceData, type FinanceStorageKey } from '@/lib/storage/finance-
 import { readFinanceData, type StoredFinanceData } from '@/lib/storage/finance-read';
 import type { FinanceLoad } from '@/lib/storage/startup';
 import { getLastDueMonthBeforeDate, planRecurringGeneration } from '@/lib/domain/recurring';
-import { applyBudgetCopy, budgetCopyCount, planBudgetCopy } from '@/lib/domain/budgets';
+import { applyBudgetCopy, budgetCopyCount, budgetSummary, planBudgetCopy, type BudgetSummary } from '@/lib/domain/budgets';
 
 const SAVINGS_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SAVINGS_CATEGORY_IDS);
 const SYSTEM_ADJUSTMENT_CATEGORY_ID_SET: ReadonlySet<string> = new Set(SYSTEM_ADJUSTMENT_CATEGORY_IDS);
@@ -190,12 +192,9 @@ interface FinanceContextType {
   getTotalCommitments: (month?: string) => number;
   /** Day-to-day: consumption expenses excluding commitments and savings. */
   getTotalDayToDay: (month?: string) => number;
-  /** Per-month budget totals split by category type (dayToDay / commitments / savings). */
-  getBudgetBreakdown: (month?: string) => {
-    dayToDay: { limit: number; spent: number };
-    commitments: { limit: number; spent: number };
-    savings: { limit: number; spent: number };
-  };
+  /** Per-month budget totals split by category type (dayToDay / commitments / savings).
+   * Each bucket also reports spending in its categories that have no budget. */
+  getBudgetBreakdown: (month?: string) => BudgetSummary;
   getBalance: (month?: string) => number;
   getCarryForward: (month: string) => number;
   /** Lifetime balance through today, including confirmed savings corrections.
@@ -214,11 +213,17 @@ interface FinanceContextType {
   getOutstandingCardBalanceAtEndOf: (month: string) => number;
   /** Card bill payments dated in `month`. */
   getCardBillPaymentsIn: (month: string) => number;
+  /** Card bill payments dated after `date` (`YYYY-MM-DD`). */
+  getCardBillPaymentsAfter: (date: string) => number;
+  /** Largest card bill payment that can be recorded on `date`. */
+  getCardBillPaymentLimit: (date: string) => number;
   /** Month-end reconcile target: balance through the month plus the card amount still unpaid then. */
   getExpectedBankBalanceAtEndOf: (month: string) => number;
   getSavingsBalanceAtEndOf: (month: string) => number;
   /** Records a card bill payment dated the last day of `month`; refuses more than the unpaid amount. */
   recordCardBillPayment: (month: string, amount: number) => FinanceWriteResult;
+  /** Records a card bill payment dated `date` (not in the future); refuses more than the unpaid amount. */
+  recordCardBillPaymentOn: (date: string, amount: number) => FinanceWriteResult;
   /** Return the reconciliation record for `month`, or null if the month
    * has not been reconciled yet. */
   getReconciliationFor: (month: string) => MonthReconciliation | null;
@@ -696,6 +701,16 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
 
   const getCardBillPaymentsIn = useCallback((month: string) => cardBillPaymentsIn(transactions, month), [transactions]);
 
+  const getCardBillPaymentsAfter = useCallback(
+    (date: string) => cardBillPaymentsAfter(transactions, date),
+    [transactions],
+  );
+
+  const getCardBillPaymentLimit = useCallback(
+    (date: string) => cardBillPaymentLimit(transactions, date),
+    [transactions],
+  );
+
   const getExpectedBankBalanceAtEndOf = useCallback(
     (month: string) => expectedBankBalanceAtEndOf(transactions, month),
     [transactions],
@@ -708,12 +723,12 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
 
   // A card bill payment is a transfer, not spending (PRD §6): it lowers the
   // outstanding card amount and the expected bank balance only.
-  const recordCardBillPayment = useCallback((month: string, amount: number): FinanceWriteResult => {
+  const saveCardBillPayment = useCallback((date: string, amount: number): FinanceWriteResult => {
     if (!Number.isFinite(amount) || amount <= 0) {
       return { ok: false, message: 'Enter an amount greater than zero. Nothing was saved.' };
     }
-    const owed = outstandingCardAmountThroughEndOf(latest.current.transactions, month);
-    if (amount > owed + 0.005) {
+    const limit = cardBillPaymentLimit(latest.current.transactions, date);
+    if (amount > limit + 0.005) {
       return { ok: false, message: 'That is more than the unpaid card amount. Nothing was saved.' };
     }
     const payment: Transaction = {
@@ -722,11 +737,26 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
       amount,
       categoryId: 'other',
       note: 'Card bill payment',
-      date: lastDateOfMonth(month),
+      date,
       paymentMethod: 'credit-card-payment',
     };
     return commit({ transactions: [payment, ...latest.current.transactions] });
   }, [commit]);
+
+  const recordCardBillPayment = useCallback(
+    (month: string, amount: number): FinanceWriteResult => saveCardBillPayment(lastDateOfMonth(month), amount),
+    [saveCardBillPayment],
+  );
+
+  const recordCardBillPaymentOn = useCallback((date: string, amount: number): FinanceWriteResult => {
+    if (!isValidDateStr(date)) {
+      return { ok: false, message: 'Choose a valid payment date. Nothing was saved.' };
+    }
+    if (date > localDateStr(new Date())) {
+      return { ok: false, message: 'The payment date cannot be in the future. Nothing was saved.' };
+    }
+    return saveCardBillPayment(date, amount);
+  }, [saveCardBillPayment]);
 
   const getReconciliationFor = useCallback(
     (month: string): MonthReconciliation | null =>
@@ -860,25 +890,10 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
   // Budgets whose category is 'expense' or 'both' land in dayToDay; 'commitment'
   // in commitments; 'savings' in savings. Unknown-category rows fall into
   // dayToDay (safe default — matches the pre-split behavior).
-  const getBudgetBreakdown = useCallback((month?: string) => {
-    const m = month || selectedMonth;
-    const monthBudgets = budgets.filter(b => b.month === m);
-    const buckets = {
-      dayToDay: { limit: 0, spent: 0 },
-      commitments: { limit: 0, spent: 0 },
-      savings: { limit: 0, spent: 0 },
-    };
-    for (const b of monthBudgets) {
-      const cat = categories.find(c => c.id === b.categoryId);
-      const bucket =
-        cat?.type === 'commitment' ? buckets.commitments
-        : cat?.type === 'savings' ? buckets.savings
-        : buckets.dayToDay;
-      bucket.limit += b.limit;
-      bucket.spent += getSpentForCategory(b.categoryId, m);
-    }
-    return buckets;
-  }, [budgets, categories, selectedMonth, getSpentForCategory]);
+  const getBudgetBreakdown = useCallback(
+    (month?: string) => budgetSummary(transactions, categories, budgets, month || selectedMonth),
+    [transactions, categories, budgets, selectedMonth],
+  );
 
   const getMonthSummary = useCallback(
     (month?: string): MonthSummary => monthSummary(transactions, month || selectedMonth),
@@ -899,7 +914,7 @@ export function FinanceProvider({ children, initialLoad }: FinanceProviderProps)
       isSheetOpen, editingTransaction, sheetInitialMode,
       openSheet, openEditSheet, closeSheet,
       isBudgetSheetOpen, openBudgetSheet, closeBudgetSheet,
-      getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getCumulativeNetBalanceThroughEndOf, getOutstandingCardBalance, getOutstandingCardBalanceAtEndOf, getCardBillPaymentsIn, getExpectedBankBalanceAtEndOf, getSavingsBalanceAtEndOf, recordCardBillPayment, getReconciliationFor, addReconciliation, getSpentForCategory,
+      getTotalIncome, getTotalExpenses, getTotalSavings, getBalance, getCarryForward, getNetBalanceToDate, getCumulativeNetBalanceThroughEndOf, getOutstandingCardBalance, getOutstandingCardBalanceAtEndOf, getCardBillPaymentsIn, getCardBillPaymentsAfter, getCardBillPaymentLimit, getExpectedBankBalanceAtEndOf, getSavingsBalanceAtEndOf, recordCardBillPayment, recordCardBillPaymentOn, getReconciliationFor, addReconciliation, getSpentForCategory,
       getTotalCommitments, getTotalDayToDay, getBudgetBreakdown,
       getMonthSummary,
       reloadFromStorage, processRecurring, lastChangedAt,
