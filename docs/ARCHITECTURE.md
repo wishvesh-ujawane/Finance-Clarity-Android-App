@@ -125,7 +125,7 @@ The stack below is mostly what already exists. The recommendation is to **keep i
    (optional backup/restore)                                      (exports and feedback)
 ```
 
-There are no other network destinations. Every finance feature works with all network arrows removed.
+There are no other network destinations, except the signed-in user's Google profile photo, loaded as an image from `*.googleusercontent.com` (API.md §1.1, ADR-0011). Every finance feature works with all network arrows removed.
 
 ---
 

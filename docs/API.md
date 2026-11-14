@@ -41,6 +41,7 @@ Only these destinations are allowed. Adding one needs an ADR and owner approval 
 | `accounts.google.com` and Google OAuth endpoints, called by the auth plugin and Play services | Google sign-in and token refresh for Drive | Existing |
 | `https://www.googleapis.com/drive/v3` | Drive metadata: find, create, and patch files | Existing |
 | `https://www.googleapis.com/upload/drive/v3` | Upload backup file content | Existing |
+| `https://*.googleusercontent.com` (normally `lh3`) | Load the signed-in user's own Google profile photo (`imageUrl` from sign-in) as an image. No referrer, no app data. Other hosts and plain `http` are not loaded | **Approved 2026-11-14 (ADR-0011)** |
 | Firebase Crashlytics endpoints | Crash diagnostics | **Removed 2026-11-12 (D9).** The app sends no diagnostics |
 | `fonts.googleapis.com`, `fonts.gstatic.com` | Runtime web fonts | **Removed 2026-11-12 (DESIGN G7).** Fonts are bundled locally |
 
@@ -575,6 +576,7 @@ Rules:
 |---|---|---|---|---|
 | User's own Google Drive | **Full backup with financial data**, unencrypted, plus `appProperties` holding counts and device information | Manual backup, or auto-backup after one successful manual backup | Connect or disconnect, auto-backup toggle | In-app text and the Data safety form |
 | Google OAuth | Account authentication exchange | Connect or refresh | Connect or disconnect | Data safety form |
+| Google profile-photo host (`*.googleusercontent.com`) | An image request for the user's own photo URL: IP address and standard headers, no referrer, no app data | Settings, Profile, or Backup & Restore shown while signed in | Disconnect Google | Data safety form (with Google sign-in) |
 | Share targets | CSV or PNG the user chose | User taps Share | The user picks the target | CSV is labeled "not a full backup" |
 | Email or WhatsApp | A message the user writes | User taps the feedback option | The user edits or cancels | — |
 

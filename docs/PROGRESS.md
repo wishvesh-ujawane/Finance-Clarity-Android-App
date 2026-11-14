@@ -96,9 +96,8 @@ Full line-by-line history: [knowledge-base/CHANGELOG.md](./knowledge-base/CHANGE
 
 - PR #29: add a What's New entry for the card dues, budget summary, and Trends changes with the next deployment (AGENTS §13.1, ADR-0010).
 - PR #29: device check of the card chip, card sheet, and checkbox at 130% font size.
-- PR #32: add a What's New entry for the Profile page with the next deployment.
 - PR #32: device check of Profile — sign in, Refresh from Google (same and different account), Disconnect, Security back button ([BUILD_ON_HOME_PC.md](./BUILD_ON_HOME_PC.md) §9).
-- PR #32: Google profile photos load from Google's image host, which is not listed in API.md §1.1 (pre-existing; owner decision needed).
+- PR #32 What's New entry added (2026-11-14). Google's profile-photo host is now an allowed destination ([ADR-0011](./knowledge-base/decisions/0011-google-profile-photo-host.md)); list it with Google sign-in on the Play Data safety form.
 
 ### 4.2 Manual device checks (need a phone, release build, Android SDK)
 

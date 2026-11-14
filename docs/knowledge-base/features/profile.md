@@ -45,6 +45,7 @@ A Settings sub-page titled "Profile". Top to bottom:
 - Prompt cancelled: no message (`isSignInCancelled`).
 - Sign-in failure: inline alert saying data is safe; raw Google codes are not shown.
 - Photo fails to load: falls back to the initial.
+- Photo URL not on `https://*.googleusercontent.com`: not loaded; the initial is shown (ADR-0011).
 
 ## Cross-feature dependencies
 - Security (moved here from the Settings list; its back button returns to Profile).
@@ -52,4 +53,4 @@ A Settings sub-page titled "Profile". Top to bottom:
 - Onboarding sign-in shares `isSignInCancelled`.
 
 ## Related changes
-Owner request 2026-11-14. Owner choices: name and photo are read-only from Google with a refresh action, with no external link; account details and Disconnect moved from the Backup card; Security moved from the Settings list; signed-out users see a sign-in card, with no automatic prompt. DESIGN §5.21, §13.17.
+Owner request 2026-11-14. Owner choices: name and photo are read-only from Google with a refresh action, with no external link; account details and Disconnect moved from the Backup card; Security moved from the Settings list; signed-out users see a sign-in card, with no automatic prompt. DESIGN §5.21, §13.17. Photo host approved in [ADR-0011](../decisions/0011-google-profile-photo-host.md). What's New entry dated 2026-11-14.

@@ -21,3 +21,4 @@ Rules:
 - [0008-savings-reconciliation.md](./0008-savings-reconciliation.md) — Separate savings from bank reconciliation and record confirmed corrections; backup schema v6.
 - [0009-ui-lint-and-accessibility-tooling.md](./0009-ui-lint-and-accessibility-tooling.md) — ESLint and axe accessibility checks for the mobile UI.
 - [0010-card-dues-budget-summary-trends.md](./0010-card-dues-budget-summary-trends.md) — "Paid with credit card" checkbox; tappable card chip that records bill payments on their date; one shared budget summary; new Trends cards.
+- [0011-google-profile-photo-host.md](./0011-google-profile-photo-host.md) — Allow loading the user's Google profile photo from `https://*.googleusercontent.com`; other hosts fall back to the initial.

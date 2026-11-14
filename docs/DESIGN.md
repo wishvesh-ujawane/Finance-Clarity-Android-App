@@ -441,7 +441,7 @@ Inline inside the card or list it replaces. No illustration.
 
 - **Added 2026-11-14** (`components/ProfileAvatar.tsx`). Rationale: the Google profile picture appears on Settings, Profile, and the Backup card, and each needs the same fallbacks. One component replaces the inline avatar the Backup card used to draw.
 - Full radius (§4.3). Sizes: 36 px (header button, Backup card) and 80 px (Profile page).
-- Shows the Google photo. If the photo fails to load, it shows the first letter of the name (or email) on an accent tint. When no Google account is connected, it shows a generic person icon on `muted`.
+- Shows the Google photo, loaded only over `https` from Google's photo host (API.md §1.1, ADR-0011). If the photo fails to load or its URL is not allowed, it shows the first letter of the name (or email) on an accent tint. When no Google account is connected, it shows a generic person icon on `muted`.
 - Decorative only (`aria-hidden`). The surrounding button or link carries the accessible name. No new tokens.
 
 ---
