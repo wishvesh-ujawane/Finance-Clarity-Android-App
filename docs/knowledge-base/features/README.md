@@ -6,15 +6,17 @@ Use [`../_templates/feature.md`](../_templates/feature.md) for new entries.
 
 ## Index (Financial Clarity)
 
-- [dashboard.md](./dashboard.md) — balance card, spending donut, recent transactions.
-- [budgets.md](./budgets.md) — monthly budgets, surplus bar, savings targets, transfer to next month.
+- [dashboard.md](./dashboard.md) — period selector, PRD §6 totals, budget chips, "On your card" chip and card sheet, recent activity.
+- [transactions.md](./transactions.md) — transaction list and entry sheet, including "Paid with credit card".
+- [budgets.md](./budgets.md) — monthly budgets, shared budget summary, "Copy to {month}", savings targets.
 - [analysis.md](./analysis.md) — Overview / Planning / Trends panes with swipe gesture.
-- [transactions.md](./transactions.md) — transaction list and entry sheet.
-- [categories.md](./categories.md) — category management.
+- [month-end-review.md](./month-end-review.md) — month-end snapshot, Card bill step, Reconcile, and Plan ahead.
+- [categories.md](./categories.md) — category management, active/inactive status, deletion rules.
 - [recurring-expenses.md](./recurring-expenses.md) — monthly auto-added transactions.
 - [savings-goals.md](./savings-goals.md) — savings targets.
 - [security.md](./security.md) — PIN + biometric lock.
 - [settings.md](./settings.md) — settings landing page.
-- [backup-restore.md](./backup-restore.md) — local backup / restore + Drive backup banner.
+- [backup-restore.md](./backup-restore.md) — Google Drive backup / restore, CSV import / export.
 - [onboarding.md](./onboarding.md) — intro carousel + auth + restore-choice flow.
-- [fab.md](./fab.md) — floating action button behavior and registration pattern.
+- [changelog.md](./changelog.md) — What's New release notes screen.
+- [fab.md](./fab.md) — floating action button, speed-dial, and registration pattern.

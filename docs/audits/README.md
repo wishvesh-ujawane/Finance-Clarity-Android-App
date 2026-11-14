@@ -1,14 +1,22 @@
 # Audits
 
-This folder holds **point-in-time audit reports** for the Financial
-Clarity workspace. It is written exclusively by the **App Auditor**
-subagent at [.github/agents/app-auditor.agent.md](../../.github/agents/app-auditor.agent.md).
+> **Note (2026-11-14):** the App Auditor and App Oracle subagents are
+> retired. [AGENTS.md](../../AGENTS.md) is the only agent definition. The
+> coding agent writes new audit reports here when the owner asks, and records
+> confirmed bugs in [docs/knowledge-base/bugs/](../knowledge-base/bugs/)
+> itself (AGENTS.md §12). The process below is kept for reference; read
+> "App Auditor" and "App Oracle" as "the coding agent".
 
-Audit reports are **not** canonical ground truth — the App Oracle's
-knowledge base at [docs/knowledge-base/](../knowledge-base/) is. Each
+This folder holds **point-in-time audit reports** for the Financial
+Clarity workspace. It was written exclusively by the **App Auditor**
+subagent.
+
+Audit reports are **not** canonical ground truth — the core documents
+(AGENTS.md §1.1) and the knowledge base at
+[docs/knowledge-base/](../knowledge-base/) are. Each
 report is a dated snapshot of what the codebase looked like, what
 checks were run, and what the user reported during a manual walkthrough.
-Confirmed bugs are handed off to the App Oracle to file under
+Confirmed bugs are filed under
 [docs/knowledge-base/bugs/](../knowledge-base/bugs/).
 
 ## Who writes here
@@ -92,13 +100,13 @@ dev-server: "agent-started:<url>" | "user-supplied:<url>" | "not used"
 features-covered: [budgets, dashboard, ...]
 ```
 
-The full report template lives in
-[.github/agents/app-auditor.agent.md](../../.github/agents/app-auditor.agent.md)
-under the **Report file format** section.
+The full report template lived in the retired App Auditor agent file
+(`.github/agents/app-auditor.agent.md`, no longer in the repository); follow
+the structure of the most recent report instead.
 
 ## Index
 
-- [2026-11-12-phases-implementation-review.md](./2026-11-12-phases-implementation-review.md) — Implementation of plan Phases 1–10: what each phase completed, what is pending and why, and the decision log.
+- [2026-11-12-phases-implementation-review.md](./2026-11-12-phases-implementation-review.md) — Implementation of plan Phases 1–10: what each phase completed, what is pending and why, and the decision log. All branches it lists are now merged into `main`.
 - [2026-11-06-e2e-browser-audit.md](./2026-11-06-e2e-browser-audit.md) — End-to-end browser audit with scripted Playwright exploration, security review, and home-PC APK build path. P0=4, P1=13, P2=4, P3=5. Eight reproductions added as expected failures.
-- [2026-11-06-cleanup-phases-3-4-review.md](./2026-11-06-cleanup-phases-3-4-review.md) — Cleanup Phases 3 (duplicate/inconsistent code) and 4 (reliability/privacy debt). **Pending owner review**; nothing implemented. P0=0, P1=2, P2=7, P3=4.
+- [2026-11-06-cleanup-phases-3-4-review.md](./2026-11-06-cleanup-phases-3-4-review.md) — Cleanup Phases 3 (duplicate/inconsistent code) and 4 (reliability/privacy debt). P0=0, P1=2, P2=7, P3=4. Most items were later addressed by plan Phases 2–9; ARCHITECTURE A10, A13, A14, and A16 are still open (ARCHITECTURE §19).
 - [2026-06-28-full-sweep.md](./2026-06-28-full-sweep.md) — Full static sweep. P0=0, P1=3, P2=2, P3=4.

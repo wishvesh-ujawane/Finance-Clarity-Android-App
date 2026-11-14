@@ -675,7 +675,7 @@ None of these items is authorized by this document alone. Each needs owner appro
 |---|---|---|---|
 | A1 | **Resolved in source 2026-11-11:** SMS screens, parsers, native reader, route, and `READ_SMS` permission removed; legacy SMS keys stay readable for backups. A Vitest guard (`src/__tests__/sms-removal-release-config.test.ts`) and e2e NAV-002 prevent regressions. Still missing: merged release manifest check on a machine with the Android SDK | Remove completely; keep legacy SMS keys readable for backups | PRD FR-10 |
 | A2 | **Resolved 2026-11-11:** finance mutations, including budgets, recurring rules, and savings targets, persist first and surface failures; multi-key writes roll back | Persist first, typed results, visible failures | PRD §9; §6.2 |
-| A3 | **Resolved 2026-11-12:** deletion is blocked in the mutation for reserved and used categories (`lib/category-rules.ts`), and categories have active/inactive status with local migration 1 and backup schema v5 (ADR 0006). Still pending owner confirmation: the PRD FR-03 picker assumption and the inactive-category/recurring-rule detail | Domain-enforced usage rule, `active` flag, local migration, backup schema v5 | PRD FR-03 |
+| A3 | **Resolved 2026-11-12:** deletion is blocked in the mutation for reserved and used categories (`lib/category-rules.ts`), and categories have active/inactive status with local migration 1 and backup schema v5 (ADR 0006). The owner confirmed the PRD FR-03 picker rule on 2026-11-12 (D6); a category with an active recurring rule cannot be made inactive (ADR-0007) | Domain-enforced usage rule, `active` flag, local migration, backup schema v5 | PRD FR-03 |
 | A4 | **Resolved 2026-11-11:** recurring occurrences have stable rule/month identity; due dates clamp to month-end; resuming skips past paused periods; catch-up is idempotent | Occurrence identity, short-month clamp, skip paused months, idempotent catch-up | PRD FR-07; §6.4 |
 | A5 | **Resolved 2026-11-12:** one formatter module (`lib/format.ts`) — compact display on lists, cards, and Analysis; full precision in inputs, edit screens, and confirmations; short format on charts; no paise. Fonts are bundled (`src/assets/fonts`). Only the month-end cards still use the full-precision alias (pending D8) | One formatter; bundled fonts | DESIGN G7, G8 |
 | A6 | **Resolved 2026-11-06.** Removed the unused React Query provider, the `@workspace/api-client-react` dependency, 42 unused `components/ui` primitives, the unused `use-mobile` hook, and the 31 packages only they used | Remove | §2.3 |
@@ -684,23 +684,23 @@ None of these items is authorized by this document alone. Each needs owner appro
 | A9 | **Resolved 2026-11-12 (D9).** Crashlytics removed: packages, init, Gradle plugin, and Capacitor module; guarded by `crash-reporting-removed.test.ts` | — | PRD FR-12 |
 | A10 | `FinanceContext` mixes state, rules, and persistence (about 1,400 lines) | Split into `domain/` + `storage/`; same public hook API | §4.2 |
 | A11 | **Resolved 2026-11-12.** `.github/workflows/ci.yml` runs on pull requests: frozen-lockfile install → typecheck → Vitest → web build | Minimal PR workflow | §16.2 |
-| A12 | **Mostly resolved 2026-11-12:** every PRD §6 metric has one implementation in `lib/domain/finance-metrics.ts`; `FinanceContext`, Dashboard, and the shared Analysis totals use it, and a cross-screen consistency test covers them. Still open: nothing for the month-end snapshot, which uses the shared consumption rule since the D8 decision (2026-11-12). Transactions list totals (Phase 6) and the Analysis-only figures — safe-to-spend, daily spend, known future expenses, Trends category changes and top-category trend (Phase 7; weekday heatmap, burndown, and savings-rate chart removed 2026-11-14, D11) — use the shared rules since 2026-11-12. The Budgets screen and Analysis Overview read one budget summary (`budgetSummary`) since 2026-11-14 | Shared selectors for every displayed total; cross-screen consistency test | AGENTS §5; PRD §6 |
+| A12 | **Resolved 2026-11-14:** every PRD §6 metric has one implementation in `lib/domain/finance-metrics.ts`; `FinanceContext`, Dashboard, and the shared Analysis totals use it, and a cross-screen consistency test covers them. The month-end snapshot uses the shared consumption rule since the D8 decision (2026-11-12). Transactions list totals (Phase 6) and the Analysis-only figures — safe-to-spend, daily spend, known future expenses, Trends category changes and top-category trend (Phase 7; weekday heatmap, burndown, and savings-rate chart removed 2026-11-14, D11) — use the shared rules since 2026-11-12. The Budgets screen and Analysis Overview read one budget summary (`budgetSummary`) since 2026-11-14 | Shared selectors for every displayed total; cross-screen consistency test | AGENTS §5; PRD §6 |
 | A13 | Capacitor modules imported both statically and dynamically, so the dynamic imports split nothing | One import style per module | Audit 2026-06-28 |
 | A14 | File names that break AGENTS §4 (`backupHash.ts`, `googleAuth.ts`, `googleDrive.ts`, `not-found.tsx`) | Rename when the file is next changed | AGENTS §3.2, §4 |
 | A15 | **Resolved 2026-11-12.** Drive errors log the method, HTTP status, and Drive reason only; Drive's message text is no longer shown or logged | Log method, status, and Drive reason only | §14.4 |
 | A16 | Single 1.2 MB JS chunk | Lazy-load heavy routes; measure on reference devices | PRD §14 |
 
-Evidence, severity, and proposed approach for A2, A5, A7, A9, A10, and A12–A16 are in the review report [audits/2026-11-06-cleanup-phases-3-4-review.md](./audits/2026-11-06-cleanup-phases-3-4-review.md), pending owner review.
+Evidence, severity, and proposed approach for A2, A5, A7, A9, A10, and A12–A16 are in the review report [audits/2026-11-06-cleanup-phases-3-4-review.md](./audits/2026-11-06-cleanup-phases-3-4-review.md). Open items are tracked in [PROGRESS.md](./PROGRESS.md) §4.4.
 
 ---
 
 ## 20. Governance
 
 - **Precedence:** PRD.md governs scope, DESIGN.md governs UX, and this document governs structure. If any of them disagree with the code, report the gap; do not copy the code's behavior as the intended design.
-- **Requires an ADR** (recorded by the App Oracle in `docs/knowledge-base/decisions/`) plus owner approval:
+- **Requires an ADR** (recorded in `docs/knowledge-base/decisions/`) plus owner approval:
   - renaming storage keys or `appId`;
   - changing the backup schema;
   - adding Android permissions;
   - adding an external service or runtime dependency category;
   - introducing a backend, sync, AI, or a new money model.
-- Only the App Oracle edits `docs/knowledge-base/`. Changes made under this architecture are handed to the Oracle for KB updates.
+- The coding agent updates `docs/knowledge-base/` in the same change, following AGENTS.md §12. The former App Oracle agent is retired.

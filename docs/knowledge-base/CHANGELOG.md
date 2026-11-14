@@ -1,11 +1,13 @@
 # Knowledge Base Changelog
 
-Append-only. One line per Oracle update. Newest at the top.
+Append-only. One line per knowledge-base update. Newest at the top.
 
 Format: `YYYY-MM-DD — <category>/<slug>.md — <one-line summary>`
 
 ---
 
+2026-11-14 — architecture/financial-clarity.md; features/fab.md; features/settings.md; features/README.md; bugs/README.md; bugs/20261106-card-bill-double-count.md; decisions/README.md; _templates/requirement.md; environment/build-and-test.md; glossary.md; README.md; ARCHITECTURE §19 A3, A12, §20; IMPLEMENTATION_PLAN status; audits/README.md; PROGRESS.md — Documentation refresh after PR #29 merged: architecture entry now lists the domain/storage/platform layers, card components, and budget summary; FAB entry describes the speed-dial; indexes list the What's New, month-end, and two missing bug entries; build guide adds lint and CI; glossary adds card and consumption terms and fixes moved helpers; App Oracle wording retired per AGENTS §12; A3 marked confirmed (D6) and A12 resolved; DESIGN §4.6 row label and savings styling recorded as done.
+2026-11-14 — PROGRESS.md; AGENTS.md §3.1 — Added a progress snapshot (what is built, versions, open items) and pointed agents to read it first.
 2026-11-14 — decisions/0010-card-dues-budget-summary-trends.md; decisions/README.md; testing.md — Integrated main's earlier UI polish without replacing the new financial behavior; kept semantic tokens and responsive layout; fixed the budget-link hit area, enlarged-text Trends clipping, and card-to-editor focus handoff; added card accessibility/layout coverage; renumbered the newer card/budget ADR to 0010 because UI tooling already uses 0009. Typecheck, lint, 320 unit tests and build passed; 92 browser cases passed, one onboarding timeout passed on rerun, and 31 cases were intentionally skipped.
 2026-11-14 — decisions/0010-card-dues-budget-summary-trends.md; features/dashboard.md; features/transactions.md; features/budgets.md; features/analysis.md; features/month-end-review.md; PRD FR-02, FR-04, FR-05, FR-08, FR-09, §15 D11; DESIGN §5.5, §5.7, §13.5–§13.7, §13.14; API §5.2; DATABASE §4.6; ARCHITECTURE §19 A12; testing.md — "Paid with credit card" checkbox; tappable "On your card" chip with a card sheet that records bill payments on their date (month-end cannot record them twice); one shared budget summary on Budgets and Analysis; Trends shows category changes and the top-5 category trend instead of savings rate, weekday pattern, and budget pace.
 2026-11-13 — bugs/20261112-mobile-layout-overflow.md; decisions/0009-ui-lint-and-accessibility-tooling.md; DESIGN §2, §2.1, §4.1, §5.3, §12.3, §15 G2/G6/G11/G13 — UI polish: semantic money/status tokens, Slate 600 secondary text, global focus ring and press feedback, 48 px targets, shared PeriodSelector, Analysis tab height and small-phone layout fixes, accessible entry sheet dialog, Not found page; ESLint and axe e2e checks added.

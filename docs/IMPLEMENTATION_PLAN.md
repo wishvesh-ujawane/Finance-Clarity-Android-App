@@ -356,6 +356,10 @@ stacked on the previous phase because `main` does not contain the earlier
 phases yet. Decisions taken during implementation are logged in
 [audits/2026-11-12-phases-implementation-review.md](./audits/2026-11-12-phases-implementation-review.md).
 
+**Update 2026-11-14:** every phase branch, the owner-decisions follow-up, the
+UI polish (PR #28), and the card dues work (PR #29) are merged into `main`.
+For the current state and open items, see [PROGRESS.md](./PROGRESS.md).
+
 Note: the 2026-11-11 "Updated Docs" commit removed some lines from the phase
 descriptions above (several bullets now end mid-sentence). The full wording
 used for implementation is in the previous revision of this file
@@ -493,6 +497,26 @@ used for implementation is in the previous revision of this file
   - ADR-0007; E2E MER-001 and MER-002.
 - Open:
   - Privacy policy and Play Data safety form.
-  - DESIGN §4.6 "Card payment" row label.
   - Device check of the Card bill step.
   - Other month-end items (repeat reconciliation, adjustment duplication) remain pending D8 review.
+- Done later: the DESIGN §4.6 "Card payment" row label shipped with PR #29.
+
+### UI polish — Done (PR #28, branch `feature/ui-polish`)
+
+- Done: semantic money and status tokens (DESIGN G2, G13), Slate 600
+  secondary text, focus ring and press feedback, 48 px targets (G11), shared
+  `PeriodSelector` on Dashboard and Analysis (G6), Analysis small-phone layout
+  fixes, accessible entry sheet dialog, Not Found page, ESLint, and axe e2e
+  checks. ADR-0009.
+- Open: period selector on Transactions and Budgets (needs approval); dense
+  7-column grids below 48 px (exception pending approval).
+
+### Card dues, budget summary, and Trends — Done (PR #29, branch `feature/card-dues-budget-clarity-trends`)
+
+- Done: "Paid with credit card" checkbox; tappable "On your card" chip with
+  `CardDuesSheet` that records bill payments on their date; "Card payment"
+  row label; one shared budget summary (`BudgetSummaryCard`) on Budgets and
+  Analysis; Trends shows category changes and the top-5 category trend. PRD
+  D11, ADR-0010.
+- Open: device check at 130% font size; What's New entry with the next
+  deployment.

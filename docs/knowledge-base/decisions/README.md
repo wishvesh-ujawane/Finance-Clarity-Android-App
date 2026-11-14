@@ -13,7 +13,7 @@ Rules:
 
 ## Index
 
-- [0001-knowledge-base-bootstrap.md](./0001-knowledge-base-bootstrap.md) — Introduce the App Oracle subagent and the committed knowledge base.
+- [0001-knowledge-base-bootstrap.md](./0001-knowledge-base-bootstrap.md) — Introduce the App Oracle subagent and the committed knowledge base. The App Oracle is now retired; the coding agent maintains the knowledge base (AGENTS.md §12).
 - [0004-recurring-occurrence-identity.md](./0004-recurring-occurrence-identity.md) — Give generated recurring transactions stable rule/month identity; backup schema v4.
 - [0005-storage-startup-and-migrations.md](./0005-storage-startup-and-migrations.md) — One key catalogue and validator set, quarantine with dedupe and visible notice, startup storage check, local migration runner.
 - [0006-category-status-and-backup-v5.md](./0006-category-status-and-backup-v5.md) — Active/inactive categories, local migrations 1–2, backup schema v5.

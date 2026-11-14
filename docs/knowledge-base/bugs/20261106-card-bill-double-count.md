@@ -54,6 +54,10 @@ counts bill payments, because month-end behavior is pending owner review
 (PRD D8). Analysis-only figures (safe-to-spend balance, weekday heatmap, daily
 spend, budget burndown, known future expenses) are left for Phase 7.
 
+Follow-up (2026-11-12): after the D8 decision, the month-end snapshot also
+excludes card bill payments (ADR-0007), and Phase 7 moved the Analysis-only
+figures onto the shared rules.
+
 ## Tests
 
 - [finance-metrics.test.ts](../../../artifacts/financial-clarity/src/lib/domain/__tests__/finance-metrics.test.ts): each metric on one synthetic dataset.

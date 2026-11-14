@@ -125,7 +125,6 @@ From [testing.md](./testing.md) "Release verification":
 | Phase 2 leftover | Non-finance modules (security, onboarding, month-end review, Google profile cache, backup preferences) still call `localStorage` directly |
 | DESIGN G6 | Transactions and Budgets have no period selector (needs approval) |
 | DESIGN G11 | Dense 7-column grids are below 48 px (exception pending approval) |
-| DESIGN §4.6 | "Card payment" row label and savings row styling |
 | DESIGN §13 | Collapsible Inactive section on Categories |
 | Security | Content Security Policy not added |
 | Month-end (D8) | Repeat reconciliation and adjustment duplication still pending owner review; month-end cards use the full-precision formatter |
