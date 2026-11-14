@@ -1,10 +1,12 @@
 /**
  * In-app release notes shown on Settings → What's New.
  *
- * Every deployment adds one entry at the top of `CHANGELOG_ENTRIES` (AGENTS.md §13.1):
- * the release date, the app version, and 1–4 short plain-English lines saying
- * what was added or fixed. Release notes ship with the app; nothing is stored
- * on the device or fetched from the network.
+ * Every app change a user can notice adds a line at the top of `CHANGELOG_ENTRIES`
+ * in the same change, without waiting for approval or a deployment (AGENTS.md §13.1):
+ * the date, the app version, and 1–4 short plain-English lines saying what was
+ * added or fixed. A full date gets a second entry with the same date.
+ * Release notes ship with the app; nothing is stored on the device or fetched
+ * from the network.
  */
 
 export type ChangeKind = 'new' | 'fixed';
@@ -34,6 +36,16 @@ export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
       { kind: 'new', text: 'Sign in to Google, refresh your profile, or disconnect, all from the Profile page.' },
       { kind: 'new', text: 'App lock and security settings now live inside your profile.' },
       { kind: 'fixed', text: 'Switching to another Google account no longer reuses the previous account\u2019s backup folder.' },
+    ],
+  },
+  {
+    date: '2026-11-14',
+    version: '1.0.0',
+    changes: [
+      { kind: 'new', text: 'Tick \u201cPaid with credit card\u201d when you add an expense to keep track of what you owe on your card.' },
+      { kind: 'new', text: 'Tap \u201cOn your card\u201d on the Dashboard to see what you still owe and record a card bill payment.' },
+      { kind: 'fixed', text: 'Budgets and Analysis now show the same budget summary, including spending without a budget.' },
+      { kind: 'new', text: 'Trends now shows what changed since last month and your top 5 categories.' },
     ],
   },
   {
