@@ -2,16 +2,20 @@
 id: environment-build-and-test
 title: Build, test, and tooling commands
 date: 2026-06-28
-updated: 2026-11-06
+updated: 2026-11-14
 status: current
 scope: [workspace]
 related:
   - ../architecture/workspace.md
   - ./security-baseline.md
+  - ../decisions/0009-ui-lint-and-accessibility-tooling.md
 source-of-truth-files:
   - package.json
   - pnpm-workspace.yaml
   - artifacts/financial-clarity/package.json
+  - artifacts/financial-clarity/eslint.config.js
+  - artifacts/financial-clarity/playwright.config.ts
+  - .github/workflows/ci.yml
   - scripts/build-debug-apk.ps1
   - scripts/clean-build.ps1
 ---
@@ -48,12 +52,20 @@ pnpm --filter @workspace/financial-clarity run test:run
 pnpm --filter @workspace/financial-clarity run test
 pnpm --filter @workspace/financial-clarity run test:ui
 
-# end-to-end tests (Playwright)
+# end-to-end tests (Playwright, including axe accessibility checks)
 pnpm --filter @workspace/financial-clarity run test:e2e
+
+# lint (ESLint)
+pnpm --filter @workspace/financial-clarity run lint
 
 # local dev server
 pnpm --filter @workspace/financial-clarity run dev
 ```
+
+## Continuous integration
+[.github/workflows/ci.yml](../../../.github/workflows/ci.yml) runs on pull
+requests: frozen-lockfile install → typecheck → Vitest → web build. Lint and
+Playwright are not part of CI; run them locally.
 
 ## Android build scripts
 Both scripts switch to the repository root first, so they run from any directory.

@@ -18,7 +18,7 @@ Who asked, when, and (if applicable) link to the chat / issue / message.
 The requirement as stated by the requester. Keep their words.
 
 ## Interpretation
-The Oracle's restatement of what is actually being asked, with assumptions made
+A restatement of what is actually being asked, with assumptions made
 explicit.
 
 ## Acceptance criteria
