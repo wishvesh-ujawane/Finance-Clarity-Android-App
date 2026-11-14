@@ -257,6 +257,8 @@ export function BackupProvider({ children }: { children: ReactNode }) {
   useEffect(() => { prefsRef.current = prefs; }, [prefs]);
   const statusRef = useRef(status);
   useEffect(() => { statusRef.current = status; }, [status]);
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
 
   // Verify the cached profile against the native session. If the silent
   // refresh fails, the lib clears the cache and we drop the stale user.
@@ -278,6 +280,12 @@ export function BackupProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const clearDriveState = useCallback(() => {
+    setRemoteBackup(null);
+    folderIdRef.current = null;
+    try { localStorage.removeItem(DRIVE_FOLDER_CACHE_KEY); } catch { /* ignore */ }
+  }, []);
+
   const ensureFolder = useCallback(async (): Promise<string> => {
     if (folderIdRef.current) return folderIdRef.current;
     const id = await findOrCreateBackupFolder();
@@ -290,7 +298,12 @@ export function BackupProvider({ children }: { children: ReactNode }) {
     setError(null);
     setStatus('signing-in');
     try {
+      const previous = userRef.current;
       const u = await signInLib();
+      // Signing in again (for example "Refresh from Google") can pick a
+      // different account. The cached Drive folder and remote backup info
+      // belong to the previous account, so drop them.
+      if (previous && previous.id !== u.id) clearDriveState();
       setUser(u);
       // A fresh grant invalidates any stale auto-backup failure banner.
       updatePrefs({
@@ -304,20 +317,23 @@ export function BackupProvider({ children }: { children: ReactNode }) {
       setStatus('idle'); // Sign-in cancellation should not show error UI.
       throw err;
     }
-  }, [updatePrefs]);
+  }, [clearDriveState, updatePrefs]);
 
   const signOut = useCallback(async () => {
-    await signOutLib();
-    setUser(null);
-    setRemoteBackup(null);
-    folderIdRef.current = null;
-    try { localStorage.removeItem(DRIVE_FOLDER_CACHE_KEY); } catch { /* ignore */ }
-    updatePrefs({
-      signedInEmail: null,
-      lastAutoBackupFailedAt: null,
-      lastAutoBackupError: null,
-    });
-  }, [updatePrefs]);
+    try {
+      await signOutLib();
+    } finally {
+      // The auth library clears its token and profile cache even when the
+      // plugin's sign-out call fails, so local state must follow it.
+      setUser(null);
+      clearDriveState();
+      updatePrefs({
+        signedInEmail: null,
+        lastAutoBackupFailedAt: null,
+        lastAutoBackupError: null,
+      });
+    }
+  }, [clearDriveState, updatePrefs]);
 
   const checkRemoteBackup = useCallback(async (): Promise<RemoteBackupInfo | null> => {
     setError(null);
@@ -569,6 +585,12 @@ export function useBackup() {
   const ctx = useContext(BackupContext);
   if (!ctx) throw new Error('useBackup must be used within BackupProvider');
   return ctx;
+}
+
+/** True when a sign-in error means the user closed or cancelled the Google prompt. */
+export function isSignInCancelled(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
+  return /cancel/i.test(message) || /closed/i.test(message);
 }
 
 // Re-export for components.

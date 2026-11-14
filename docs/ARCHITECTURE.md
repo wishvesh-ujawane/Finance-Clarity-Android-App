@@ -412,7 +412,8 @@ All key names live in one module, `lib/storage/keys.ts`. No other file contains 
 
 - **Scopes:** `profile`, `email`, `https://www.googleapis.com/auth/drive.file`. `drive.file` is the least-privilege scope: the app can see only files it created.
 - **Tokens:** the plugin manages them. Only display profile data is cached locally. Tokens are never written to app storage or logs.
-- **Disconnect:** signs out and clears cached profile data. It does **not** delete local records or remote backups (PRD FR-11).
+- **Disconnect:** signs out and clears cached profile data. It does **not** delete local records or remote backups (PRD FR-11). It is offered on the Profile page (`/settings/profile`).
+- **Account change:** signing in again ("Refresh from Google") may return a different account. The Drive folder cache and remote backup info are then cleared (API.md §3.4).
 - **Risk:** the Google auth plugin version is a release candidate (`3.4.0-rc.4`). Keep it pinned. **Future:** evaluate a stable replacement such as Android Credential Manager with separate Drive authorization.
 
 ### 9.4 Authorization matrix

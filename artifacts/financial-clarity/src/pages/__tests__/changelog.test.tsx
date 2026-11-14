@@ -17,6 +17,10 @@ vi.mock('@/context/SecurityContext', () => ({
   useSecurity: () => ({ isAppLockEnabled: false, settings: {} }),
 }));
 
+vi.mock('@/context/BackupContext', () => ({
+  useBackup: () => ({ user: null }),
+}));
+
 describe('Changelog page', () => {
   it('is reachable from Settings', () => {
     localStorage.clear();

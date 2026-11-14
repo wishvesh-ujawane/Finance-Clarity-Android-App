@@ -134,15 +134,15 @@ export default function Security() {
     <div className="p-4 md:p-6 pb-24 md:pb-8">
       <div className="mb-6 flex items-center gap-3">
         <Link
-          href="/settings"
+          href="/settings/profile"
           data-testid="security-back"
           className="tap-target w-9 h-9 rounded-xl border border-border bg-card flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          aria-label="Back to settings"
+          aria-label="Back to profile"
         >
           <ArrowLeft size={16} />
         </Link>
         <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Settings</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Profile</p>
           <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Security</h1>
         </div>
       </div>

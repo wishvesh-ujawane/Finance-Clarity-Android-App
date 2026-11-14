@@ -2,9 +2,10 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { App } from '@capacitor/app';
+import * as auth from '@/lib/googleAuth';
 import * as drive from '@/lib/googleDrive';
 import { FinanceProvider } from '../FinanceContext';
-import { BackupProvider, useBackup } from '../BackupContext';
+import { BackupProvider, isSignInCancelled, useBackup } from '../BackupContext';
 
 vi.mock('@capacitor/app', () => ({
   App: { addListener: vi.fn().mockResolvedValue({ remove: vi.fn() }) },
@@ -183,5 +184,79 @@ describe('BackupContext backup overwrite guard', () => {
     await waitFor(() => expect(result.current.lastAutoBackupError).toMatch(/Auto-backup paused/));
     expect(drive.uploadBackup).not.toHaveBeenCalled();
     expect(drive.uploadSnapshot).not.toHaveBeenCalled();
+  });
+});
+
+describe('BackupContext Google account changes', () => {
+  const FOLDER_CACHE_KEY = 'financial-clarity:backup-folder-id';
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.mocked(drive.findOrCreateBackupFolder).mockResolvedValue('folder');
+    vi.mocked(drive.findBackupFile).mockResolvedValue(remoteFile(4));
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('keeps Drive state when signing in again with the same account', async () => {
+    const { result } = await renderBackup();
+    await act(async () => { await result.current.checkRemoteBackup(); });
+    expect(localStorage.getItem(FOLDER_CACHE_KEY)).toBe('folder');
+
+    await act(async () => { await result.current.signIn(); });
+
+    expect(result.current.user?.id).toBe('u1');
+    expect(result.current.remoteBackup?.fileId).toBe('remote-file');
+    expect(localStorage.getItem(FOLDER_CACHE_KEY)).toBe('folder');
+  });
+
+  it('drops the previous account\u2019s Drive folder and backup info when a different account signs in', async () => {
+    const { result } = await renderBackup();
+    await act(async () => { await result.current.checkRemoteBackup(); });
+
+    const other = { id: 'u2', email: 'other@example.invalid', name: 'Other User' };
+    vi.mocked(auth.signIn).mockResolvedValueOnce(other);
+    await act(async () => { await result.current.signIn(); });
+
+    expect(result.current.user).toEqual(other);
+    expect(result.current.remoteBackup).toBeNull();
+    expect(localStorage.getItem(FOLDER_CACHE_KEY)).toBeNull();
+  });
+
+  it('keeps the signed-in account when sign-in is cancelled', async () => {
+    const { result } = await renderBackup();
+    vi.mocked(auth.signIn).mockRejectedValueOnce(new Error('The user canceled the sign-in flow.'));
+
+    await act(async () => {
+      await expect(result.current.signIn()).rejects.toThrow(/canceled/);
+    });
+
+    expect(result.current.user?.id).toBe('u1');
+    expect(result.current.status).toBe('idle');
+  });
+
+  it('clears the account on this phone even if Google fails to confirm sign-out', async () => {
+    const { result } = await renderBackup();
+    await act(async () => { await result.current.checkRemoteBackup(); });
+    vi.mocked(auth.signOut).mockRejectedValueOnce(new Error('Network down'));
+
+    await act(async () => {
+      await expect(result.current.signOut()).rejects.toThrow('Network down');
+    });
+
+    expect(result.current.isSignedIn).toBe(false);
+    expect(result.current.remoteBackup).toBeNull();
+    expect(localStorage.getItem(FOLDER_CACHE_KEY)).toBeNull();
+  });
+});
+
+describe('isSignInCancelled', () => {
+  it('recognises cancelled or closed Google prompts only', () => {
+    expect(isSignInCancelled(new Error('The user canceled the sign-in flow.'))).toBe(true);
+    expect(isSignInCancelled({ message: 'ignored' })).toBe(false);
+    expect(isSignInCancelled('popup_closed_by_user')).toBe(true);
+    expect(isSignInCancelled(new Error('Something went wrong: 10'))).toBe(false);
   });
 });

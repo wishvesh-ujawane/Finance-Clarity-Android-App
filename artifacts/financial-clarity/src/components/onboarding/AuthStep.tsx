@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GoogleDriveIcon } from '@/components/icons/GoogleDriveIcon';
-import { useBackup } from '@/context/BackupContext';
+import { isSignInCancelled, useBackup } from '@/context/BackupContext';
 import type { RemoteBackupInfo } from '@/context/BackupContext';
 
 interface AuthStepProps {
@@ -29,12 +29,11 @@ export function AuthStep({ onSignedIn, onSkip }: AuthStepProps) {
       const info = await checkRemoteBackup();
       onSignedIn(info);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Something went wrong.';
       // Sign-in cancellation: stay on this step quietly.
-      if (/cancel/i.test(message) || /closed/i.test(message)) {
+      if (isSignInCancelled(err)) {
         setError(null);
       } else {
-        setError(message);
+        setError(err instanceof Error ? err.message : 'Something went wrong.');
       }
     } finally {
       setBusy(false);

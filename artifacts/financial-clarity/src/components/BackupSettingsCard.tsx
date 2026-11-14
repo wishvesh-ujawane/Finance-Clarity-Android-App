@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Cloud, LogOut, RotateCw, Upload, AlertCircle, CheckCircle2, FlaskConical } from 'lucide-react';
+import { Link } from 'wouter';
+import { Cloud, ChevronRight, RotateCw, Upload, AlertCircle, CheckCircle2, FlaskConical } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useBackup } from '@/context/BackupContext';
@@ -7,6 +8,7 @@ import { useFinance } from '@/context/FinanceContext';
 import { RestorePreviewDialog } from './RestorePreviewDialog';
 import { BackupOverwriteDialog, type BackupOverwriteDetails } from './BackupOverwriteDialog';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
+import { ProfileAvatar } from './ProfileAvatar';
 
 const TESTER_WHATSAPP_PHONE = '918830828911';
 const TESTER_WHATSAPP_MESSAGE =
@@ -36,7 +38,6 @@ export function BackupSettingsCard() {
     lastAutoBackupError,
     remoteBackup,
     signIn,
-    signOut,
     backupNow,
     restoreFromDrive,
     checkRemoteBackup,
@@ -158,28 +159,22 @@ export function BackupSettingsCard() {
       </div>
 
       <div className="p-5 space-y-3">
-        {/* Account row */}
+        {/* Account: details and Disconnect live on the Profile page. */}
         {isSignedIn && user ? (
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/60">
-            {user.imageUrl ? (
-              <img src={user.imageUrl} alt="" className="w-8 h-8 rounded-full" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-accent/20 text-accent flex items-center justify-center text-xs font-bold">
-                {user.email.charAt(0).toUpperCase()}
-              </div>
-            )}
+          <Link
+            href="/settings/profile"
+            data-testid="backup-account-link"
+            className="flex items-center gap-3 p-3 rounded-xl bg-muted/60 hover:bg-muted transition-colors"
+          >
+            <ProfileAvatar user={user} />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground truncate">{user.name || user.email}</p>
-              <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+              <p className="text-xs text-muted-foreground">Connected as</p>
+              <p className="text-sm font-semibold text-foreground truncate">{user.email}</p>
             </div>
-            <button
-              data-testid="backup-signout"
-              onClick={() => void signOut()}
-              className="tap-target min-h-9 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-            >
-              <LogOut size={13} /> Disconnect
-            </button>
-          </div>
+            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+              Manage in Profile <ChevronRight size={14} />
+            </span>
+          </Link>
         ) : (
           <button
             data-testid="backup-connect"

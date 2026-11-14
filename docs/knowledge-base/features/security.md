@@ -27,7 +27,7 @@ The Security settings screen lets the user enable / disable the lock, change
 the PIN, and toggle biometrics.
 
 ## Entry points
-- Route: `/security` (linked from Settings).
+- Route: `/settings/security`, linked from Settings → Profile (moved from the Settings list on 2026-11-14). The back button returns to Profile.
 - File: [pages/Security.tsx](../../../artifacts/financial-clarity/src/pages/Security.tsx).
 - Lock screen overlay:
   [LockScreen.tsx](../../../artifacts/financial-clarity/src/components/LockScreen.tsx)

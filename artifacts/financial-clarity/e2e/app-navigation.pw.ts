@@ -41,7 +41,7 @@ test('[NAV-001] navigate between primary pages and settings sections', async ({
   }
 
   for (const [testId, path, heading] of [
-    ['settings-security-link', '/settings/security', 'Security'],
+    ['settings-profile-link', '/settings/profile', 'Profile'],
     ['settings-recurring-link', '/settings/recurring', 'Recurring Expenses'],
     ['settings-categories-link', '/settings/categories', 'Categories'],
     ['settings-backup-link', '/settings/backup', 'Backup & Restore'],
@@ -52,6 +52,16 @@ test('[NAV-001] navigate between primary pages and settings sections', async ({
     await expect(page.getByRole('heading', { name: heading })).toBeVisible();
     await page.goto('/settings');
   }
+
+  // Security moved from the Settings list into Profile.
+  await expect(page.getByTestId('settings-security-link')).toHaveCount(0);
+  await page.getByTestId('settings-profile-link').click();
+  await expect(page.getByTestId('profile-sign-in')).toBeVisible();
+  await page.getByTestId('profile-security-link').click();
+  await expect(page).toHaveURL(/\/settings\/security$/);
+  await expect(page.getByRole('heading', { name: 'Security' })).toBeVisible();
+  await page.getByTestId('security-back').click();
+  await expect(page).toHaveURL(/\/settings\/profile$/);
 
   await expect(page.locator('vite-error-overlay')).toHaveCount(0);
   expect(pageErrors).toEqual([]);

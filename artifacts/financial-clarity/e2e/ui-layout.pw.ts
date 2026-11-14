@@ -41,6 +41,7 @@ const SCREENS: Screen[] = [
   { name: 'settings/recurring', route: '/settings/recurring' },
   { name: 'settings/categories', route: '/settings/categories' },
   { name: 'settings/savings', route: '/settings/savings' },
+  { name: 'settings/profile', route: '/settings/profile' },
   { name: 'settings/security', route: '/settings/security' },
   { name: 'settings/backup', route: '/settings/backup' },
 ];

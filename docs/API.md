@@ -120,9 +120,11 @@ Client-side checks protect the user experience and data integrity. **They are no
 | Client secret | **None.** The app never holds a client secret |
 | Offline access | `grantOfflineAccess: true` and `forceCodeForRefreshToken: true`. The plugin stores the refresh token natively |
 | Access token | Kept **in memory only**. It is reused for up to 50 minutes, then refreshed silently. It is never written to app storage or logs |
-| Profile cache | `financial-clarity:google-user` holds `{ id, email, name, imageUrl? }` for display only. It is cleared on disconnect or when a silent refresh fails |
+| Profile cache | `financial-clarity:google-user` holds `{ id, email, name, imageUrl? }` for display only. It is cleared on disconnect or when a silent refresh fails. Name and photo are read-only: the approved scopes cannot change them, so the Profile page tells the user to edit them in their Google account |
+| Profile refresh | `refresh()` does not return profile data. "Refresh from Google" on Profile runs `GoogleAuth.signIn()` again, which returns the current name, email, and photo. No extra endpoint or scope is used |
+| Account change | If sign-in returns a different Google account ID than the one connected, `BackupContext` clears the Drive folder cache and the remote backup info before using the new account, because both belong to the previous account |
 | Cold start | A silent refresh runs once. If it fails, the app treats Google as disconnected and drops the profile cache |
-| Disconnect | Sign out, clear the in-memory token, the profile cache, and the Drive folder cache. **Local records and remote backups are kept** (PRD FR-11) |
+| Disconnect | Sign out, clear the in-memory token, the profile cache, and the Drive folder cache. **Local records and remote backups are kept** (PRD FR-11). Local state is cleared even if the plugin's sign-out call fails |
 | Consent screen | Move the OAuth consent screen from Testing to Production before the Play release. Verification needs for the scopes in use are part of **D9 (Pending review)** |
 
 ### 3.5 Authorization matrix
